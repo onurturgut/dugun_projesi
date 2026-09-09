@@ -1,0 +1,190 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Dark Luxury Wedding design system.
+ * All colors are oklch tokens. The app is dark-only by design.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-cream: var(--cream);
+  --color-beige: var(--beige);
+  --color-chart-1: var(--gold);
+  --color-chart-2: var(--gold-light);
+  --color-chart-3: var(--beige);
+  --color-chart-4: var(--muted-foreground);
+  --color-chart-5: var(--cream);
+  --color-sidebar: var(--surface);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-primary: var(--gold);
+  --color-sidebar-primary-foreground: var(--background);
+  --color-sidebar-accent: var(--card);
+  --color-sidebar-accent-foreground: var(--cream);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--ring);
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --font-script: "Cormorant Garamond", Georgia, serif;
+}
+
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.169 0.004 67);
+  --surface: oklch(0.216 0.006 67);
+  --foreground: oklch(0.968 0.008 88);
+
+  --card: oklch(0.253 0.007 70);
+  --card-foreground: oklch(0.945 0.017 86);
+
+  --popover: oklch(0.216 0.006 67);
+  --popover-foreground: oklch(0.945 0.017 86);
+
+  --gold: oklch(0.735 0.075 79);
+  --gold-light: oklch(0.833 0.068 85);
+  --cream: oklch(0.945 0.017 86);
+  --beige: oklch(0.847 0.024 85);
+
+  --primary: oklch(0.735 0.075 79);
+  --primary-foreground: oklch(0.169 0.004 67);
+  --secondary: oklch(0.253 0.007 70);
+  --secondary-foreground: oklch(0.945 0.017 86);
+  --muted: oklch(0.253 0.007 70);
+  --muted-foreground: oklch(0.664 0.009 72);
+  --accent: oklch(0.29 0.012 75);
+  --accent-foreground: oklch(0.945 0.017 86);
+  --destructive: oklch(0.577 0.17 25);
+  --destructive-foreground: oklch(0.968 0.008 88);
+
+  --border: oklch(0.735 0.075 79 / 18%);
+  --input: oklch(0.735 0.075 79 / 24%);
+  --ring: oklch(0.735 0.075 79 / 55%);
+
+  --gradient-page: radial-gradient(
+      120% 80% at 50% -10%,
+      oklch(0.29 0.02 70 / 55%),
+      transparent 65%
+    ),
+    linear-gradient(180deg, oklch(0.169 0.004 67), oklch(0.19 0.006 62));
+  --gradient-card: linear-gradient(160deg, oklch(0.253 0.007 70), oklch(0.2 0.006 66));
+  --gradient-gold: linear-gradient(120deg, var(--gold), var(--gold-light));
+  --shadow-luxe: 0 24px 60px -24px oklch(0 0 0 / 85%);
+  --shadow-gold: 0 0 0 1px oklch(0.735 0.075 79 / 35%), 0 18px 40px -22px oklch(0.735 0.075 79 / 55%);
+  --ease-luxe: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+    overflow-x: clip;
+    overflow-y: auto;
+  }
+
+  body {
+    background-color: var(--color-background);
+    background-image: var(--gradient-page);
+    background-attachment: fixed;
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+    overflow-x: clip;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 300;
+  }
+}
+
+@utility card-luxe {
+  background-image: var(--gradient-card);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-luxe);
+}
+
+@utility text-gold-gradient {
+  background-image: var(--gradient-gold);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility script {
+  font-family: var(--font-script);
+  font-style: italic;
+  font-weight: 400;
+}
+
+@utility eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+}
+
+@utility fade-up {
+  animation: fadeUp 0.9s var(--ease-luxe) both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@layer components {
+  .form-field { display:flex; flex-direction:column; gap:0.5rem; font-size:0.8rem; color:var(--muted-foreground); }
+  .form-field input, .form-field select, .form-field textarea { min-height:48px; width:100%; border:1px solid var(--border); border-radius:0.75rem; background:var(--surface); color:var(--cream); padding:0.75rem 1rem; font-size:0.9rem; }
+  .form-field input:focus, .form-field select:focus, .form-field textarea:focus { outline:2px solid var(--ring); outline-offset:2px; }
+  .btn-primary, .btn-secondary { display:inline-flex; min-height:44px; align-items:center; justify-content:center; gap:0.5rem; border-radius:0.75rem; padding:0.65rem 1rem; font-size:0.8rem; cursor:pointer; }
+  .btn-primary { background:var(--gradient-gold); color:var(--primary-foreground); }
+  .btn-secondary { border:1px solid var(--border); color:var(--cream); }
+  .btn-primary:disabled, .btn-secondary:disabled { opacity:0.5; cursor:wait; }
+}
