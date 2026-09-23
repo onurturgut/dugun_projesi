@@ -17,6 +17,7 @@ const imageUrl = z
     (s) =>
       s === "" ||
       /^\/covers\/[a-zA-Z0-9._-]+$/.test(s) ||
+      /^\/api\/covers\/[0-9a-f-]{36}$/.test(s) ||
       /^https:\/\//.test(s),
   );
 export const eventInput = z.object({

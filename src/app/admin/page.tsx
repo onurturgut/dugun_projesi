@@ -1,13 +1,28 @@
-﻿"use client";
+"use client";
+import { DateField } from "@/components/admin/DateField";
+import { SelectField } from "@/components/admin/SelectField";
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search, ArrowUpRight, ShieldCheck } from "lucide-react";
 import { api, type Wedding, type Account } from "@/lib/api";
+import { uploadsOpen, expired } from "@/lib/policy";
+import { formatBytes } from "@/lib/config";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { EventForm } from "@/components/admin/EventForm";
 import { Notice } from "@/components/admin/Fields";
+const stateOf = (w: Wedding) =>
+  expired(w) ? "expired" : uploadsOpen(w) ? "open" : "closed";
+const labels: Record<string, string> = {
+  open: "Yükleme açık",
+  closed: "Yükleme kapalı",
+  expired: "Süresi doldu",
+};
 export default function Events() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false),
+    [search, setSearch] = useState(""),
+    [statusFilter, setStatusFilter] = useState("all"),
+    [date, setDate] = useState("");
   const qc = useQueryClient();
   const me = useQuery({
     queryKey: ["me"],
@@ -26,86 +41,178 @@ export default function Events() {
       }>("/admin/status"),
     enabled: me.data?.role === "platform",
   });
+  const rows = (events.data || []).filter(
+    (w) =>
+      `${w.title} ${w.event_type}`
+        .toLocaleLowerCase("tr")
+        .includes(search.toLocaleLowerCase("tr")) &&
+      (statusFilter === "all" || stateOf(w) === statusFilter) &&
+      (!date || w.wedding_date === date),
+  );
   return (
     <AdminShell>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="admin-heading">
         <div>
-          <p className="eyebrow">{me.data?.display_name || "Hoş geldiniz"}</p>
-          <h1 className="mt-3 text-3xl text-cream">
+          <p className="admin-kicker">
+            {me.data?.display_name || "Hoş geldiniz"}
+          </p>
+          <h1>
             {me.data?.role === "owner" ? "Özel albümüm" : "Organizasyonlar"}
           </h1>
+          <p className="admin-subtitle">
+            Her organizasyon, bir araya gelen yüzlerce anı.
+          </p>
         </div>
         {me.data && me.data.role !== "owner" && (
-          <button className="btn-primary" onClick={() => setOpen(!open)}>
-            {open ? "Formu kapat" : "Organizasyon oluştur"}
+          <button
+            className="admin-button primary"
+            onClick={() => setOpen(!open)}
+          >
+            <Plus size={16} />
+            {open ? "Formu kapat" : "Yeni organizasyon"}
           </button>
         )}
       </div>
-      {status.data && !status.data.r2_ready && (
-        <Notice>
-          Dosya depolama bağlantısı henüz tamamlanmadı. R2 ayarları yapılana
-          kadar misafir yüklemeleri çalışmaz.
-        </Notice>
-      )}
-      {status.data && (
-        <p className="my-4 text-xs text-muted-foreground">
-          Son otomatik temizlik:{" "}
-          {status.data.last_cleanup
-            ? new Date(status.data.last_cleanup.at).toLocaleString("tr-TR", {
-                timeZone: "Europe/Istanbul",
-              })
-            : "Henüz çalıştırılmadı"}
-          {status.data.last_cleanup?.errors.length
-            ? " — Tekrar denenmesi gereken dosyalar var."
-            : ""}
-        </p>
-      )}
+      {status.data &&
+        (!status.data.r2_ready ||
+          !status.data.last_cleanup ||
+          status.data.last_cleanup.errors.length > 0) && (
+          <details className="admin-notice">
+            <summary className="cursor-pointer">
+              Sistem durumu ·{" "}
+              {status.data.r2_ready
+                ? "Otomatik temizlik kontrol edilmeli"
+                : "Depolama ayarları eksik"}
+            </summary>
+            <p className="mt-2">
+              {!status.data.last_cleanup
+                ? "Henüz başarılı bir temizlik kaydı görünmüyor. Süresi dolan içeriklerin silinmesi için zamanlanmış görevi kontrol edin."
+                : `Son çalışma: ${new Date(status.data.last_cleanup.at).toLocaleString("tr-TR")}. Hata sayısı: ${status.data.last_cleanup.errors.length}.`}
+            </p>
+          </details>
+        )}
       {open && me.data && (
-        <EventForm
-          user={me.data}
-          onSaved={() => {
-            setOpen(false);
-            qc.invalidateQueries({ queryKey: ["admin-weddings"] });
-          }}
-        />
+        <div className="admin-panel mb-6">
+          <EventForm
+            user={me.data}
+            onSaved={() => {
+              setOpen(false);
+              qc.invalidateQueries({ queryKey: ["admin-weddings"] });
+            }}
+          />
+        </div>
       )}
       {(events.error || me.error) && (
         <Notice>{events.error?.message || me.error?.message}</Notice>
       )}
+      <div className="admin-toolbar">
+        <label className="admin-search">
+          <Search size={16} />
+          <input
+            aria-label="Organizasyon ara"
+            placeholder="Organizasyon ara…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <div className="admin-actions">
+          <SelectField
+            aria-label="Organizasyon durumu"
+            className="admin-field"
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+          >
+            <option value="all">Tüm durumlar</option>
+            <option value="open">Yükleme açık</option>
+            <option value="closed">Yükleme kapalı</option>
+            <option value="expired">Süresi doldu</option>
+          </SelectField>
+          <DateField
+            label="Organizasyon tarihi"
+            value={date}
+            onValueChange={setDate}
+          />
+          {(search || date || statusFilter !== "all") && (
+            <button
+              className="admin-button"
+              onClick={() => {
+                setSearch("");
+                setDate("");
+                setStatusFilter("all");
+              }}
+            >
+              Temizle
+            </button>
+          )}
+        </div>
+      </div>
+      <p className="admin-hint mb-4" aria-live="polite">
+        {rows.length} organizasyon
+      </p>
       {events.isLoading ? (
-        <p className="mt-6">Organizasyonlar yükleniyor…</p>
+        <div className="admin-empty" role="status">
+          Organizasyonlar yükleniyor…
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="admin-empty">
+          <h2>
+            {events.data?.length
+              ? "Eşleşen organizasyon bulunamadı"
+              : "İlk organizasyonunuzu oluşturun"}
+          </h2>
+          <p>
+            {events.data?.length
+              ? "Arama veya tarih filtrenizi değiştirin."
+              : "Organizasyonlarınız ve özel albümleriniz burada görünecek."}
+          </p>
+        </div>
       ) : (
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {events.data?.map((w) => (
+        <div className="admin-event-grid">
+          {rows.map((w) => (
             <Link
               key={w.id}
               href={`/admin/${w.id}`}
-              className="card-luxe rounded-2xl p-5 transition-colors hover:border-gold"
+              className="admin-event-card"
             >
-              <p className="eyebrow">{w.event_type}</p>
-              <h2 className="mt-3 text-2xl text-cream">{w.title}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {w.wedding_date || "Tarih ayarlanmadı"}
-              </p>
-              <div className="mt-4 flex gap-4 text-xs text-gold">
-                <span>{w.total || 0} içerik</span>
-                <span>{w.trashed || 0} çöp kutusunda</span>
-                <span>{((w.size_bytes || 0) / 1024 / 1024).toFixed(1)} MB</span>
+              <div className="flex justify-between items-center gap-3">
+                <span className="admin-kicker">{w.event_type}</span>
+                <span
+                  className={`admin-pill ${stateOf(w) !== "open" ? "closed" : ""}`}
+                >
+                  {labels[stateOf(w)]}
+                </span>
               </div>
-              {w.purged_at && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Saklama süresi doldu, içerikler temizlendi.
+              <h2>{w.title}</h2>
+              <p className="admin-hint">
+                {w.wedding_date
+                  ? new Date(
+                      `${w.wedding_date}T12:00:00+03:00`,
+                    ).toLocaleDateString("tr-TR", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })
+                  : "Tarih belirlenmedi"}
+              </p>
+              <div className="admin-event-meta">
+                <span>
+                  {w.total || 0} içerik · {formatBytes(w.size_bytes || 0)}
+                </span>
+                <ArrowUpRight size={17} />
+              </div>
+              {!!w.trashed && (
+                <p className="admin-hint mt-2">
+                  {w.trashed} içerik çöp kutusunda
                 </p>
               )}
             </Link>
           ))}
-          {events.data?.length === 0 && (
-            <p className="text-muted-foreground">
-              Henüz bir organizasyon bulunmuyor.
-            </p>
-          )}
         </div>
       )}
+      <p className="admin-hint mt-8 flex items-center gap-2">
+        <ShieldCheck size={15} /> Albümler yalnızca yetkili hesaplar tarafından
+        görüntülenir.
+      </p>
     </AdminShell>
   );
 }

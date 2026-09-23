@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "./db";
 import { deleteObject } from "./r2";
+import { cleanupCovers } from "./covers";
 export async function cleanup(now = new Date()) {
   const database = await db();
   const iso = now.toISOString();
@@ -87,6 +88,7 @@ export async function cleanup(now = new Date()) {
       events++;
     }
   }
+  await cleanupCovers(now, errors);
   const result = { at: iso, files, tickets, events, errors };
   await database.collection("maintenance_runs").insertOne(result);
   return result;

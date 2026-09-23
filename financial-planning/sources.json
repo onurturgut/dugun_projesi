@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "items": [{
+    "id": "organization-unit-economics",
+    "title": "Organizasyon başına senaryo bütçesi",
+    "assumptions": ["50 TL/USD planlama kuru; %20 satış KDV varsayımı; üç aylık saklama ve albüm boyutunun üç katı toplam çıkış.", "Tarifeler resmî kaynaklardan; kullanım adetleri ve şirket giderleri varsayımdır, gerçekleşmiş fatura değildir."],
+    "queries": [{
+      "id": "unit-cost-model",
+      "source": {
+        "label": "Yerel Python maliyet modeli ve resmî hizmet tarifeleri",
+        "files": [{"label": "financial-planning/unit_economics.py"}, {"label": "financial-planning/README.md"}],
+        "metricDefinitions": [{"label": "Değişken bütçe", "definition": "R2 saklama ve işlem, Vercel trafik ve hesaplama, destek emeği üzerine yüzde 15 rezerv eklenerek yukarı doğru on TL'ye yuvarlanan organizasyon bütçesi."}],
+        "caveats": ["Ücretsiz haklar ve Vercel kredisi düşülmedi. Bölge fiyatları, gerçek destek süresi ve şirket faturaları sonucu değiştirebilir. Rezerv gerçek gider değildir."],
+        "evidenceFlow": [{"kind": "validation", "title": "Hesap kontrolü", "detail": "Python modeli çalıştırıldı; hacim, rezerv, başa baş eşitsizlikleri kontrol edildi. Ayrıntılı girdiler ve kaynak adresleri README.md ve results.json içinde."}]
+      },
+      "reportingPeriod": "17 Eylül 2026 tarife kontrolü; organizasyonun üç aylık yaşam döngüsü",
+      "columns": ["senaryo", "depolama_gb", "toplam_cikis_gb", "degisken_butce_tl", "onerilen_kdv_dahil_fiyat_tl"],
+      "rows": [
+        {"senaryo": "Mini", "depolama_gb": 5, "toplam_cikis_gb": 15, "degisken_butce_tl": 290, "onerilen_kdv_dahil_fiyat_tl": 1800},
+        {"senaryo": "Standart", "depolama_gb": 10, "toplam_cikis_gb": 30, "degisken_butce_tl": 510, "onerilen_kdv_dahil_fiyat_tl": 2500},
+        {"senaryo": "Yoğun", "depolama_gb": 30, "toplam_cikis_gb": 90, "degisken_butce_tl": 1450, "onerilen_kdv_dahil_fiyat_tl": 4500}
+      ],
+      "methods": [{"language": "calculation", "code": "Standart trafik = 10 GB × 3 × (0.15 + 0.06) USD/GB × 50 TL/USD = 315 TL\nStandart değişken bütçe = ceil((22.5 + 0.28917 + 315 + 4.96 + 100) × 1.15 / 10) × 10 = 510 TL\nBaşa baş = ceil(224000 / (2500 / 1.20 - 510)) = 143 organizasyon"}]
+    }]
+  }]
+}

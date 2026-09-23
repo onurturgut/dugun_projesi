@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Download } from "lucide-react";
+import { toast } from "sonner";
 
 export function QrPanel({ slug }: { slug: string }) {
   const [png, setPng] = useState<string>("");
@@ -43,6 +44,22 @@ export function QrPanel({ slug }: { slug: string }) {
         />
       )}
       <p className="mt-3 break-all text-[11px] text-muted-foreground">{url}</p>
+      <button
+        className="admin-button mt-4 w-full"
+        disabled={!url}
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(url);
+            toast.success("Misafir bağlantısı kopyalandı.");
+          } catch {
+            toast.error(
+              "Bağlantı kopyalanamadı. Yukarıdaki adresi seçip kopyalayabilirsiniz.",
+            );
+          }
+        }}
+      >
+        Misafir bağlantısını kopyala
+      </button>
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"

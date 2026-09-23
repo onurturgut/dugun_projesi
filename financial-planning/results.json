@@ -1,0 +1,215 @@
+{
+  "date": "2026-09-17",
+  "planning_fx": 50,
+  "sales_vat_assumption": 0.2,
+  "fixed_budget_tl": 224000,
+  "sources": {
+    "R2 Standard": "https://developers.cloudflare.com/r2/pricing/",
+    "Vercel Frankfurt benchmark": "https://vercel.com/docs/pricing/regional-pricing/fra1",
+    "Vercel functions": "https://vercel.com/pricing",
+    "Vercel Pro": "https://vercel.com/docs/plans/pro-plan",
+    "Flat Rate eligibility": "https://vercel.com/docs/pricing/flat-rate-cdn",
+    "MongoDB Flex": "https://www.mongodb.com/docs/atlas/billing/atlas-flex-costs/"
+  },
+  "scenarios": [
+    {
+      "name": "Mini",
+      "photos": 400,
+      "videos": 20,
+      "support_minutes": 15,
+      "requests": 5000,
+      "cpu_hours": 0.1,
+      "memory_gbh": 1,
+      "price": 1800,
+      "resale": 2700,
+      "files": 420,
+      "gb": 5.0,
+      "traffic_gb": 15.0,
+      "writes": 441,
+      "reads": 2520,
+      "storage_tl": 11.249999999999998,
+      "r2_operations_tl": 0.144585,
+      "transfer_tl": 157.5,
+      "compute_tl": 2.48,
+      "support_tl": 75.0,
+      "subtotal_tl": 246.374585,
+      "contingency_tl": 36.95618775,
+      "variable_budget_tl": 290,
+      "net_revenue_tl": 1500.0,
+      "contribution_tl": 1210.0,
+      "contribution_margin": 0.8066666666666666,
+      "full_budget_at_250_tl": 1186.0,
+      "revenue_cost_ratio": 1.2647554806070826,
+      "surplus_at_250_per_event_tl": 314.0,
+      "breakeven_events": 186,
+      "partner_spread_before_costs_tl": 750.0
+    },
+    {
+      "name": "Standart",
+      "photos": 800,
+      "videos": 40,
+      "support_minutes": 20,
+      "requests": 10000,
+      "cpu_hours": 0.2,
+      "memory_gbh": 2,
+      "price": 2500,
+      "resale": 3750,
+      "files": 840,
+      "gb": 10.0,
+      "traffic_gb": 30.0,
+      "writes": 882,
+      "reads": 5040,
+      "storage_tl": 22.499999999999996,
+      "r2_operations_tl": 0.28917,
+      "transfer_tl": 315.0,
+      "compute_tl": 4.96,
+      "support_tl": 100.0,
+      "subtotal_tl": 442.74917,
+      "contingency_tl": 66.4123755,
+      "variable_budget_tl": 510,
+      "net_revenue_tl": 2083.3333333333335,
+      "contribution_tl": 1573.3333333333335,
+      "contribution_margin": 0.7552,
+      "full_budget_at_250_tl": 1406.0,
+      "revenue_cost_ratio": 1.4817449027975345,
+      "surplus_at_250_per_event_tl": 677.3333333333335,
+      "breakeven_events": 143,
+      "partner_spread_before_costs_tl": 1041.6666666666667
+    },
+    {
+      "name": "Yogun",
+      "photos": 2400,
+      "videos": 120,
+      "support_minutes": 45,
+      "requests": 30000,
+      "cpu_hours": 0.6,
+      "memory_gbh": 6,
+      "price": 4500,
+      "resale": 6750,
+      "files": 2520,
+      "gb": 30.0,
+      "traffic_gb": 90.0,
+      "writes": 2646,
+      "reads": 15120,
+      "storage_tl": 67.5,
+      "r2_operations_tl": 0.86751,
+      "transfer_tl": 944.9999999999999,
+      "compute_tl": 14.879999999999999,
+      "support_tl": 225.0,
+      "subtotal_tl": 1253.24751,
+      "contingency_tl": 187.9871265,
+      "variable_budget_tl": 1450,
+      "net_revenue_tl": 3750.0,
+      "contribution_tl": 2300.0,
+      "contribution_margin": 0.6133333333333333,
+      "full_budget_at_250_tl": 2346.0,
+      "revenue_cost_ratio": 1.5984654731457801,
+      "surplus_at_250_per_event_tl": 1404.0,
+      "breakeven_events": 98,
+      "partner_spread_before_costs_tl": 1875.0
+    }
+  ],
+  "price_comparison": [
+    {
+      "price": 1500,
+      "net": 1250.0,
+      "contribution": 740.0,
+      "breakeven": 303
+    },
+    {
+      "price": 2000,
+      "net": 1666.6666666666667,
+      "contribution": 1156.6666666666667,
+      "breakeven": 194
+    },
+    {
+      "price": 2500,
+      "net": 2083.3333333333335,
+      "contribution": 1573.3333333333335,
+      "breakeven": 143
+    },
+    {
+      "price": 3000,
+      "net": 2500.0,
+      "contribution": 1990.0,
+      "breakeven": 113
+    }
+  ],
+  "overhead_sensitivity": [
+    {
+      "company_monthly": 10000,
+      "fixed": 164000,
+      "breakeven_2000": 142,
+      "breakeven_2500": 105
+    },
+    {
+      "company_monthly": 15000,
+      "fixed": 224000,
+      "breakeven_2000": 194,
+      "breakeven_2500": 143
+    },
+    {
+      "company_monthly": 20000,
+      "fixed": 284000,
+      "breakeven_2000": 246,
+      "breakeven_2500": 181
+    }
+  ],
+  "volume": [
+    {
+      "events": 100,
+      "revenue": 208333.33333333334,
+      "variable": 51000,
+      "fixed": 224000,
+      "budget_surplus": -66666.66666666666,
+      "revenue_cost_ratio": 0.7575757575757576
+    },
+    {
+      "events": 175,
+      "revenue": 364583.3333333334,
+      "variable": 89250,
+      "fixed": 224000,
+      "budget_surplus": 51333.33333333337,
+      "revenue_cost_ratio": 1.1638733705772812
+    },
+    {
+      "events": 250,
+      "revenue": 520833.3333333334,
+      "variable": 127500,
+      "fixed": 224000,
+      "budget_surplus": 169333.33333333337,
+      "revenue_cost_ratio": 1.4817449027975345
+    }
+  ],
+  "traffic_sensitivity": [
+    {
+      "multiplier": 1,
+      "variable": 270
+    },
+    {
+      "multiplier": 3,
+      "variable": 510
+    },
+    {
+      "multiplier": 6,
+      "variable": 880
+    }
+  ],
+  "fx_sensitivity": [
+    {
+      "fx": 40,
+      "variable": 440,
+      "fixed": 217400
+    },
+    {
+      "fx": 50,
+      "variable": 510,
+      "fixed": 224000
+    },
+    {
+      "fx": 60,
+      "variable": 590,
+      "fixed": 230600
+    }
+  ]
+}

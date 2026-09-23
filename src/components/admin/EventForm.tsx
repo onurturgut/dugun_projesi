@@ -1,9 +1,11 @@
 "use client";
+import { SelectField } from "./SelectField";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Account, Partner, Wedding } from "@/lib/models";
 import { Field, TextField, Notice } from "./Fields";
+import { CoverUpload } from "./CoverUpload";
 export function EventForm({
   event,
   user,
@@ -15,6 +17,11 @@ export function EventForm({
 }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [covers, setCovers] = useState(event?.cover_images ?? []);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [partnerId, setPartnerId] = useState(
+    event?.partner_id || user.partner_id || "platform",
+  );
   const partners = useQuery({
     queryKey: ["partners"],
     queryFn: () => api<Partner[]>("/admin/partners"),
@@ -22,6 +29,7 @@ export function EventForm({
   });
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (coverBusy) return;
     setBusy(true);
     setError("");
     const form = new FormData(e.currentTarget);
@@ -36,10 +44,7 @@ export function EventForm({
           wedding_date: get("wedding_date"),
           bride_name: get("bride_name"),
           groom_name: get("groom_name"),
-          cover_images: get("covers")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
+          cover_images: covers,
           logo_url: get("logo_url"),
           hero_message: get("hero_message"),
           thank_you_message: get("thank_you_message"),
@@ -77,13 +82,16 @@ export function EventForm({
       />
       <label className="form-field">
         <span>Organizasyon türü</span>
-        <select name="event_type" defaultValue={event?.event_type || "Düğün"}>
+        <SelectField
+          name="event_type"
+          defaultValue={event?.event_type || "Düğün"}
+        >
           {["Düğün", "Nişan", "Doğum günü", "Kurumsal etkinlik", "Diğer"].map(
             (t) => (
               <option key={t}>{t}</option>
             ),
           )}
-        </select>
+        </SelectField>
       </label>
       <Field
         label="Organizasyon tarihi"
@@ -111,13 +119,13 @@ export function EventForm({
         defaultValue={event?.groom_name}
       />
       <div className="md:col-span-2">
-        <TextField
-          label="Kapak fotoğraf adresleri (virgülle ayırın)"
-          name="covers"
-          defaultValue={
-            event?.cover_images.join(", ") ||
-            [1, 2, 3, 4].map((i) => `/covers/couple-${i}.jpg`).join(", ")
-          }
+        <CoverUpload
+          value={covers}
+          onChange={setCovers}
+          eventId={event?.id}
+          partnerId={partnerId}
+          disabled={busy}
+          onBusyChange={setCoverBusy}
         />
       </div>
       <Field
@@ -128,7 +136,15 @@ export function EventForm({
       {user.role === "platform" && !event && (
         <label className="form-field">
           <span>İşletme</span>
-          <select name="partner_id" defaultValue="platform">
+          <SelectField
+            name="partner_id"
+            value={partnerId}
+            disabled={coverBusy || busy}
+            onValueChange={(value) => {
+              setPartnerId(value);
+              setCovers([]);
+            }}
+          >
             {partners.data
               ?.filter((p) => p.active)
               .map((p) => (
@@ -136,7 +152,7 @@ export function EventForm({
                   {p.name}
                 </option>
               ))}
-          </select>
+          </SelectField>
         </label>
       )}
       <TextField
@@ -197,7 +213,7 @@ export function EventForm({
       )}
       <button
         className="btn-primary md:col-span-2"
-        disabled={busy || partners.isLoading}
+        disabled={busy || coverBusy || partners.isLoading}
       >
         {busy
           ? "Kaydediliyor…"

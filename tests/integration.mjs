@@ -73,6 +73,12 @@ try{
  assert.equal((await call(`/admin/weddings/${eventA.id}/media`,'GET',undefined,owner)).data.length,0);
  assert.equal((await call(`/admin/weddings/${eventA.id}/media?trash=1`,'GET',undefined,owner)).data.length,1);
  await call(`/admin/weddings/${eventA.id}/media/${row.id}`,'GET',undefined,owner,404);
+ const trashPreview=`/admin/weddings/${eventA.id}/media/${row.id}?trash_preview=1`;
+ const preview=await fetch(base+'/api'+trashPreview,{headers:{cookie:owner}});
+ assert.equal(preview.status,200);assert.deepEqual(Buffer.from(await preview.arrayBuffer()),payload);
+ await call(trashPreview,'GET',undefined,b,404);
+ await call(trashPreview,'GET',undefined,undefined,401);
+ await call(trashPreview+'&download=1','GET',undefined,owner,400);
  await call(`/admin/weddings/${eventA.id}/media`,'PATCH',{ids:[row.id],action:'restore'},owner);
  console.log('PASS: direct upload, idempotent completion, private download/video ranges, ZIP, trash and restore');
  await db.collection('weddings').updateOne({id:eventA.id},{$set:{uploads_close_at:new Date(Date.now()-1000).toISOString()}});
@@ -81,6 +87,7 @@ try{
  const wrong=(await call('/uploads/sign','POST',upload)).data;await fetch(wrong.url,{method:'PUT',headers:{'content-type':'image/jpeg'},body:Buffer.from('bad')});await call('/uploads/complete','POST',{ticket:wrong.ticket},undefined,400);
  await call(`/admin/weddings/${eventA.id}/media`,'DELETE',{ids:[row.id]},a);
  await db.collection('media').updateOne({id:row.id},{$set:{purge_at:new Date(Date.now()-1000).toISOString()}});
+ await call(trashPreview,'GET',undefined,owner,404);
  await call(`/admin/weddings/${eventA.id}/media`,'PATCH',{ids:[row.id],action:'restore'},owner);
  assert.notEqual((await db.collection('media').findOne({id:row.id})).deleted_at,null);
  await call('/maintenance','POST',{},undefined,401);

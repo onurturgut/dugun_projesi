@@ -26,6 +26,7 @@ import {
 import { storage, deleteObject } from "./r2";
 import { mediaResponse, zipResponse } from "./media-response";
 import { cleanup } from "./maintenance";
+import { uploadCover, validateCovers, coverResponse } from "./covers";
 import {
   deadlines,
   expired,
@@ -102,6 +103,10 @@ export async function handle(
     const database = await db(),
       weddings = database.collection<Wedding>("weddings"),
       media = database.collection<Media>("media");
+    if (route === "admin/covers" && method === "POST" && user)
+      return json(await uploadCover(req, user), 201);
+    if (path.length === 2 && path[0] === "covers" && method === "GET")
+      return await coverResponse(path[1]);
     if (route === "auth/login" && method === "POST") {
       const { email, password } = z
         .object({ email: loginName, password: z.string().min(1).max(256) })
@@ -381,6 +386,7 @@ export async function handle(
           ...times,
           logo_url: data.logo_url || partner.logo_url || "",
         };
+        await validateCovers(w.cover_images, partner_id);
         await weddings.insertOne(w);
         return json(w, 201);
       }
@@ -420,6 +426,7 @@ export async function handle(
               throw new HttpError(400, "Geçersiz tarih.");
             }
           }
+          if (data.cover_images) await validateCovers(data.cover_images, event.partner_id);
           await weddings.updateOne({ id }, { $set: { ...data, ...times } });
           return json({ ok: true });
         }
@@ -504,7 +511,7 @@ export async function handle(
               ...r,
               storage_path: undefined,
               uploader_session_id: undefined,
-              url: `/api/admin/weddings/${id}/media/${r.id}`,
+              url: `/api/admin/weddings/${id}/media/${r.id}${trash ? "?trash_preview=1" : ""}`,
               download_url: `/api/admin/weddings/${id}/media/${r.id}?download=1`,
             })),
           );
@@ -541,11 +548,15 @@ export async function handle(
           return json({ ok: true });
         }
         if (path.length === 5 && method === "GET") {
+          const trashPreview = req.nextUrl.searchParams.get("trash_preview") === "1";
+          if (trashPreview && req.nextUrl.searchParams.get("download") === "1")
+            throw new HttpError(400, "İndirmek için içeriği önce albüme geri alın.");
           const row = await media.findOne({
             id: path[4],
             wedding_id: id,
-            deleted_at: null,
+            deleted_at: trashPreview ? { $ne: null } : null,
             purging: { $ne: true },
+            ...(trashPreview ? { purge_at: { $gt: new Date().toISOString() } } : {}),
           });
           if (!row) throw new HttpError(404, "Dosya bulunamadı.");
           return await mediaResponse(

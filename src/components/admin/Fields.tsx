@@ -1,8 +1,22 @@
 "use client";
+import { DateField } from "./DateField";
 export function Field({
   label,
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+  if (props.type === "date")
+    return (
+      <div className="form-field">
+        <span>{label}</span>
+        <DateField
+          label={label}
+          name={props.name}
+          defaultValue={String(props.defaultValue || "")}
+          required={props.required}
+          disabled={props.disabled}
+        />
+      </div>
+    );
   return (
     <label className="form-field">
       <span>{label}</span>
