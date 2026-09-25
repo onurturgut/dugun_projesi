@@ -12,5 +12,5 @@ export default async function AdminLayout({
   const user = await session();
   if (!user) redirect("/auth");
   if (user.must_change_password) redirect("/account/password");
-  return children;
+  return <div className="event-page-background">{children}</div>;
 }

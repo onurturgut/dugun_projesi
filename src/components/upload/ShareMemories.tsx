@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Camera,
   Check,
   Heart,
+  Flower2,
   ImageUp,
   Lock,
   Play,
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { CameraCapture } from "./CameraCapture";
 import { GoldDivider } from "../wedding/GoldDivider";
 import { UPLOAD_CONFIG, formatBytes } from "@/lib/config";
 import { uploadItem, validateFiles, type SelectedItem } from "@/lib/uploads";
@@ -27,11 +26,10 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [failed, setFailed] = useState<SelectedItem[]>([]);
   const [uploadedCount, setUploadedCount] = useState(0);
-  const [cameraOpen, setCameraOpen] = useState(false);
   const [guestName, setGuestName] = useState("");
   const [guestMessage, setGuestMessage] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
   const galleryRef = useRef<HTMLInputElement | null>(null);
-  const nativeCameraRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (phase !== "uploading") return;
@@ -104,19 +102,66 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
 
   return (
     <section id="paylas" className="mx-auto w-full max-w-2xl px-5 pb-16">
-      <div className="card-luxe rounded-2xl px-5 py-8 sm:px-8 sm:py-10">
+      <div className="memory-upload-card rounded-3xl px-5 py-8 sm:px-10 sm:py-10">
+        <Flower2
+          aria-hidden="true"
+          className="memory-motif memory-motif-top"
+          strokeWidth={0.7}
+        />
+        <Flower2
+          aria-hidden="true"
+          className="memory-motif memory-motif-bottom"
+          strokeWidth={0.7}
+        />
         <div className="text-center">
-          <h2 className="text-xl font-light uppercase tracking-[0.28em] text-cream sm:text-2xl">
-            Anılarınızı Paylaşın
+          <p className="mb-3 text-[10px] uppercase tracking-[0.3em] text-gold">
+            Sizin gözünüzden, bizim hikâyemiz
+          </p>
+          <h2 className="font-display text-3xl font-light text-cream sm:text-4xl">
+            Bir anı da sen bırak
           </h2>
           <GoldDivider className="my-4" />
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Bu özel geceden sizin de bir anınız olsun. Fotoğraf ve videolarınızı
-            bizimle paylaşın.
+            Yakaladığınız bir gülüş, bir dans, bir güzel an… Fotoğraf ve
+            videolarınızla hikâyemizi tamamlayın.
           </p>
         </div>
 
         {(phase === "idle" || phase === "review") && (
+          <button
+            type="button"
+            onClick={() => galleryRef.current?.click()}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+              addFiles(Array.from(event.dataTransfer.files));
+            }}
+            className={`memory-dropzone mt-7 w-full ${isDragging ? "is-dragging" : ""}`}
+          >
+            <span className="memory-upload-icon">
+              <ImageUp className="h-7 w-7" strokeWidth={1.3} />
+            </span>
+            <span className="mt-4 text-base font-medium text-cream">
+              Fotoğraf veya video seç
+            </span>
+            <span className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Galerinizden anılarınızı eklemek için dokunun
+            </span>
+            <span className="mt-1 hidden text-xs text-muted-foreground sm:block">
+              veya dosyalarınızı buraya sürükleyin
+            </span>
+            <span className="mt-5 rounded-full border border-gold/30 px-4 py-1.5 text-[10px] uppercase tracking-[0.15em] text-gold">
+              Birden fazla anı seçebilirsiniz
+            </span>
+          </button>
+        )}
+
+        {phase === "idle" && (
           <div className="mt-6 space-y-3">
             <label className="form-field">
               <span>İsminiz (isteğe bağlı)</span>
@@ -139,27 +184,6 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
           </div>
         )}
 
-        {phase === "idle" && (
-          <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            <ActionCard
-              icon={<Camera className="h-6 w-6" strokeWidth={1.1} />}
-              title="Fotoğraf / Video Çek"
-              description="Kameranızı açarak anınızı paylaşın."
-              onClick={() => {
-                if (typeof navigator.mediaDevices?.getUserMedia === "function")
-                  setCameraOpen(true);
-                else nativeCameraRef.current?.click();
-              }}
-            />
-            <ActionCard
-              icon={<ImageUp className="h-6 w-6" strokeWidth={1.1} />}
-              title="Galeriden Yükle"
-              description="Telefonunuzdan seçerek yükleyin."
-              onClick={() => galleryRef.current?.click()}
-            />
-          </div>
-        )}
-
         {phase === "review" && (
           <div className="mt-8">
             <p className="eyebrow text-center">{items.length} anınız seçildi</p>
@@ -172,7 +196,7 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
                   {item.kind === "photo" ? (
                     <img
                       src={item.previewUrl}
-                      alt=""
+                      alt={item.file.name}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -185,9 +209,9 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
                   </span>
                   <button
                     type="button"
-                    aria-label="Kaldır"
+                    aria-label={`${item.file.name} dosyasını kaldır`}
                     onClick={() => removeItem(item.id)}
-                    className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-background/80 text-cream transition-colors hover:text-destructive"
+                    className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-full bg-background/80 text-cream transition-colors hover:text-destructive"
                   >
                     <Trash2 className="h-3.5 w-3.5" strokeWidth={1.25} />
                   </button>
@@ -202,6 +226,29 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
               </button>
             </div>
 
+            {phase === "review" && (
+              <div className="mt-6 space-y-3">
+                <label className="form-field">
+                  <span>İsminiz (isteğe bağlı)</span>
+                  <input
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    maxLength={100}
+                    autoComplete="name"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Mesajınız (isteğe bağlı)</span>
+                  <textarea
+                    value={guestMessage}
+                    onChange={(e) => setGuestMessage(e.target.value)}
+                    maxLength={1000}
+                    rows={3}
+                  />
+                </label>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => startUpload(items)}
@@ -213,7 +260,7 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
                   Tekrar Dene
                 </>
               ) : (
-                "Anılarımı Paylaş"
+                "Anıları paylaş"
               )}
             </button>
           </div>
@@ -255,7 +302,7 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
         )}
 
         {phase === "done" && (
-          <div className="mt-8 text-center">
+          <div className="mt-8 text-center" role="status">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-gold/50 bg-gold/10 fade-up">
               <Check className="h-7 w-7 text-gold" strokeWidth={1.2} />
             </div>
@@ -283,7 +330,10 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
         )}
 
         {errors.length > 0 && (
-          <ul className="mt-5 space-y-1 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs text-cream">
+          <ul
+            role="alert"
+            className="mt-5 space-y-1 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs text-cream"
+          >
             {errors.map((e) => (
               <li key={e}>{e}</li>
             ))}
@@ -308,51 +358,6 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
           e.target.value = "";
         }}
       />
-      <input
-        ref={nativeCameraRef}
-        type="file"
-        accept="image/*,video/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => {
-          addFiles(Array.from(e.target.files ?? []));
-          e.target.value = "";
-        }}
-      />
-
-      <CameraCapture
-        open={cameraOpen}
-        onClose={() => setCameraOpen(false)}
-        onCapture={(files) => addFiles(files)}
-      />
     </section>
-  );
-}
-
-function ActionCard({
-  icon,
-  title,
-  description,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex min-h-[112px] flex-col items-start gap-2 rounded-xl border border-border bg-surface/70 px-5 py-5 text-left transition-all duration-500 hover:-translate-y-0.5 hover:border-gold/70 hover:bg-accent hover:shadow-[var(--shadow-gold)]"
-    >
-      <span className="text-gold">{icon}</span>
-      <span className="text-sm uppercase tracking-[0.14em] text-cream">
-        {title}
-      </span>
-      <span className="text-xs leading-relaxed text-muted-foreground">
-        {description}
-      </span>
-    </button>
   );
 }
