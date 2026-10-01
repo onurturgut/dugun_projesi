@@ -1,0 +1,191 @@
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
+import styles from "./WeddingIntro.module.css";
+
+interface WeddingIntroProps {
+  ready: boolean;
+  failed: boolean;
+  coverSrc?: string;
+  children: ReactNode;
+}
+
+const POSTER = "/intro/shineqr-portrait-v2-poster.jpg";
+
+export function WeddingIntro({
+  ready,
+  failed,
+  coverSrc,
+  children,
+}: WeddingIntroProps) {
+  const [phase, setPhase] = useState<
+    "checking" | "playing" | "leaving" | "done"
+  >("checking");
+  const [finished, setFinished] = useState(false);
+  const [coverReady, setCoverReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const skipRef = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+  const visible = phase !== "done";
+
+  useEffect(() => {
+    // Start a fresh opening on every page load, including browser refreshes.
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+    setFinished(motion.matches || Boolean(connection?.saveData));
+    setPhase("playing");
+    const onMotionChange = () => {
+      if (motion.matches) setFinished(true);
+    };
+    motion.addEventListener("change", onMotionChange);
+    return () => motion.removeEventListener("change", onMotionChange);
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [visible]);
+
+  useEffect(() => {
+    if (!coverSrc || !visible) return;
+    const cover = new window.Image();
+    const settle = () => setCoverReady(true);
+    cover.onload = settle;
+    cover.onerror = settle;
+    cover.src = coverSrc;
+    if (cover.complete) settle();
+    // A slow cover must not hold the invitation behind the opening screen.
+    const timer = window.setTimeout(settle, 2500);
+    return () => {
+      clearTimeout(timer);
+      cover.onload = null;
+      cover.onerror = null;
+    };
+  }, [coverSrc, visible]);
+
+  useEffect(() => {
+    if (phase !== "playing" || finished) return;
+    const video = videoRef.current;
+    if (video) {
+      video.playbackRate = 1.5;
+      void video.play().catch(() => setFinished(true));
+    }
+    // Covers a failed download, buffering or a browser that never fires ended.
+    const timer = window.setTimeout(() => setFinished(true), 10000);
+    return () => clearTimeout(timer);
+  }, [phase, finished]);
+
+  useEffect(() => {
+    if (finished) videoRef.current?.pause();
+    if (phase !== "playing") return;
+    if (!failed && !(finished && ready && (!coverSrc || coverReady))) return;
+    restoreFocus.current ||= document.activeElement === skipRef.current;
+    setPhase("leaving");
+  }, [phase, finished, ready, failed, coverSrc, coverReady]);
+
+  useEffect(() => {
+    if (phase !== "leaving") return;
+    const timer = window.setTimeout(() => setPhase("done"), 400);
+    return () => clearTimeout(timer);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === "done" && restoreFocus.current)
+      contentRef.current?.focus({ preventScroll: true });
+  }, [phase]);
+
+  return (
+    <>
+      <div
+        ref={contentRef}
+        tabIndex={-1}
+        inert={visible}
+        aria-hidden={visible || undefined}
+        className={styles.content}
+      >
+        {children}
+      </div>
+      {visible && (
+        <section
+          className={`${styles.intro} ${phase === "leaving" ? styles.leaving : ""}`}
+          aria-label="Davetinize hoş geldiniz"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setFinished(true);
+          }}
+        >
+          <div className={styles.ambient} aria-hidden="true" />
+          <div className={styles.frame} aria-hidden="true" />
+          <header className={styles.brand}>
+            <span className={styles.brandName}>
+              SHINE<span>QR</span>
+            </span>
+            <span className={styles.brandCaption}>
+              Bir gün. Bir ömür hatıra.
+            </span>
+          </header>
+
+          <div className={styles.stage} aria-hidden="true">
+            {/* A CSS poster remains visible even when autoplay is unavailable. */}
+            <div className={styles.poster} />
+            {phase !== "checking" && !finished && (
+              <video
+                ref={videoRef}
+                className={styles.video}
+                src="/intro/shineqr-portrait-v2.mp4"
+                poster={POSTER}
+                width={720}
+                height={1280}
+                autoPlay
+                muted
+                playsInline
+                preload="auto"
+                disablePictureInPicture
+                onEnded={() => setFinished(true)}
+                onError={() => setFinished(true)}
+              />
+            )}
+            {finished && (
+              <div className={`${styles.poster} ${styles.finalPoster}`} />
+            )}
+          </div>
+
+          <footer className={styles.footer}>
+            <p className={styles.eyebrow}>BU ÖZEL GÜNE DAVETLİSİNİZ</p>
+            <h1 className={styles.title}>Güzel anılar burada başlar.</h1>
+            <div className={styles.status} role="status" aria-live="polite">
+              <span className={styles.pulse} aria-hidden="true" />
+              {finished && !ready
+                ? "Davetiniz hazırlanıyor…"
+                : "Güzel bir hikâyeye hoş geldiniz…"}
+            </div>
+            <button
+              ref={skipRef}
+              type="button"
+              className={styles.skip}
+              onClick={() => {
+                restoreFocus.current =
+                  document.activeElement === skipRef.current;
+                setFinished(true);
+              }}
+              disabled={finished || phase === "leaving"}
+              aria-label="Açılış animasyonunu geç"
+            >
+              {finished ? "Birazdan birlikteyiz" : "Geç"}
+              {!finished && (
+                <ArrowRight size={15} strokeWidth={1.4} aria-hidden="true" />
+              )}
+            </button>
+          </footer>
+        </section>
+      )}
+    </>
+  );
+}

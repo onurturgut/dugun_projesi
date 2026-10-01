@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Heart } from "lucide-react";
-import { api, type Wedding, type Media } from "@/lib/api";
+import { api, type Wedding } from "@/lib/api";
+import { WeddingIntro } from "@/components/wedding/WeddingIntro";
 import { HeroCarousel } from "@/components/wedding/HeroCarousel";
 import { GoldDivider } from "@/components/wedding/GoldDivider";
 import { ShareMemories } from "@/components/upload/ShareMemories";
@@ -12,17 +13,54 @@ import Image from "next/image";
 
 export default function WeddingPage() {
   const { slug } = useParams<{ id: string; slug: string }>();
+  return <WeddingExperience key={slug} slug={slug} />;
+}
 
+function WeddingExperience({ slug }: { slug: string }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["wedding", slug],
-    queryFn: async () => {
-      return api<Wedding>(`/weddings/slug/${slug}`);
+    networkMode: "always",
+    queryFn: async ({ signal }) => {
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      signal.addEventListener("abort", cancel, { once: true });
+      const timeout = setTimeout(cancel, 12000);
+      try {
+        return await api<Wedding>(`/weddings/slug/${slug}`, {
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+        signal.removeEventListener("abort", cancel);
+      }
     },
     refetchInterval: 30000,
   });
 
-  if (isLoading) return <WeddingSkeleton />;
+  return (
+    <WeddingIntro
+      ready={!isLoading}
+      failed={isError || (!isLoading && !data)}
+      coverSrc={
+        data ? data.cover_images?.[0] || "/covers/couple-1.jpg" : undefined
+      }
+    >
+      {isLoading ? (
+        <WeddingSkeleton />
+      ) : (
+        <WeddingContent data={data} isError={isError} />
+      )}
+    </WeddingIntro>
+  );
+}
 
+function WeddingContent({
+  data,
+  isError,
+}: {
+  data?: Wedding;
+  isError: boolean;
+}) {
   if (isError || !data) {
     return (
       <main className="flex min-h-screen items-center justify-center px-6 text-center">
