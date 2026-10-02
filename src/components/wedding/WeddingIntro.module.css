@@ -14,8 +14,8 @@
   min-height: 100svh;
   overflow: hidden;
   isolation: isolate;
-  background: #160508;
-  color: #f5e7d3;
+  background: var(--intro-base, #160508);
+  color: var(--intro-ink, #f5e7d3);
   opacity: 1;
   transition:
     opacity 350ms ease,
@@ -32,8 +32,8 @@
   z-index: -2;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 44%, #64232955, transparent 65%),
-    linear-gradient(90deg, #0d0305, #290a10 50%, #0d0305);
+    radial-gradient(ellipse at 50% 44%, #ffffff12, transparent 65%),
+    linear-gradient(90deg, #0005, transparent 50%, #0005);
 }
 
 .frame {
@@ -56,7 +56,7 @@
   font-family: var(--font-display);
   font-size: 24px;
   letter-spacing: 0.24em;
-  color: #d4b581;
+  color: var(--intro-accent, #d4b581);
 }
 .brandName span {
   font-size: 0.65em;
@@ -66,7 +66,7 @@
   font-size: 9px;
   letter-spacing: 0.23em;
   text-transform: uppercase;
-  color: #c5af9c;
+  color: var(--intro-ink, #c5af9c);
 }
 
 .stage {
@@ -107,13 +107,13 @@
   width: 100%;
   padding: 0 28px max(28px, calc(env(safe-area-inset-bottom) + 20px));
   text-align: center;
-  background: linear-gradient(transparent, #160508e6 70%);
+  background: linear-gradient(transparent, var(--intro-base, #160508) 70%);
 }
 .eyebrow {
   margin: 0 0 12px;
   font-size: 9px;
   letter-spacing: 0.3em;
-  color: #d4b581;
+  color: var(--intro-accent, #d4b581);
 }
 .title {
   margin: 0;
@@ -130,7 +130,7 @@
   margin-top: 20px;
   font-size: 11px;
   letter-spacing: 0.05em;
-  color: #c5af9c;
+  color: var(--intro-ink, #c5af9c);
 }
 .pulse {
   width: 4px;
@@ -151,8 +151,8 @@
   border: 1px solid #bd925c4d;
   border-radius: 999px;
   padding: 0 19px;
-  background: #16050855;
-  color: #e1c79d;
+  background: var(--intro-base, #16050855);
+  color: var(--intro-ink, #e1c79d);
   font-size: 11px;
   cursor: pointer;
   transition:
@@ -170,7 +170,7 @@
 .skip:disabled {
   cursor: default;
   border-color: transparent;
-  color: #c5af9c;
+  color: var(--intro-ink, #c5af9c);
 }
 
 @keyframes breathe {

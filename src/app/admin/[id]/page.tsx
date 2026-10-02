@@ -19,11 +19,13 @@ import {
   Check,
   X,
   Share2,
+  Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Account, type Wedding, type Media } from "@/lib/api";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { QrPanel } from "@/components/admin/QrPanel";
+import { DesignPanel } from "@/components/admin/DesignPanel";
 import { EventForm } from "@/components/admin/EventForm";
 import { OwnerForm } from "@/components/admin/OwnerForm";
 import { MediaViewer } from "@/components/admin/MediaViewer";
@@ -209,6 +211,12 @@ export default function EventDetail() {
           </div>
           <nav className="admin-tabs" aria-label="Organizasyon bölümleri">
             <button
+              aria-pressed={section === "design"}
+              onClick={() => setSection("design")}
+            >
+              <Palette size={18} /> Tasarım
+            </button>
+            <button
               aria-pressed={section === "album"}
               onClick={() => setSection("album")}
             >
@@ -231,6 +239,7 @@ export default function EventDetail() {
               </>
             )}
           </nav>
+          {section === "design" && <DesignPanel key={w.id} event={w} />}
           {section === "share" && me.data?.role !== "owner" && (
             <div className="admin-panels">
               <QrPanel slug={w.slug} />

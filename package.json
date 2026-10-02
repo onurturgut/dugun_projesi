@@ -14,7 +14,7 @@
     "platform:migrate": "node --env-file=.env.local scripts/migrate-platform.mjs",
     "maintenance": "node --env-file=.env.local scripts/maintenance.mjs",
     "worker": "node --env-file=.env.local scripts/maintenance.mjs --watch",
-    "test": "tsx --test tests/policy.test.ts",
+    "test": "tsx --test tests/policy.test.ts tests/design.test.ts",
     "test:integration": "node --env-file=.env.local tests/integration.mjs"
   },
   "dependencies": {

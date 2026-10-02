@@ -1,14 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type CSSProperties,
+} from "react";
 import { ArrowRight } from "lucide-react";
 import styles from "./WeddingIntro.module.css";
+import {
+  resolveDesign,
+  themes,
+  designNames,
+  type WeddingDesign,
+} from "@/lib/design";
+import { OpeningScene } from "./OpeningScene";
 
 interface WeddingIntroProps {
   ready: boolean;
   failed: boolean;
   coverSrc?: string;
   children: ReactNode;
+  design?: WeddingDesign;
+  title?: string;
 }
 
 const POSTER = "/intro/shineqr-portrait-v2-poster.jpg";
@@ -18,7 +33,11 @@ export function WeddingIntro({
   failed,
   coverSrc,
   children,
+  design: savedDesign,
+  title = "",
 }: WeddingIntroProps) {
+  const design = resolveDesign(savedDesign);
+  const palette = themes[design.intro === "video" ? "burgundy" : design.theme];
   const [phase, setPhase] = useState<
     "checking" | "playing" | "leaving" | "done"
   >("checking");
@@ -31,6 +50,7 @@ export function WeddingIntro({
   const visible = phase !== "done";
 
   useEffect(() => {
+    if (!ready) return;
     // Start a fresh opening on every page load, including browser refreshes.
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const connection = (
@@ -43,7 +63,7 @@ export function WeddingIntro({
     };
     motion.addEventListener("change", onMotionChange);
     return () => motion.removeEventListener("change", onMotionChange);
-  }, []);
+  }, [ready]);
 
   useEffect(() => {
     if (!visible) return;
@@ -73,15 +93,23 @@ export function WeddingIntro({
 
   useEffect(() => {
     if (phase !== "playing" || finished) return;
+    if (design.intro !== "video") {
+      const duration = design.intro === "fade" ? 1800 : 6000;
+      const timer = window.setTimeout(
+        () => setFinished(true),
+        duration / design.speed,
+      );
+      return () => clearTimeout(timer);
+    }
     const video = videoRef.current;
     if (video) {
-      video.playbackRate = 1.5;
+      video.playbackRate = design.speed;
       void video.play().catch(() => setFinished(true));
     }
     // Covers a failed download, buffering or a browser that never fires ended.
-    const timer = window.setTimeout(() => setFinished(true), 10000);
+    const timer = window.setTimeout(() => setFinished(true), 15000);
     return () => clearTimeout(timer);
-  }, [phase, finished]);
+  }, [phase, finished, design.intro, design.speed]);
 
   useEffect(() => {
     if (finished) videoRef.current?.pause();
@@ -115,6 +143,13 @@ export function WeddingIntro({
       </div>
       {visible && (
         <section
+          style={
+            {
+              "--intro-base": palette.base,
+              "--intro-accent": palette.accent,
+              "--intro-ink": palette.ink,
+            } as CSSProperties
+          }
           className={`${styles.intro} ${phase === "leaving" ? styles.leaving : ""}`}
           aria-label="Davetinize hoş geldiniz"
           onKeyDown={(event) => {
@@ -134,8 +169,14 @@ export function WeddingIntro({
 
           <div className={styles.stage} aria-hidden="true">
             {/* A CSS poster remains visible even when autoplay is unavailable. */}
-            <div className={styles.poster} />
-            {phase !== "checking" && !finished && (
+            {design.intro === "video" ? (
+              <div className={styles.poster} />
+            ) : (
+              phase !== "checking" && (
+                <OpeningScene design={design} title={title} still={finished} />
+              )
+            )}
+            {design.intro === "video" && phase !== "checking" && !finished && (
               <video
                 ref={videoRef}
                 className={styles.video}
@@ -152,14 +193,16 @@ export function WeddingIntro({
                 onError={() => setFinished(true)}
               />
             )}
-            {finished && (
+            {design.intro === "video" && finished && (
               <div className={`${styles.poster} ${styles.finalPoster}`} />
             )}
           </div>
 
           <footer className={styles.footer}>
             <p className={styles.eyebrow}>BU ÖZEL GÜNE DAVETLİSİNİZ</p>
-            <h1 className={styles.title}>Güzel anılar burada başlar.</h1>
+            <h1 className={styles.title}>
+              {designNames(design, title) || "Güzel anılar burada başlar."}
+            </h1>
             <div className={styles.status} role="status" aria-live="polite">
               <span className={styles.pulse} aria-hidden="true" />
               {finished && !ready

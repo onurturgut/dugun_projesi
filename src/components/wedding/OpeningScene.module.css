@@ -1,0 +1,348 @@
+.scene {
+  container-type: inline-size;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--scene-base);
+  color: var(--scene-gold);
+}
+.halo {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse at 50% 15%,
+      color-mix(in srgb, var(--scene-light), white 38%),
+      transparent 62%
+    ),
+    linear-gradient(90deg, #0006, transparent 30% 70%, #0006);
+  opacity: 0.75;
+}
+.scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/intro/wedding-hall.webp") center / cover no-repeat;
+  opacity: .65;
+}
+.arch {
+  position: absolute;
+  width: 72%;
+  height: 80%;
+  left: 14%;
+  top: 10%;
+  border: 1px solid var(--scene-gold);
+  border-radius: 50% 50% 0 0;
+  opacity: 0.24;
+  box-shadow:
+    0 0 0 9px var(--scene-base),
+    0 0 0 10px var(--scene-gold),
+    inset 0 0 80px #0004;
+}
+.medallion {
+  position: absolute;
+  z-index: 2;
+  inset: 29% 19% 29%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--scene-gold);
+  border-radius: 48%;
+  background: radial-gradient(
+    ellipse at 40% 20%,
+    var(--scene-light),
+    var(--scene-base) 80%
+  );
+  box-shadow:
+    0 0 0 5px var(--scene-base),
+    0 0 0 6px var(--scene-gold),
+    0 0 0 11px var(--scene-base),
+    0 0 0 12px color-mix(in srgb, var(--scene-gold), transparent 35%),
+    0 25px 55px #0006;
+  animation: reveal var(--scene-duration) both;
+}
+.initials {
+  max-width: 90%;
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 14cqw, 64px);
+  letter-spacing: 0.06em;
+  text-align: center;
+  line-height: 1.25;
+}
+.flourish {
+  font:
+    30px Georgia,
+    serif;
+  line-height: 1.8;
+  opacity: 0.85;
+}
+.curtain {
+  position: absolute;
+  z-index: 3;
+  top: -2%;
+  bottom: -3%;
+  width: 52%;
+  border-bottom: 4px double var(--scene-gold);
+  background:
+    repeating-linear-gradient(
+      92deg,
+      #0009 0%,
+      #0001 3%,
+      #ffffff20 5%,
+      transparent 7%,
+      #0009 10%,
+      #0003 13%
+    ),
+    linear-gradient(
+      100deg,
+      var(--scene-base),
+      var(--scene-light) 45%,
+      var(--scene-base)
+    );
+  box-shadow:
+    inset -9px 0 14px #0008,
+    8px 0 22px #0008;
+  transform-origin: top left;
+}
+.left {
+  left: 0;
+  border-right: 2px solid var(--scene-gold);
+  animation: openLeft var(--scene-duration) both;
+}
+.right {
+  right: 0;
+  border-left: 2px solid var(--scene-gold);
+  transform-origin: top right;
+  animation: openRight var(--scene-duration) both;
+}
+.valance {
+  position: absolute;
+  z-index: 4;
+  left: -10%;
+  right: -10%;
+  top: -17%;
+  height: 32%;
+  border-bottom: 3px double var(--scene-gold);
+  border-radius: 0 0 50% 50%;
+  background: repeating-radial-gradient(
+    ellipse at 50% 0,
+    var(--scene-base) 0 9px,
+    var(--scene-light) 12px,
+    var(--scene-base) 18px,
+    #0007 22px
+  );
+  box-shadow: 0 12px 20px #0005;
+}
+.ribbon {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  animation: untie var(--scene-duration) both;
+}
+.band {
+  position: absolute;
+  top: 44%;
+  height: 6%;
+  width: 100%;
+  background: linear-gradient(
+    var(--scene-base),
+    var(--scene-light) 40%,
+    var(--scene-base)
+  );
+  border-block: 1px solid var(--scene-gold);
+  transform: rotate(-3deg);
+  box-shadow: 0 6px 12px #0004;
+}
+.bow {
+  position: absolute;
+  top: 32%;
+  left: 5%;
+  width: 90%;
+  height: 35%;
+  fill: var(--scene-light);
+  stroke: var(--scene-gold);
+  stroke-width: 1;
+  filter: drop-shadow(0 7px 7px #0007);
+}
+.botanical {
+  position: absolute;
+  z-index: 6;
+  height: 35%;
+  bottom: 8%;
+  width: 26%;
+  opacity: 0.7;
+}
+.botanicalLeft {
+  left: -2%;
+}
+.candle {
+  position: absolute;
+  z-index: 6;
+  bottom: 24%;
+  width: 18px;
+  height: 75px;
+  color: var(--scene-gold);
+}
+.candleLeft {
+  left: 8%;
+}
+.candleRight {
+  right: 8%;
+}
+.candle i {
+  position: absolute;
+  width: 6px;
+  height: 17px;
+  background: #ffe9a7;
+  top: -18px;
+  left: 6px;
+  border-radius: 80% 20% 50% 50%;
+  box-shadow: 0 0 18px 7px #ffa43255;
+  animation: flicker 2s infinite alternate;
+}
+.candle b {
+  display: block;
+  margin: auto;
+  width: 7px;
+  height: 34px;
+  background: linear-gradient(90deg, #bdaa83, #fff4d4, #bdaa83);
+}
+.candle span {
+  display: block;
+  width: 2px;
+  height: 40px;
+  margin: auto;
+  background: currentColor;
+  box-shadow:
+    -6px 39px 0 0 currentColor,
+    6px 39px 0 0 currentColor;
+}
+.floor {
+  position: absolute;
+  z-index: 7;
+  bottom: 0;
+  height: 16%;
+  width: 100%;
+  border-top: 1px solid color-mix(in srgb, var(--scene-gold), transparent 60%);
+  background: linear-gradient(transparent, var(--scene-base));
+}
+.particles {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+.particles i {
+  position: absolute;
+  width: 3px;
+  height: 5px;
+  border-radius: 60% 5%;
+  background: var(--scene-gold);
+  opacity: 0.35;
+  animation: drift 5s linear infinite;
+}
+.monogram .medallion {
+  animation-name: monogramReveal;
+}
+.fade .medallion {
+  border: 0;
+  box-shadow: none;
+  background: none;
+  animation-name: monogramReveal;
+}
+.fade .arch,
+.fade .botanical,
+.fade .candle,
+.fade .particles {
+  display: none;
+}
+.still *,
+.still .medallion {
+  animation: none !important;
+}
+.still .curtain,
+.still .ribbon {
+  display: none;
+}
+@keyframes reveal {
+  0%,
+  30% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  75%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes monogramReveal {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  65%,
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes openLeft {
+  0%,
+  25% {
+    transform: translateX(0) rotate(0);
+  }
+  80%,
+  100% {
+    transform: translateX(-78%) rotate(8deg);
+  }
+}
+@keyframes openRight {
+  0%,
+  25% {
+    transform: translateX(0) rotate(0);
+  }
+  80%,
+  100% {
+    transform: translateX(78%) rotate(-8deg);
+  }
+}
+@keyframes untie {
+  0%,
+  12% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 0;
+    transform: scaleX(1.7) scaleY(0.5) translateY(20px);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(2);
+  }
+}
+@keyframes flicker {
+  to {
+    transform: rotate(8deg) scale(0.92);
+    opacity: 0.8;
+  }
+}
+@keyframes drift {
+  to {
+    transform: translate(24px, 120px) rotate(160deg);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene * {
+    animation: none !important;
+  }
+  .curtain,
+  .ribbon {
+    display: none;
+  }
+}

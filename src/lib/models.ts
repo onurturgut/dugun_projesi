@@ -1,3 +1,4 @@
+import type { WeddingDesign } from "./design";
 export type Role = "platform" | "partner" | "owner";
 export interface Account {
   id: string;
@@ -16,6 +17,7 @@ export interface Partner {
   created_at: string;
 }
 export interface Wedding {
+  design?: WeddingDesign;
   id: string;
   slug: string;
   partner_id: string;

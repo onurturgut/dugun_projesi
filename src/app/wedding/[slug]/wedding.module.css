@@ -1,0 +1,103 @@
+.page {
+  min-height: 100vh;
+  overflow: hidden;
+  background: #260202 url("/wedding-burgundy-texture.png") center top / 100% auto repeat-y;
+  color: #fff;
+}
+
+.shell {
+  width: min(100%, 700px);
+  min-height: 100vh;
+  margin: 0 auto;
+  background: rgb(22 0 0 / 20%);
+  box-shadow: 0 0 80px rgb(0 0 0 / 55%);
+}
+
+.header {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 52px 1fr 52px;
+  align-items: center;
+  padding: 38px 25px 8px;
+}
+
+.iconButton {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  color: white;
+}
+
+.iconButton:last-child { justify-self: end; }
+.activeHeart { fill: #fff; }
+
+.monogram {
+  justify-self: center;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 7vw, 2.25rem);
+  font-weight: 300;
+  letter-spacing: 0.42em;
+  transform: translateX(0.21em);
+}
+
+.statement {
+  position: relative;
+  z-index: 5;
+  margin-top: -14px;
+  padding: 0 28px 22px;
+  text-align: center;
+}
+
+.statement h1 {
+  max-width: 520px;
+  margin: 0 auto;
+  font-family: var(--font-display);
+  font-size: clamp(2.15rem, 9vw, 3.7rem);
+  font-weight: 400;
+  line-height: 0.99;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+  text-shadow: 0 3px 16px #000;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px auto 13px;
+  color: white;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  width: 112px;
+  height: 1px;
+  background: rgb(255 255 255 / 72%);
+}
+
+.statement p {
+  margin: 0 auto;
+  max-width: 430px;
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 5vw, 1.65rem);
+  line-height: 1.35;
+}
+
+.footer {
+  padding: 12px 20px 36px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+@media (min-width: 720px) {
+  .page { padding-block: 28px; background-size: cover; background-attachment: fixed; }
+  .shell { border-radius: 42px; overflow: hidden; border: 1px solid rgb(255 255 255 / 18%); }
+}

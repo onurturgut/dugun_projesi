@@ -12,7 +12,7 @@ export function QrPanel({ slug }: { slug: string }) {
     const target = `${window.location.origin}/wedding/${slug}`;
     setUrl(target);
     const options = {
-      margin: 2,
+      margin: 4,
       width: 720,
       color: { dark: "#11100F", light: "#F3EBDD" },
     } as const;

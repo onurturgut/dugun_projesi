@@ -1,0 +1,88 @@
+.stage {
+  position: relative;
+  height: clamp(500px, 132vw, 720px);
+  margin-inline: calc(50% - 50vw);
+  overflow: hidden;
+}
+
+.strip {
+  position: absolute;
+  left: 50%;
+  width: min(114vw, 760px);
+  padding: 34px 28px;
+  background-color: #090606;
+  background-image: url("/wedding-film-grain.png");
+  background-size: 420px auto;
+  border-block: 1px solid rgb(191 43 25 / 62%);
+  box-shadow: 0 18px 38px rgb(0 0 0 / 62%);
+}
+
+.strip::before,
+.strip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18px;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 18px,
+    rgb(117 21 14 / 75%) 18px 30px,
+    transparent 30px 43px
+  );
+  border-block: 1px solid rgb(175 54 30 / 28%);
+}
+
+.strip::before { top: 7px; }
+.strip::after { bottom: 7px; }
+
+.heroStrip {
+  top: 36px;
+  transform: translateX(-50%) rotate(-11deg);
+  z-index: 2;
+}
+
+.heroFrame {
+  position: relative;
+  height: clamp(330px, 86vw, 480px);
+  overflow: hidden;
+  border: 3px solid #030202;
+}
+
+.image { object-fit: cover; }
+
+.date {
+  position: absolute;
+  right: 6%;
+  bottom: 7%;
+  color: white;
+  font-family: "Segoe Print", "Bradley Hand", cursive;
+  font-size: clamp(1.1rem, 4.3vw, 1.75rem);
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 8px #000;
+}
+
+.thumbnailStrip {
+  top: clamp(375px, 96vw, 510px);
+  transform: translateX(-50%) rotate(-8deg);
+  z-index: 3;
+}
+
+.thumbnailGrid {
+  display: grid;
+  grid-template-columns: 1.05fr 1.35fr 1fr 0.85fr;
+  height: clamp(120px, 32vw, 180px);
+  gap: 5px;
+}
+
+.thumbnail {
+  position: relative;
+  overflow: hidden;
+  border: 2px solid #050303;
+}
+
+.mono { filter: grayscale(1) contrast(1.08); }
+
+@media (min-width: 720px) {
+  .stage { margin-inline: auto; }
+}

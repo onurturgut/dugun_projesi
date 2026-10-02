@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Check,
+  CloudUpload,
   Heart,
-  Flower2,
-  ImageUp,
   Lock,
+  MessageSquare,
   Play,
   RefreshCw,
   Trash2,
+  UserRound,
 } from "lucide-react";
-import { GoldDivider } from "../wedding/GoldDivider";
 import { UPLOAD_CONFIG, formatBytes } from "@/lib/config";
 import { uploadItem, validateFiles, type SelectedItem } from "@/lib/uploads";
 
@@ -102,31 +102,7 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
 
   return (
     <section id="paylas" className="mx-auto w-full max-w-2xl px-5 pb-16">
-      <div className="memory-upload-card rounded-3xl px-5 py-8 sm:px-10 sm:py-10">
-        <Flower2
-          aria-hidden="true"
-          className="memory-motif memory-motif-top"
-          strokeWidth={0.7}
-        />
-        <Flower2
-          aria-hidden="true"
-          className="memory-motif memory-motif-bottom"
-          strokeWidth={0.7}
-        />
-        <div className="text-center">
-          <p className="mb-3 text-[10px] uppercase tracking-[0.3em] text-gold">
-            Sizin gözünüzden, bizim hikâyemiz
-          </p>
-          <h2 className="font-display text-3xl font-light text-cream sm:text-4xl">
-            Bir anı da sen bırak
-          </h2>
-          <GoldDivider className="my-4" />
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Yakaladığınız bir gülüş, bir dans, bir güzel an… Fotoğraf ve
-            videolarınızla hikâyemizi tamamlayın.
-          </p>
-        </div>
-
+      <div className="memory-upload-card rounded-3xl px-4 py-4 sm:px-5 sm:py-5">
         {(phase === "idle" || phase === "review") && (
           <button
             type="button"
@@ -141,40 +117,38 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
               setIsDragging(false);
               addFiles(Array.from(event.dataTransfer.files));
             }}
-            className={`memory-dropzone mt-7 w-full ${isDragging ? "is-dragging" : ""}`}
+            className={`memory-dropzone w-full ${isDragging ? "is-dragging" : ""}`}
           >
             <span className="memory-upload-icon">
-              <ImageUp className="h-7 w-7" strokeWidth={1.3} />
+              <CloudUpload className="h-12 w-12" strokeWidth={1.25} />
             </span>
-            <span className="mt-4 text-base font-medium text-cream">
-              Fotoğraf veya video seç
+            <span className="mt-5 font-display text-xl uppercase tracking-[0.2em] text-white">
+              Fotoğraf / Video Yükle
             </span>
-            <span className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Galerinizden anılarınızı eklemek için dokunun
-            </span>
-            <span className="mt-1 hidden text-xs text-muted-foreground sm:block">
-              veya dosyalarınızı buraya sürükleyin
-            </span>
-            <span className="mt-5 rounded-full border border-gold/30 px-4 py-1.5 text-[10px] uppercase tracking-[0.15em] text-gold">
-              Birden fazla anı seçebilirsiniz
+            <span className="mt-2 font-display text-base text-white/65">
+              Fotoğraf veya video seçin
             </span>
           </button>
         )}
 
         {phase === "idle" && (
           <div className="mt-6 space-y-3">
-            <label className="form-field">
-              <span>İsminiz (isteğe bağlı)</span>
+            <label className="form-field memory-field">
+              <UserRound aria-hidden="true" />
+              <span className="sr-only">İsminiz (opsiyonel)</span>
               <input
+                placeholder="İsminiz (Opsiyonel)"
                 value={guestName}
                 onChange={(e) => setGuestName(e.target.value)}
                 maxLength={100}
                 autoComplete="name"
               />
             </label>
-            <label className="form-field">
-              <span>Mesajınız (isteğe bağlı)</span>
+            <label className="form-field memory-field">
+              <MessageSquare aria-hidden="true" />
+              <span className="sr-only">Mesajınız (opsiyonel)</span>
               <textarea
+                placeholder="Mesajınız (Opsiyonel)"
                 value={guestMessage}
                 onChange={(e) => setGuestMessage(e.target.value)}
                 maxLength={1000}

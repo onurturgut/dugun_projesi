@@ -1,6 +1,7 @@
 ﻿export {
   handle as GET,
   handle as POST,
+  handle as PUT,
   handle as PATCH,
   handle as DELETE,
 } from "@/lib/server/handler";

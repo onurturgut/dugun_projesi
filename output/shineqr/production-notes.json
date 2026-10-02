@@ -1,0 +1,35 @@
+{
+  "source_video": "C:/Users/onurt/Downloads/shineqr_loading_7s.mp4",
+  "reference_frame_seconds": 4.5,
+  "keyframe": {
+    "tool": "Built-in image_gen",
+    "file": "portrait-keyframe.png",
+    "direction": "Recompose source as full-bleed 9:16. Burgundy velvet curtains, centered complete baroque gold frame, unchanged gold H/O monogram. Symmetrical candlelight. Calm upper/lower areas for website text; no embedded branding."
+  },
+  "generation": {
+    "job_id": "6267b6be-f0e3-4770-836b-c4659529a0a5",
+    "model": "wan2_7",
+    "duration": 6,
+    "aspect_ratio": "9:16",
+    "resolution": "720p",
+    "count": 1,
+    "folder_id": "e3169b7a-b686-4951-be01-873912ba5542",
+    "medias": [
+      {
+        "role": "start_image",
+        "value": "0836fa14-4c25-4668-83c9-ea7274c76bac"
+      }
+    ],
+    "prompt": "Animate this exact portrait wedding keyframe as a refined single continuous luxury invitation opening. Preserve all composition, materials and geometry. 0–1 seconds: almost still, candle flames gently flicker and a warm overhead light softly breathes. 1–5 seconds: extremely slow physically smooth camera dolly forward, no more than 3 percent change in scale; velvet curtains breathe subtly outward a few centimeters symmetrically, sparse tiny dust motes drift in the light beam. Keep the complete ornate gold frame, its crown and bottom finial inside the picture at all times; maintain centered frontal level perspective. The H and O gold serif monogram must be perfectly unchanged, sharp and still on its burgundy backing throughout. No transforming letters, no morphing ornament, no orbit, no shake, no cuts, no flying fabric or petals, no added text, no logos, no people, no glow effects. 5–6 seconds: decelerate smoothly to a completely still final composition for a seamless held ending and website fade transition. Photorealistic gold, rich burgundy velvet, restrained warm candlelight. Preserve dark calm space along the upper and lower edges for website UI. Silent visual opening, no dialogue or music."
+  },
+  "web_export": {
+    "file": "../../public/intro/shineqr-portrait-v2.mp4",
+    "duration_seconds": 7,
+    "dimensions": [
+      720,
+      1280
+    ],
+    "editing": "6-second generated clip followed by 1-second final-frame hold; audio removed; H.264 faststart CRF 23.",
+    "credits": 9
+  }
+}

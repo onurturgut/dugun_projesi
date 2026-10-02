@@ -1,18 +1,20 @@
 "use client";
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Heart } from "lucide-react";
+import { Heart, Menu } from "lucide-react";
+import { useState } from "react";
 import { api, type Wedding } from "@/lib/api";
 import { WeddingIntro } from "@/components/wedding/WeddingIntro";
-import { HeroCarousel } from "@/components/wedding/HeroCarousel";
-import { GoldDivider } from "@/components/wedding/GoldDivider";
+import { WeddingFilmstrip } from "@/components/wedding/WeddingFilmstrip";
 import { ShareMemories } from "@/components/upload/ShareMemories";
 import { Skeleton } from "@/components/ui/skeleton";
-import Image from "next/image";
+import { designMonogram, resolveDesign } from "@/lib/design";
+import styles from "./wedding.module.css";
 
 export default function WeddingPage() {
-  const { slug } = useParams<{ id: string; slug: string }>();
+  const { slug } = useParams<{ slug: string }>();
   return <WeddingExperience key={slug} slug={slug} />;
 }
 
@@ -26,9 +28,7 @@ function WeddingExperience({ slug }: { slug: string }) {
       signal.addEventListener("abort", cancel, { once: true });
       const timeout = setTimeout(cancel, 12000);
       try {
-        return await api<Wedding>(`/weddings/slug/${slug}`, {
-          signal: controller.signal,
-        });
+        return await api<Wedding>(`/weddings/slug/${slug}`, { signal: controller.signal });
       } finally {
         clearTimeout(timeout);
         signal.removeEventListener("abort", cancel);
@@ -39,140 +39,73 @@ function WeddingExperience({ slug }: { slug: string }) {
 
   return (
     <WeddingIntro
+      design={data?.design}
+      title={data?.title}
       ready={!isLoading}
       failed={isError || (!isLoading && !data)}
-      coverSrc={
-        data ? data.cover_images?.[0] || "/covers/couple-1.jpg" : undefined
-      }
+      coverSrc={data ? data.cover_images?.[0] || "/covers/couple-1.jpg" : undefined}
     >
-      {isLoading ? (
-        <WeddingSkeleton />
-      ) : (
-        <WeddingContent data={data} isError={isError} />
-      )}
+      {isLoading ? <WeddingSkeleton /> : <WeddingContent data={data} isError={isError} />}
     </WeddingIntro>
   );
 }
 
-function WeddingContent({
-  data,
-  isError,
-}: {
-  data?: Wedding;
-  isError: boolean;
-}) {
+function WeddingContent({ data, isError }: { data?: Wedding; isError: boolean }) {
+  const [liked, setLiked] = useState(false);
+
   if (isError || !data) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6 text-center">
+      <main className="flex min-h-screen items-center justify-center bg-[#250202] px-6 text-center">
         <div>
-          <h1 className="text-2xl font-light text-cream">
+          <h1 className="text-2xl font-light text-white">
             {isError ? "Sayfa yüklenemedi" : "Organizasyon bulunamadı"}
           </h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            QR kodunuzu tekrar okutmayı deneyin.
-          </p>
-          <Link
-            href="/"
-            className="mt-6 inline-flex min-h-[44px] items-center rounded-xl border border-gold/50 px-5 text-sm uppercase tracking-[0.18em] text-gold"
-          >
-            Ana sayfa
-          </Link>
+          <p className="mt-3 text-sm text-white/65">QR kodunuzu tekrar okutmayı deneyin.</p>
+          <Link href="/" className="mt-6 inline-flex min-h-[44px] items-center rounded-xl border border-white/50 px-5 text-sm uppercase tracking-[0.18em] text-white">Ana sayfa</Link>
         </div>
       </main>
     );
   }
 
-  const names = data.title;
-  const monogram = data.title
-    .split(/\s+/)
-    .filter((s) => s !== "&")
-    .slice(0, 2)
-    .map((s) => s.charAt(0))
-    .join(" | ");
-  const covers = data.cover_images?.length
-    ? data.cover_images
-    : ["/covers/couple-1.jpg"];
+  const monogram = designMonogram(resolveDesign(data.design), data.title).replace(" · ", " | ");
+  const covers = data.cover_images?.length ? data.cover_images : ["/covers/couple-1.jpg"];
 
   return (
-    <main className="min-h-screen">
-      <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-5 py-5">
-        <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-          Anılar
-        </span>
-        <span className="font-display text-lg tracking-[0.35em] text-gold">
-          {monogram}
-        </span>
-        <Heart className="h-4 w-4 text-gold" strokeWidth={1.2} />
-      </header>
-      {data.logo_url && (
-        <div className="flex justify-center pb-4">
-          <Image
-            unoptimized
-            src={data.logo_url}
-            alt="Organizasyon işletmesi logosu"
-            width={140}
-            height={60}
-            className="h-14 w-auto object-contain"
-          />
-        </div>
-      )}
+    <main className={styles.page} data-wedding-theme="cinematic-burgundy">
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <button type="button" className={styles.iconButton} aria-label="Fotoğraf yükleme alanına git" onClick={() => document.querySelector("#paylas")?.scrollIntoView({ behavior: "smooth" })}>
+            <Menu size={34} strokeWidth={1.45} />
+          </button>
+          <span className={styles.monogram}>{monogram}</span>
+          <button type="button" className={`${styles.iconButton} ${liked ? styles.activeHeart : ""}`} aria-label={liked ? "Favorilerden çıkar" : "Favorilere ekle"} aria-pressed={liked} onClick={() => setLiked((value) => !value)}>
+            <Heart size={33} strokeWidth={1.45} />
+          </button>
+        </header>
 
-      <section className="mx-auto w-full max-w-5xl px-3 pt-2 fade-up">
-        <HeroCarousel images={covers} alt={names} />
-      </section>
+        <WeddingFilmstrip images={covers} alt={data.title} date={data.wedding_date} />
 
-      <section className="mx-auto w-full max-w-2xl px-6 pb-12 pt-10 text-center">
-        <h1 className="font-display text-4xl uppercase tracking-[0.14em] text-cream sm:text-6xl">
-          {names}
-        </h1>
-        {data.wedding_date && (
-          <p className="mt-3 text-[0.7rem] uppercase tracking-[0.3em] text-muted-foreground">
-            {new Date(data.wedding_date).toLocaleDateString("tr-TR", {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })}
-          </p>
+        <section className={styles.statement}>
+          <h1>Sıradaki kare sizden.</h1>
+          <div className={styles.divider}><Heart size={16} strokeWidth={1.4} /></div>
+          <p>Bu özel günde yakaladığınız anları bizimle paylaşın.</p>
+        </section>
+
+        {data.can_upload ? <ShareMemories weddingId={data.id} /> : (
+          <div className="mx-auto mb-16 max-w-xl rounded-2xl border border-white/40 p-6 text-center text-white/75">Bu organizasyona şu anda yükleme yapılamıyor. Organizasyon yetkilisiyle iletişime geçebilirsiniz.</div>
         )}
-
-        <GoldDivider className="my-7" />
-
-        {data.hero_message && (
-          <p className="script text-2xl leading-snug text-beige sm:text-3xl">
-            {data.hero_message}
-          </p>
-        )}
-
-        {data.thank_you_message && (
-          <p className="mx-auto mt-6 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            {data.thank_you_message}
-          </p>
-        )}
-      </section>
-
-      {data.can_upload ? (
-        <ShareMemories weddingId={data.id} />
-      ) : (
-        <div className="mx-auto mb-16 max-w-xl rounded-2xl border border-border p-6 text-center text-muted-foreground">
-          Bu organizasyona şu anda yükleme yapılamıyor. Organizasyon
-          yetkilisiyle iletişime geçebilirsiniz.
-        </div>
-      )}
-
-      <footer className="pb-10 text-center text-[11px] uppercase tracking-[0.28em] text-muted-foreground">
-        {names}
-      </footer>
+        <footer className={styles.footer}>{data.title}</footer>
+      </div>
     </main>
   );
 }
 
 function WeddingSkeleton() {
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 py-10">
-      <Skeleton className="mx-auto h-[52vh] w-[80%] rounded-2xl bg-surface" />
-      <Skeleton className="mx-auto mt-10 h-10 w-64 bg-surface" />
-      <Skeleton className="mx-auto mt-4 h-4 w-40 bg-surface" />
-      <Skeleton className="mx-auto mt-10 h-64 w-full rounded-2xl bg-surface" />
+    <main className="min-h-screen bg-[#250202] px-5 py-10">
+      <Skeleton className="mx-auto h-[58vh] w-full max-w-[660px] rounded-3xl bg-[#4f0a0a]" />
+      <Skeleton className="mx-auto mt-10 h-10 w-64 bg-[#4f0a0a]" />
+      <Skeleton className="mx-auto mt-10 h-64 w-full max-w-xl rounded-2xl bg-[#4f0a0a]" />
     </main>
   );
 }

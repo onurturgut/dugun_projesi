@@ -35,6 +35,7 @@ import {
   weddingScope,
 } from "@/lib/policy";
 import type { Wedding, Media, Account } from "@/lib/models";
+import { designSchema } from "@/lib/design";
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
     status,
@@ -52,6 +53,7 @@ const publicEvent = (w: Wedding) => ({
   logo_url: w.logo_url,
   hero_message: w.hero_message,
   thank_you_message: w.thank_you_message,
+  design: w.design,
   can_upload: uploadsOpen(w),
   uploads_close_at: w.uploads_close_at,
 });
@@ -394,6 +396,15 @@ export async function handle(
     if (path[0] === "admin" && path[1] === "weddings" && path[2] && user) {
       const event = await eventFor(user, path[2]);
       const id = event.id;
+      if (path.length === 4 && path[3] === "design" && method === "PUT") {
+        const design = designSchema.parse(await req.json());
+        const result = await weddings.updateOne(
+          { id, ...weddingScope(user) },
+          { $set: { design } },
+        );
+        if (!result.matchedCount) throw new HttpError(404, "Organizasyon bulunamadı.");
+        return json({ design });
+      }
       if (path.length === 3) {
         if (method === "GET") return json(event);
         if (method === "PATCH") {
