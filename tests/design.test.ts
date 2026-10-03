@@ -15,6 +15,21 @@ test("existing invitations keep their original video and speed", () => {
   assert.equal(resolveDesign().intro, "video");
   assert.equal(resolveDesign().speed, 1.5);
 });
+
+test("existing saved designs receive the wedding page template and copy defaults", () => {
+  const legacy = { ...defaultDesign } as Record<string, unknown>;
+  delete legacy.pageTemplate;
+  delete legacy.brandTagline;
+  delete legacy.pageHeading;
+  delete legacy.pageMessage;
+  delete legacy.uploadTitle;
+  delete legacy.uploadPrompt;
+
+  const resolved = resolveDesign(legacy as typeof defaultDesign);
+  assert.equal(resolved.pageTemplate, "filmstrip");
+  assert.equal(resolved.pageHeading, "Sıradaki kare sizden.");
+  assert.equal(resolved.uploadTitle, "Fotoğraf / Video Yükle");
+});
 test("design input rejects privilege fields, CSS injection, unsupported options and invalid speeds", () => {
   for (const patch of [
     { owner_id: "other" },
@@ -24,6 +39,10 @@ test("design input rejects privilege fields, CSS injection, unsupported options 
     { speed: 0 },
     { speed: 3 },
     { message: "x".repeat(241) },
+    { pageTemplate: "unknown" },
+    { pageHeading: "" },
+    { pageMessage: "x".repeat(241) },
+    { uploadTitle: "x".repeat(101) },
   ]) {
     assert.equal(
       designSchema.safeParse({ ...defaultDesign, ...patch }).success,

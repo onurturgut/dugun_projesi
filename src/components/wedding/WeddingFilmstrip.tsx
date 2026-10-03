@@ -36,7 +36,7 @@ function FilmRow({ images, alt, direction }: FilmRowProps) {
   return (
     <div className={styles.row}>
       <div className={`${styles.track} ${direction === "left" ? styles.moveLeft : styles.moveRight}`}>
-        {[0, 1, 2].map((copy) => (
+        {[0, 1].map((copy) => (
           <div className={styles.sequence} aria-hidden={copy > 0} key={copy}>
             {reel.map((src, index) => (
               <figure className={styles.frame} key={`${copy}-${src}-${index}`}>

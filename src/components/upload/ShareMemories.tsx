@@ -17,9 +17,15 @@ type Phase = "idle" | "review" | "uploading" | "done";
 
 interface ShareMemoriesProps {
   weddingId: string;
+  title?: string;
+  prompt?: string;
 }
 
-export function ShareMemories({ weddingId }: ShareMemoriesProps) {
+export function ShareMemories({
+  weddingId,
+  title = "Fotoğraf / Video Yükle",
+  prompt = "Fotoğraf veya video seçin",
+}: ShareMemoriesProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
@@ -123,10 +129,10 @@ export function ShareMemories({ weddingId }: ShareMemoriesProps) {
               <CloudUpload className="h-12 w-12" strokeWidth={1.25} />
             </span>
             <span className="mt-5 font-display text-xl uppercase tracking-[0.2em] text-white">
-              Fotoğraf / Video Yükle
+              {title}
             </span>
             <span className="mt-2 font-display text-base text-white/65">
-              Fotoğraf veya video seçin
+              {prompt}
             </span>
           </button>
         )}

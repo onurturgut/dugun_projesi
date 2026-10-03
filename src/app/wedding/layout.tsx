@@ -3,5 +3,5 @@ export default function WeddingLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="guest-garden-background">{children}</div>;
+  return children;
 }

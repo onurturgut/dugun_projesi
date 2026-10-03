@@ -1,14 +1,21 @@
 .stage {
+  container-type: inline-size;
   display: grid;
-  gap: clamp(2px, 0.8vw, 8px);
+  gap: clamp(2px, 0.8cqw, 8px);
+  min-width: 0;
+  max-width: 100%;
   width: 100%;
-  padding-block: clamp(20px, 5vw, 38px);
+  padding-block: clamp(20px, 5cqw, 38px);
   overflow: hidden;
+  contain: inline-size paint;
 }
 
 .row {
+  min-width: 0;
+  max-width: 100%;
   width: 100%;
   overflow: hidden;
+  contain: paint;
   filter: drop-shadow(0 16px 18px rgb(0 0 0 / 42%));
 }
 
@@ -36,8 +43,8 @@
   position: relative;
   display: flex;
   flex: none;
-  gap: clamp(7px, 1.2vw, 12px);
-  padding: clamp(32px, 5.8vw, 48px) clamp(7px, 1.2vw, 12px);
+  gap: clamp(7px, 1.2cqw, 12px);
+  padding: clamp(32px, 5.8cqw, 48px) clamp(7px, 1.2cqw, 12px);
   background: transparent;
   transform: translateZ(0);
 }
@@ -48,7 +55,7 @@
   position: absolute;
   left: 0;
   width: 100%;
-  height: clamp(18px, 3.1vw, 26px);
+  height: clamp(18px, 3.1cqw, 26px);
   background: url("/fotograf-seridi.png") center 30.5% / auto 460% repeat-x;
   filter: sepia(0.12) saturate(0.72) brightness(0.98);
 }
@@ -64,8 +71,8 @@
 
 .frame {
   position: relative;
-  flex: 0 0 clamp(150px, 42vw, 270px);
-  height: clamp(104px, 28vw, 180px);
+  flex: 0 0 clamp(150px, 42cqw, 270px);
+  height: clamp(104px, 28cqw, 180px);
   margin: 0;
   overflow: hidden;
   border: 3px solid #111;
@@ -77,7 +84,9 @@
   transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  transition: filter 240ms ease, transform 500ms ease;
+  transition:
+    filter 240ms ease,
+    transform 500ms ease;
 }
 
 .frame:nth-child(3n + 2) .image {
@@ -97,13 +106,21 @@
 }
 
 @keyframes travelLeft {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-33.333333%, 0, 0); }
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
 }
 
 @keyframes travelRight {
-  from { transform: translate3d(-33.333333%, 0, 0); }
-  to { transform: translate3d(0, 0, 0); }
+  from {
+    transform: translate3d(-50%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 @media (hover: hover) {

@@ -19,6 +19,7 @@ import {
   designNames,
   designSchema,
   introTypes,
+  pageTemplates,
   resolveDesign,
   themeIds,
   themes,
@@ -26,6 +27,8 @@ import {
 } from "@/lib/design";
 import { buildQrCards, svgDataUrl } from "@/lib/qr-card";
 import { OpeningScene } from "@/components/wedding/OpeningScene";
+import { WeddingPageTemplate } from "@/components/wedding/WeddingPageTemplate";
+import { ShareMemories } from "@/components/upload/ShareMemories";
 import { Field, TextField } from "./Fields";
 import styles from "./DesignPanel.module.css";
 
@@ -37,7 +40,7 @@ export function DesignPanel({ event }: { event: Wedding }) {
   const [error, setError] = useState("");
   const [url, setUrl] = useState("");
   const [replay, setReplay] = useState(0);
-  const [preview, setPreview] = useState<"opening" | "card">("opening");
+  const [preview, setPreview] = useState<"page" | "opening" | "card">("page");
   const [face, setFace] = useState<"front" | "back">("front");
   const dirty = JSON.stringify(design) !== JSON.stringify(saved);
   useEffect(() => {
@@ -141,6 +144,67 @@ export function DesignPanel({ event }: { event: Wedding }) {
           <div className={styles.step}>
             <span>01</span>
             <div>
+              <h3>Wedding sayfası</h3>
+              <p>
+                Misafirlerin göreceği sayfa tasarımını ve metinlerini
+                belirleyin.
+              </p>
+            </div>
+          </div>
+          <div
+            className={styles.pageTemplates}
+            aria-label="Wedding sayfası şablonu"
+          >
+            {Object.entries(pageTemplates).map(([id, name]) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={design.pageTemplate === id}
+                onClick={() => {
+                  update("pageTemplate", id as WeddingDesign["pageTemplate"]);
+                  setPreview("page");
+                }}
+              >
+                <span aria-hidden="true">▦</span>
+                <strong>{name}</strong>
+                <small>Hareketli iki sıralı fotoğraf alanı</small>
+              </button>
+            ))}
+          </div>
+          <Field
+            label="Logo altındaki metin"
+            value={design.brandTagline}
+            maxLength={100}
+            onChange={(e) => update("brandTagline", e.target.value)}
+          />
+          <Field
+            label="Ana başlık"
+            value={design.pageHeading}
+            maxLength={100}
+            onChange={(e) => update("pageHeading", e.target.value)}
+          />
+          <TextField
+            label="Ana açıklama"
+            value={design.pageMessage}
+            maxLength={240}
+            onChange={(e) => update("pageMessage", e.target.value)}
+          />
+          <Field
+            label="Yükleme alanı başlığı"
+            value={design.uploadTitle}
+            maxLength={100}
+            onChange={(e) => update("uploadTitle", e.target.value)}
+          />
+          <Field
+            label="Yükleme alanı açıklaması"
+            value={design.uploadPrompt}
+            maxLength={160}
+            onChange={(e) => update("uploadPrompt", e.target.value)}
+          />
+          <div className={styles.divider} />
+          <div className={styles.step}>
+            <span>02</span>
+            <div>
               <h3>Renk hikâyeniz</h3>
               <p>Açılış ve misafir sayfanızın temasını seçin.</p>
             </div>
@@ -177,7 +241,7 @@ export function DesignPanel({ event }: { event: Wedding }) {
           </div>
           <div className={styles.divider} />
           <div className={styles.step}>
-            <span>02</span>
+            <span>03</span>
             <div>
               <h3>İlk karşılaşma</h3>
               <p>Davetinizin nasıl başlayacağını belirleyin.</p>
@@ -231,7 +295,7 @@ export function DesignPanel({ event }: { event: Wedding }) {
           </label>
           <div className={styles.divider} />
           <div className={styles.step}>
-            <span>03</span>
+            <span>04</span>
             <div>
               <h3>Masanızdaki küçük hatıra</h3>
               <p>QR kartınızın stilini ve renklerini seçin.</p>
@@ -323,7 +387,7 @@ export function DesignPanel({ event }: { event: Wedding }) {
           )}
           <div className={styles.divider} />
           <div className={styles.step}>
-            <span>04</span>
+            <span>05</span>
             <div>
               <h3>Size ait kelimeler</h3>
               <p>
@@ -368,6 +432,13 @@ export function DesignPanel({ event }: { event: Wedding }) {
           <div className={styles.previewTabs}>
             <button
               type="button"
+              aria-pressed={preview === "page"}
+              onClick={() => setPreview("page")}
+            >
+              Wedding sayfası
+            </button>
+            <button
+              type="button"
               aria-pressed={preview === "opening"}
               onClick={() => setPreview("opening")}
             >
@@ -382,7 +453,29 @@ export function DesignPanel({ event }: { event: Wedding }) {
             </button>
           </div>
           <div className={styles.previewStage}>
-            {preview === "opening" ? (
+            {preview === "page" ? (
+              <div className={styles.livePageViewport} aria-hidden="true">
+                <div className={styles.livePageCanvas}>
+                  <WeddingPageTemplate
+                    preview
+                    design={design}
+                    images={
+                      event.cover_images?.length
+                        ? event.cover_images
+                        : ["/covers/couple-1.jpg"]
+                    }
+                    title={event.title}
+                    date={event.wedding_date}
+                  >
+                    <ShareMemories
+                      weddingId={`preview-${event.id}`}
+                      title={design.uploadTitle}
+                      prompt={design.uploadPrompt}
+                    />
+                  </WeddingPageTemplate>
+                </div>
+              </div>
+            ) : preview === "opening" ? (
               <div
                 className={styles.phone}
                 style={

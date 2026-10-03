@@ -1,12 +1,24 @@
 .page {
   position: relative;
   isolation: isolate;
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 8%, rgb(119 24 32 / 78%), transparent 34rem),
-    linear-gradient(180deg, #4b0b12 0%, #35070c 58%, #280407 100%);
-  color: #fff;
+    radial-gradient(
+      circle at 50% 8%,
+      color-mix(in srgb, var(--wedding-light) 78%, transparent),
+      transparent 34rem
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--wedding-base) 90%, white 10%) 0%,
+      var(--wedding-base) 58%,
+      color-mix(in srgb, var(--wedding-base) 78%, black 22%) 100%
+    );
+  color: var(--wedding-ink);
 }
 
 .page::before {
@@ -14,7 +26,7 @@
   position: absolute;
   z-index: -1;
   inset: 0;
-  background: #e6c38b;
+  background: var(--wedding-accent);
   opacity: 0.18;
   pointer-events: none;
   -webkit-mask: url("/wedding-motif-mask.png") center top / 920px auto repeat;
@@ -24,6 +36,8 @@
 .shell {
   position: relative;
   z-index: 1;
+  min-width: 0;
+  max-width: 100%;
   width: min(100%, 700px);
   min-height: 100vh;
   margin: 0 auto;
@@ -79,7 +93,7 @@
   font-size: clamp(0.76rem, 2.8vw, 0.94rem);
   line-height: 1.2;
   letter-spacing: 0.12em;
-  color: #efd7ae;
+  color: var(--wedding-accent);
   text-shadow: 0 2px 9px rgb(0 0 0 / 60%);
 }
 
@@ -89,7 +103,7 @@
   gap: 8px;
   width: 118px;
   height: 13px;
-  color: #e6c38b;
+  color: var(--wedding-accent);
 }
 
 .brandOrnament::before,
@@ -130,7 +144,7 @@
   line-height: 0.99;
   letter-spacing: 0.075em;
   text-transform: uppercase;
-  color: #e6c38b;
+  color: var(--wedding-accent);
   text-shadow: 0 3px 16px #000;
 }
 
@@ -140,7 +154,7 @@
   justify-content: center;
   gap: 12px;
   margin: 18px auto 13px;
-  color: #e6c38b;
+  color: var(--wedding-accent);
 }
 
 .divider::before,
@@ -157,7 +171,7 @@
   font-family: var(--font-display);
   font-size: clamp(1.2rem, 5vw, 1.65rem);
   line-height: 1.35;
-  color: #e6c38b;
+  color: var(--wedding-accent);
 }
 
 .footer {
@@ -167,12 +181,25 @@
   font-size: 0.72rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: #e6c38b;
+  color: var(--wedding-accent);
   opacity: 0.65;
 }
 
+.previewPage,
+.previewPage .shell {
+  min-height: 738px;
+}
+
 @media (min-width: 720px) {
-  .page { padding-block: 28px; }
-  .page::before { opacity: 0.22; }
-  .shell { border-radius: 42px; overflow: hidden; border: 1px solid rgb(255 255 255 / 18%); }
+  .page {
+    padding-block: 28px;
+  }
+  .page::before {
+    opacity: 0.22;
+  }
+  .shell {
+    border-radius: 42px;
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 18%);
+  }
 }

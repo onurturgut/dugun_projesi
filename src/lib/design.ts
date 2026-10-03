@@ -85,6 +85,9 @@ export const cardTemplates = {
   minimal: "Minimal",
   night: "Gece",
 } as const;
+export const pageTemplates = {
+  filmstrip: "Hareketli film şeridi",
+} as const;
 const hex = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Altı haneli bir renk kodu girin.");
@@ -103,6 +106,37 @@ export const designSchema = z
     names: z.string().trim().max(100),
     monogram: z.string().trim().max(8),
     message: z.string().trim().max(240),
+    pageTemplate: z.enum(["filmstrip"]).default("filmstrip"),
+    brandTagline: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .default("Anılarınız her karede ışıldasın."),
+    pageHeading: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .default("Sıradaki kare sizden."),
+    pageMessage: z
+      .string()
+      .trim()
+      .min(1)
+      .max(240)
+      .default("Bu özel günde yakaladığınız anları bizimle paylaşın."),
+    uploadTitle: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .default("Fotoğraf / Video Yükle"),
+    uploadPrompt: z
+      .string()
+      .trim()
+      .min(1)
+      .max(160)
+      .default("Fotoğraf veya video seçin"),
   })
   .strict();
 export type WeddingDesign = z.infer<typeof designSchema>;
@@ -120,6 +154,12 @@ export const defaultDesign: WeddingDesign = {
   names: "",
   monogram: "",
   message: "Bu özel günümüzü bizimle paylaştığınız için teşekkür ederiz.",
+  pageTemplate: "filmstrip",
+  brandTagline: "Anılarınız her karede ışıldasın.",
+  pageHeading: "Sıradaki kare sizden.",
+  pageMessage: "Bu özel günde yakaladığınız anları bizimle paylaşın.",
+  uploadTitle: "Fotoğraf / Video Yükle",
+  uploadPrompt: "Fotoğraf veya video seçin",
 };
 export function resolveDesign(value?: WeddingDesign): WeddingDesign {
   const parsed = designSchema.safeParse(value);
