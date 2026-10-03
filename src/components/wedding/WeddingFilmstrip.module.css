@@ -25,7 +25,11 @@
 .track {
   display: flex;
   width: max-content;
+  min-width: max-content;
   will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .sequence {
@@ -35,6 +39,7 @@
   gap: clamp(7px, 1.2vw, 12px);
   padding: clamp(32px, 5.8vw, 48px) clamp(7px, 1.2vw, 12px);
   background: transparent;
+  transform: translateZ(0);
 }
 
 .sequence::before,
@@ -69,6 +74,9 @@
 
 .image {
   object-fit: cover;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   transition: filter 240ms ease, transform 500ms ease;
 }
 
@@ -89,13 +97,13 @@
 }
 
 @keyframes travelLeft {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-33.333333%, 0, 0); }
 }
 
 @keyframes travelRight {
-  from { transform: translateX(-50%); }
-  to { transform: translateX(0); }
+  from { transform: translate3d(-33.333333%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
 }
 
 @media (hover: hover) {

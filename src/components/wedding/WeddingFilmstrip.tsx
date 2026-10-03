@@ -13,7 +13,6 @@ interface FilmRowProps {
   images: string[];
   alt: string;
   direction: "left" | "right";
-  priority?: boolean;
 }
 
 function fillReel(images: string[]) {
@@ -31,14 +30,14 @@ function fillReel(images: string[]) {
   return reel;
 }
 
-function FilmRow({ images, alt, direction, priority = false }: FilmRowProps) {
+function FilmRow({ images, alt, direction }: FilmRowProps) {
   const reel = fillReel(images);
 
   return (
     <div className={styles.row}>
       <div className={`${styles.track} ${direction === "left" ? styles.moveLeft : styles.moveRight}`}>
-        {[0, 1].map((copy) => (
-          <div className={styles.sequence} aria-hidden={copy === 1} key={copy}>
+        {[0, 1, 2].map((copy) => (
+          <div className={styles.sequence} aria-hidden={copy > 0} key={copy}>
             {reel.map((src, index) => (
               <figure className={styles.frame} key={`${copy}-${src}-${index}`}>
                 <Image
@@ -46,7 +45,8 @@ function FilmRow({ images, alt, direction, priority = false }: FilmRowProps) {
                   src={src}
                   alt={copy === 0 ? `${alt} fotoğraf ${index + 1}` : ""}
                   fill
-                  priority={priority && index < 5}
+                  loading="eager"
+                  decoding="async"
                   sizes="(max-width: 700px) 42vw, 270px"
                   className={styles.image}
                 />
@@ -66,7 +66,7 @@ export function WeddingFilmstrip({ images, alt }: WeddingFilmstripProps) {
 
   return (
     <section className={styles.stage} aria-label={`${alt} düğün fotoğrafları`}>
-      <FilmRow images={topImages.length ? topImages : gallery} alt={alt} direction="left" priority />
+      <FilmRow images={topImages.length ? topImages : gallery} alt={alt} direction="left" />
       <FilmRow images={bottomImages.length ? bottomImages : gallery} alt={alt} direction="right" />
     </section>
   );
