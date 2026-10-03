@@ -7,7 +7,6 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react";
-import { ArrowRight } from "lucide-react";
 import styles from "./WeddingIntro.module.css";
 import {
   resolveDesign,
@@ -45,8 +44,6 @@ export function WeddingIntro({
   const [coverReady, setCoverReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const skipRef = useRef<HTMLButtonElement>(null);
-  const restoreFocus = useRef(false);
   const visible = phase !== "done";
 
   useEffect(() => {
@@ -115,7 +112,6 @@ export function WeddingIntro({
     if (finished) videoRef.current?.pause();
     if (phase !== "playing") return;
     if (!failed && !(finished && ready && (!coverSrc || coverReady))) return;
-    restoreFocus.current ||= document.activeElement === skipRef.current;
     setPhase("leaving");
   }, [phase, finished, ready, failed, coverSrc, coverReady]);
 
@@ -123,11 +119,6 @@ export function WeddingIntro({
     if (phase !== "leaving") return;
     const timer = window.setTimeout(() => setPhase("done"), 400);
     return () => clearTimeout(timer);
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase === "done" && restoreFocus.current)
-      contentRef.current?.focus({ preventScroll: true });
   }, [phase]);
 
   return (
@@ -199,7 +190,6 @@ export function WeddingIntro({
           </div>
 
           <footer className={styles.footer}>
-            <p className={styles.eyebrow}>BU ÖZEL GÜNE DAVETLİSİNİZ</p>
             <h1 className={styles.title}>
               {designNames(design, title) || "Güzel anılar burada başlar."}
             </h1>
@@ -209,23 +199,6 @@ export function WeddingIntro({
                 ? "Davetiniz hazırlanıyor…"
                 : "Güzel bir hikâyeye hoş geldiniz…"}
             </div>
-            <button
-              ref={skipRef}
-              type="button"
-              className={styles.skip}
-              onClick={() => {
-                restoreFocus.current =
-                  document.activeElement === skipRef.current;
-                setFinished(true);
-              }}
-              disabled={finished || phase === "leaving"}
-              aria-label="Açılış animasyonunu geç"
-            >
-              {finished ? "Birazdan birlikteyiz" : "Geç"}
-              {!finished && (
-                <ArrowRight size={15} strokeWidth={1.4} aria-hidden="true" />
-              )}
-            </button>
           </footer>
         </section>
       )}

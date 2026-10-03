@@ -56,9 +56,19 @@ export default function Landing() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <Link href="/" className={styles.brand} aria-label="Anılar ana sayfa">
-          ANILAR<span>HER ANIN BİR HİKÂYESİ VAR.</span>
-        </Link>
+        <div className={styles.brandGroup}>
+          <Link href="/" className={styles.brand} aria-label="Anılar ana sayfa">
+            ANILAR<span>HER ANIN BİR HİKÂYESİ VAR.</span>
+          </Link>
+          <Image
+            src="/brand/shineqr-mark.png"
+            alt="ShineQR"
+            width={58}
+            height={58}
+            className={styles.brandMark}
+            priority
+          />
+        </div>
         <nav className={styles.nav} aria-label="Ana menü">
           <a href="#nasil-calisir">Nasıl çalışır?</a>
           <a href="#isletmeler">İşletmeler için</a>

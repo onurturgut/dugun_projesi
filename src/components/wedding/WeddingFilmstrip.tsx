@@ -9,50 +9,65 @@ interface WeddingFilmstripProps {
   date?: string | null;
 }
 
-export function WeddingFilmstrip({ images, alt, date }: WeddingFilmstripProps) {
+interface FilmRowProps {
+  images: string[];
+  alt: string;
+  direction: "left" | "right";
+  priority?: boolean;
+}
+
+function fillReel(images: string[]) {
+  const reel = [...images];
+  const minimumFrames = 10;
+
+  while (reel.length < minimumFrames) {
+    reel.push(images[reel.length % images.length]);
+  }
+
+  while (reel.length % 5 !== 0) {
+    reel.push(images[reel.length % images.length]);
+  }
+
+  return reel;
+}
+
+function FilmRow({ images, alt, direction, priority = false }: FilmRowProps) {
+  const reel = fillReel(images);
+
+  return (
+    <div className={styles.row}>
+      <div className={`${styles.track} ${direction === "left" ? styles.moveLeft : styles.moveRight}`}>
+        {[0, 1].map((copy) => (
+          <div className={styles.sequence} aria-hidden={copy === 1} key={copy}>
+            {reel.map((src, index) => (
+              <figure className={styles.frame} key={`${copy}-${src}-${index}`}>
+                <Image
+                  unoptimized
+                  src={src}
+                  alt={copy === 0 ? `${alt} fotoğraf ${index + 1}` : ""}
+                  fill
+                  priority={priority && index < 5}
+                  sizes="(max-width: 700px) 42vw, 270px"
+                  className={styles.image}
+                />
+              </figure>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function WeddingFilmstrip({ images, alt }: WeddingFilmstripProps) {
   const gallery = images.length ? images : ["/covers/couple-1.jpg"];
-  const slots = Array.from({ length: 4 }, (_, index) => gallery[index % gallery.length]);
-  const dateLabel = date
-    ? new Date(`${date}T12:00:00+03:00`).toLocaleDateString("tr-TR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-    : null;
+  const topImages = gallery.filter((_, index) => index % 2 === 0);
+  const bottomImages = gallery.filter((_, index) => index % 2 === 1);
 
   return (
     <section className={styles.stage} aria-label={`${alt} düğün fotoğrafları`}>
-      <div className={`${styles.strip} ${styles.heroStrip}`}>
-        <div className={styles.heroFrame}>
-          <Image
-            unoptimized
-            src={gallery[0]}
-            alt={`${alt} kapak fotoğrafı`}
-            fill
-            priority
-            sizes="(max-width: 700px) 88vw, 620px"
-            className={styles.image}
-          />
-          {dateLabel && <span className={styles.date}>{dateLabel}</span>}
-        </div>
-      </div>
-
-      <div className={`${styles.strip} ${styles.thumbnailStrip}`}>
-        <div className={styles.thumbnailGrid}>
-          {slots.map((src, index) => (
-            <div className={styles.thumbnail} key={`${src}-${index}`}>
-              <Image
-                unoptimized
-                src={src}
-                alt={`${alt} fotoğraf ${index + 1}`}
-                fill
-                sizes="25vw"
-                className={`${styles.image} ${index > 0 ? styles.mono : ""}`}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      <FilmRow images={topImages.length ? topImages : gallery} alt={alt} direction="left" priority />
+      <FilmRow images={bottomImages.length ? bottomImages : gallery} alt={alt} direction="right" />
     </section>
   );
 }

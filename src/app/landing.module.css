@@ -26,6 +26,18 @@
   color: var(--accent);
   text-decoration: none;
 }
+.brandGroup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.brandMark {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 9px rgb(214 187 131 / 18%));
+}
 .brand span {
   display: block;
   font:
@@ -607,6 +619,13 @@
   }
   .brand span {
     font-size: 6px;
+  }
+  .brandGroup {
+    gap: 8px;
+  }
+  .brandMark {
+    width: 38px;
+    height: 38px;
   }
   .nav {
     display: none;

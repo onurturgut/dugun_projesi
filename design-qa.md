@@ -1,9 +1,9 @@
-# Design QA
+# Design QA — Hareketli Film Kolajı
 
-- Source visual truth: `C:/Users/onurt/Downloads/ChatGPT Görseli 2 Eki 2026 20_58_10.png`
-- Implementation route: `/wedding/oguz-hilal`
-- Intended viewport: mobile, approximately 393 CSS px wide
-- Source pixels: 887 × 1774
+- Source visual truth: `C:/Users/onurt/Downloads/fotograf_seridi.png`
+- Implementation route: `/wedding/design-preview`
+- Intended viewport: responsive mobile-first wedding page, approximately 393 CSS px wide
+- Source pixels: 920 × 460, transparent PNG
 - Implementation pixels: unavailable
 - Density normalization: unavailable because no browser capture could be produced
 - State: wedding page after the opening scene, upload form idle
@@ -11,22 +11,22 @@
 **Findings**
 
 - [P0] Browser-rendered comparison is unavailable.
-  Location: complete wedding page.
-  Evidence: the source image was opened and inspected, but the Codex browser inventory returned no available browser surfaces, so an implementation screenshot could not be captured.
-  Impact: typography, film-strip crop, vertical rhythm, responsive behavior, and exact visual fidelity cannot be signed off from source code alone.
-  Fix: open the running local route in an available browser, capture the same mobile viewport, place it beside the source visual, and iterate on any visible differences.
+  Location: `WeddingFilmstrip` on the wedding page.
+  Evidence: the source PNG was opened and inspected, but the available browser inventory returned no browser surfaces, so an implementation screenshot could not be captured.
+  Impact: iki bandın ters yönlü hareketi, kare kırpımları, responsive taşma ve sonraki bölüme geçiş aralığı görsel olarak onaylanamıyor.
+  Fix: open the running local route in an available browser at 393 CSS px width, capture the film-strip region, compare it beside the source PNG, and iterate on any visible differences.
 
 **Required fidelity surfaces**
 
-- Fonts and typography: implemented with the existing display font stack; browser comparison blocked.
-- Spacing and layout rhythm: implemented for a narrow mobile composition; browser comparison blocked.
-- Colors and visual tokens: deep burgundy, black, white, and coral-red glow implemented; browser comparison blocked.
-- Image quality and asset fidelity: settings-provided cover images are used in every film frame; generated burgundy texture is stored in the project; browser crop comparison blocked.
-- Copy and content: target copy and Turkish form labels implemented.
+- Fonts and typography: the handwritten date treatment is retained; visual comparison blocked.
+- Spacing and layout rhythm: fotoğraflar iki responsive bantta eşit kare aralıklarıyla yerleştirildi; visual comparison blocked.
+- Colors and visual tokens: the supplied black film frame is used over the existing burgundy page; visual comparison blocked.
+- Image quality and asset fidelity: the supplied transparent PNG is used directly as the visible film frame; gallery images remain full-resolution source assets; browser crop comparison blocked.
+- Copy and content: wedding title, image alt text, and localized date content are preserved.
 
 **Full-view comparison evidence**
 
-- Source image opened successfully.
+- Source image opened successfully at its original resolution.
 - Browser-rendered implementation screenshot unavailable; no valid side-by-side comparison was possible.
 
 **Focused region comparison evidence**
@@ -35,7 +35,7 @@
 
 **Primary interactions tested**
 
-- Static checks only. Menu scroll, favorite toggle, file picker, form, and upload flow require browser interaction testing.
+- Static checks only. The film strip itself is presentational; surrounding menu scroll, favorite toggle, and upload flow still require browser interaction testing.
 
 **Console errors checked**
 
@@ -44,10 +44,10 @@
 **Implementation checklist**
 
 - Capture the implementation at 393 CSS px width.
-- Compare the full composition with the supplied reference.
-- Verify film-frame crops with one and multiple uploaded cover images.
-- Test menu scroll, favorite toggle, file selection, guest fields, and upload states.
-- Check the browser console and repeat visual QA after fixes.
+- Verify that the top film row moves left and the bottom film row moves right without a visible seam.
+- Verify image crops and complete image coverage with one and multiple cover images.
+- Check the transition spacing between the reel and “Sıradaki kare sizden.”
+- Check the browser console and repeat visual QA after any fixes.
 
 **Comparison history**
 

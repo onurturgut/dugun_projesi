@@ -1,45 +1,116 @@
 .page {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   overflow: hidden;
-  background: #260202 url("/wedding-burgundy-texture.png") center top / 100% auto repeat-y;
+  background:
+    radial-gradient(circle at 50% 8%, rgb(119 24 32 / 78%), transparent 34rem),
+    linear-gradient(180deg, #4b0b12 0%, #35070c 58%, #280407 100%);
   color: #fff;
 }
 
+.page::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: #e6c38b;
+  opacity: 0.18;
+  pointer-events: none;
+  -webkit-mask: url("/wedding-motif-mask.png") center top / 920px auto repeat;
+  mask: url("/wedding-motif-mask.png") center top / 920px auto repeat;
+}
+
 .shell {
+  position: relative;
+  z-index: 1;
   width: min(100%, 700px);
   min-height: 100vh;
   margin: 0 auto;
-  background: rgb(22 0 0 / 20%);
+  background: transparent;
   box-shadow: 0 0 80px rgb(0 0 0 / 55%);
 }
 
 .header {
   position: relative;
   z-index: 10;
-  display: grid;
-  grid-template-columns: 52px 1fr 52px;
+  display: flex;
   align-items: center;
-  padding: 38px 25px 8px;
+  justify-content: center;
+  min-height: 210px;
+  padding: 24px 25px 0;
+  overflow: hidden;
 }
 
-.iconButton {
+.header::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -110px;
+  left: 50%;
+  width: 390px;
+  height: 330px;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgb(230 195 139 / 13%), transparent 67%);
+  pointer-events: none;
+}
+
+.brandBlock {
   display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  color: white;
+  justify-items: center;
+  gap: 7px;
 }
 
-.iconButton:last-child { justify-self: end; }
-.activeHeart { fill: #fff; }
+.brandLogo {
+  display: block;
+  width: clamp(168px, 43vw, 215px);
+  line-height: 0;
+  filter: drop-shadow(0 7px 17px rgb(0 0 0 / 40%));
+}
 
-.monogram {
-  justify-self: center;
+.brandLogo img {
+  width: 100%;
+  height: auto;
+}
+
+.brandTagline {
+  margin: -3px 0 0;
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 7vw, 2.25rem);
-  font-weight: 300;
-  letter-spacing: 0.42em;
-  transform: translateX(0.21em);
+  font-size: clamp(0.76rem, 2.8vw, 0.94rem);
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  color: #efd7ae;
+  text-shadow: 0 2px 9px rgb(0 0 0 / 60%);
+}
+
+.brandOrnament {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 118px;
+  height: 13px;
+  color: #e6c38b;
+}
+
+.brandOrnament::before,
+.brandOrnament::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, currentColor);
+  opacity: 0.72;
+}
+
+.brandOrnament::after {
+  background: linear-gradient(90deg, currentColor, transparent);
+}
+
+.brandOrnament i {
+  width: 5px;
+  height: 5px;
+  border: 1px solid currentColor;
+  transform: rotate(45deg);
+  box-shadow: 0 0 10px rgb(230 195 139 / 65%);
 }
 
 .statement {
@@ -59,6 +130,7 @@
   line-height: 0.99;
   letter-spacing: 0.075em;
   text-transform: uppercase;
+  color: #e6c38b;
   text-shadow: 0 3px 16px #000;
 }
 
@@ -68,7 +140,7 @@
   justify-content: center;
   gap: 12px;
   margin: 18px auto 13px;
-  color: white;
+  color: #e6c38b;
 }
 
 .divider::before,
@@ -76,7 +148,7 @@
   content: "";
   width: 112px;
   height: 1px;
-  background: rgb(255 255 255 / 72%);
+  background: rgb(230 195 139 / 72%);
 }
 
 .statement p {
@@ -85,6 +157,7 @@
   font-family: var(--font-display);
   font-size: clamp(1.2rem, 5vw, 1.65rem);
   line-height: 1.35;
+  color: #e6c38b;
 }
 
 .footer {
@@ -94,10 +167,12 @@
   font-size: 0.72rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
+  color: #e6c38b;
   opacity: 0.65;
 }
 
 @media (min-width: 720px) {
-  .page { padding-block: 28px; background-size: cover; background-attachment: fixed; }
+  .page { padding-block: 28px; }
+  .page::before { opacity: 0.22; }
   .shell { border-radius: 42px; overflow: hidden; border: 1px solid rgb(255 255 255 / 18%); }
 }

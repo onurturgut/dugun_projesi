@@ -1,16 +1,15 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Heart, Menu } from "lucide-react";
-import { useState } from "react";
+import { Heart } from "lucide-react";
 import { api, type Wedding } from "@/lib/api";
 import { WeddingIntro } from "@/components/wedding/WeddingIntro";
 import { WeddingFilmstrip } from "@/components/wedding/WeddingFilmstrip";
 import { ShareMemories } from "@/components/upload/ShareMemories";
 import { Skeleton } from "@/components/ui/skeleton";
-import { designMonogram, resolveDesign } from "@/lib/design";
 import styles from "./wedding.module.css";
 
 export default function WeddingPage() {
@@ -51,11 +50,9 @@ function WeddingExperience({ slug }: { slug: string }) {
 }
 
 function WeddingContent({ data, isError }: { data?: Wedding; isError: boolean }) {
-  const [liked, setLiked] = useState(false);
-
   if (isError || !data) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#250202] px-6 text-center">
+      <main className="flex min-h-screen items-center justify-center bg-[#42090F] px-6 text-center">
         <div>
           <h1 className="text-2xl font-light text-white">
             {isError ? "Sayfa yüklenemedi" : "Organizasyon bulunamadı"}
@@ -67,20 +64,27 @@ function WeddingContent({ data, isError }: { data?: Wedding; isError: boolean })
     );
   }
 
-  const monogram = designMonogram(resolveDesign(data.design), data.title).replace(" · ", " | ");
   const covers = data.cover_images?.length ? data.cover_images : ["/covers/couple-1.jpg"];
 
   return (
     <main className={styles.page} data-wedding-theme="cinematic-burgundy">
       <div className={styles.shell}>
         <header className={styles.header}>
-          <button type="button" className={styles.iconButton} aria-label="Fotoğraf yükleme alanına git" onClick={() => document.querySelector("#paylas")?.scrollIntoView({ behavior: "smooth" })}>
-            <Menu size={34} strokeWidth={1.45} />
-          </button>
-          <span className={styles.monogram}>{monogram}</span>
-          <button type="button" className={`${styles.iconButton} ${liked ? styles.activeHeart : ""}`} aria-label={liked ? "Favorilerden çıkar" : "Favorilere ekle"} aria-pressed={liked} onClick={() => setLiked((value) => !value)}>
-            <Heart size={33} strokeWidth={1.45} />
-          </button>
+          <div className={styles.brandBlock}>
+            <Link href="/" className={styles.brandLogo} aria-label="ShineQR ana sayfa">
+              <Image
+                src="/brand/shineqr-lockup.png"
+                alt="ShineQR"
+                width={360}
+                height={240}
+                priority
+              />
+            </Link>
+            <p className={styles.brandTagline}>Anılarınız her karede ışıldasın.</p>
+            <span className={styles.brandOrnament} aria-hidden="true">
+              <i />
+            </span>
+          </div>
         </header>
 
         <WeddingFilmstrip images={covers} alt={data.title} date={data.wedding_date} />
@@ -102,7 +106,7 @@ function WeddingContent({ data, isError }: { data?: Wedding; isError: boolean })
 
 function WeddingSkeleton() {
   return (
-    <main className="min-h-screen bg-[#250202] px-5 py-10">
+    <main className="min-h-screen bg-[#42090F] px-5 py-10">
       <Skeleton className="mx-auto h-[58vh] w-full max-w-[660px] rounded-3xl bg-[#4f0a0a]" />
       <Skeleton className="mx-auto mt-10 h-10 w-64 bg-[#4f0a0a]" />
       <Skeleton className="mx-auto mt-10 h-64 w-full max-w-xl rounded-2xl bg-[#4f0a0a]" />

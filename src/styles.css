@@ -307,10 +307,21 @@
 [data-wedding-theme="cinematic-burgundy"] .memory-upload-icon {
   width: 96px;
   height: 96px;
-  color: white;
-  border: 2px solid #ff8b73;
-  background: rgb(71 5 3 / 62%);
-  box-shadow: 0 0 18px rgb(255 77 49 / 35%);
+  color: #f7dda2;
+  border: 2px solid #e6c38b;
+  background: rgb(91 48 13 / 42%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 244 205 / 25%),
+    0 0 18px rgb(230 195 139 / 46%);
+}
+
+[data-wedding-theme="cinematic-burgundy"] .memory-dropzone > span.font-display {
+  color: #f7dda2;
+  text-shadow: 0 2px 14px rgb(216 174 94 / 32%);
+}
+
+[data-wedding-theme="cinematic-burgundy"] .memory-dropzone > span.font-display:last-child {
+  color: rgb(239 211 157 / 78%);
 }
 
 [data-wedding-theme="cinematic-burgundy"] .memory-field {
@@ -325,27 +336,33 @@
   z-index: 2;
   width: 25px;
   height: 25px;
-  color: white;
+  color: #5d3218;
   transform: translateY(-50%);
   stroke-width: 1.4;
 }
 
-[data-wedding-theme="cinematic-burgundy"] .memory-field input,
-[data-wedding-theme="cinematic-burgundy"] .memory-field textarea {
+[data-wedding-theme="cinematic-burgundy"] .memory-upload-card .memory-field input,
+[data-wedding-theme="cinematic-burgundy"] .memory-upload-card .memory-field textarea {
   min-height: 70px;
   resize: none;
-  border: 1px solid rgb(255 255 255 / 88%);
+  border: 1px solid rgb(230 195 139 / 72%);
   border-radius: 17px;
-  background: rgb(25 0 0 / 68%);
+  background:
+    radial-gradient(circle at 16% 0%, rgb(255 255 255 / 72%), transparent 34%),
+    linear-gradient(135deg, #fff0bd 0%, #e6c38b 42%, #c89545 100%);
   padding: 20px 20px 20px 72px;
-  color: white;
+  color: #3b1b10;
   font-family: var(--font-display);
   font-size: 1.15rem;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 78%),
+    0 0 14px rgb(255 220 139 / 52%),
+    0 12px 32px rgb(104 54 9 / 34%);
 }
 
-[data-wedding-theme="cinematic-burgundy"] .memory-field input::placeholder,
-[data-wedding-theme="cinematic-burgundy"] .memory-field textarea::placeholder {
-  color: rgb(214 160 144 / 72%);
+[data-wedding-theme="cinematic-burgundy"] .memory-upload-card .memory-field input::placeholder,
+[data-wedding-theme="cinematic-burgundy"] .memory-upload-card .memory-field textarea::placeholder {
+  color: rgb(59 27 16 / 64%);
   opacity: 1;
 }
 
