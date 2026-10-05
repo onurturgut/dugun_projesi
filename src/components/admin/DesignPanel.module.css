@@ -389,6 +389,10 @@
   padding: 25px 0;
   min-height: 480px;
 }
+.previewStage:has(.phone) {
+  align-items: start;
+  padding-top: 0;
+}
 .phone {
   width: min(100%, 270px);
   aspect-ratio: 9/17.8;
@@ -415,18 +419,23 @@
 }
 .phoneBrand {
   position: absolute;
-  inset: 26px 0 auto;
+  inset: auto 0 26px;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
   text-align: center;
-  font:
-    20px Georgia,
-    serif;
-  letter-spacing: 0.2em;
+}
+.phoneBrand img {
+  display: block;
+  width: 108px;
+  height: auto;
+  filter: drop-shadow(0 5px 12px rgb(0 0 0 / 55%));
 }
 .phoneBrand small {
-  display: block;
-  font: 6px system-ui;
-  letter-spacing: 0.19em;
-  margin-top: 7px;
+  font: 7px var(--font-display), Georgia, serif;
+  letter-spacing: 0.18em;
+  color: var(--preview-ink);
+  text-shadow: 0 2px 8px rgb(0 0 0 / 70%);
 }
 .phoneCaption {
   position: absolute;

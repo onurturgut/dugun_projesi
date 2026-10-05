@@ -18,7 +18,6 @@ import {
   cardPresets,
   defaultDesign,
   designMonogram,
-  designNames,
   designSchema,
   introTypes,
   pageTemplates,
@@ -554,12 +553,13 @@ export function DesignPanel({ event }: { event: Wedding }) {
                   )}
                 </div>
                 <div className={styles.phoneBrand}>
-                  SHINEQR<small>BİR GÜN. BİR ÖMÜR HATIRA.</small>
-                </div>
-                <div className={styles.phoneCaption}>
-                  <small>BU ÖZEL GÜNE DAVETLİSİNİZ</small>
-                  <h3>{designNames(design, event.title)}</h3>
-                  <p>Güzel bir hikâyeye hoş geldiniz…</p>
+                  <Image
+                    src="/brand/shineqr-lockup.png"
+                    alt="ShineQR"
+                    width={360}
+                    height={240}
+                  />
+                  <small>BİR GÜN. BİR ÖMÜR HATIRA.</small>
                 </div>
               </div>
             ) : cards ? (

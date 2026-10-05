@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   useEffect,
   useRef,
@@ -11,7 +12,6 @@ import styles from "./WeddingIntro.module.css";
 import {
   resolveDesign,
   themes,
-  designNames,
   type WeddingDesign,
 } from "@/lib/design";
 import { OpeningScene } from "./OpeningScene";
@@ -150,9 +150,14 @@ export function WeddingIntro({
           <div className={styles.ambient} aria-hidden="true" />
           <div className={styles.frame} aria-hidden="true" />
           <header className={styles.brand}>
-            <span className={styles.brandName}>
-              SHINE<span>QR</span>
-            </span>
+            <Image
+              className={styles.brandLogo}
+              src="/brand/shineqr-lockup.png"
+              alt="ShineQR"
+              width={360}
+              height={240}
+              preload
+            />
             <span className={styles.brandCaption}>
               Bir gün. Bir ömür hatıra.
             </span>
@@ -189,17 +194,6 @@ export function WeddingIntro({
             )}
           </div>
 
-          <footer className={styles.footer}>
-            <h1 className={styles.title}>
-              {designNames(design, title) || "Güzel anılar burada başlar."}
-            </h1>
-            <div className={styles.status} role="status" aria-live="polite">
-              <span className={styles.pulse} aria-hidden="true" />
-              {finished && !ready
-                ? "Davetiniz hazırlanıyor…"
-                : "Güzel bir hikâyeye hoş geldiniz…"}
-            </div>
-          </footer>
         </section>
       )}
     </>
