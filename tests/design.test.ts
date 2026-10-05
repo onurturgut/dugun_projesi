@@ -8,12 +8,24 @@ import {
   designMonogram,
   themeIds,
   cardTemplates,
+  cardPresets,
 } from "../src/lib/design";
 import { buildQrCards } from "../src/lib/qr-card";
 
 test("existing invitations keep their original video and speed", () => {
   assert.equal(resolveDesign().intro, "video");
   assert.equal(resolveDesign().speed, 1.5);
+});
+test("all QR reference designs are available as valid presets", () => {
+  assert.equal(cardPresets.length, 10);
+  assert.equal(new Set(cardPresets.map((preset) => preset.id)).size, 10);
+  for (const preset of cardPresets) {
+    assert.ok(preset.image.startsWith("/qrtasarım/"));
+    assert.ok(preset.template in cardTemplates);
+    assert.ok(themeIds.includes(preset.theme));
+    assert.match(preset.primary, /^#[0-9A-F]{6}$/i);
+    assert.match(preset.accent, /^#[0-9A-F]{6}$/i);
+  }
 });
 
 test("existing saved designs receive the wedding page template and copy defaults", () => {

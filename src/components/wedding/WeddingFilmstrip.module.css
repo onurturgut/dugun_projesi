@@ -1,51 +1,59 @@
 .stage {
-  container-type: inline-size;
+  --frame-width: clamp(148px, 42vw, 270px);
+  --frame-height: clamp(102px, 28vw, 180px);
+  --frame-gap: clamp(8px, 2.4vw, 14px);
+  --rail-height: clamp(20px, 5.8vw, 27px);
+  position: relative;
+  isolation: isolate;
   display: grid;
-  gap: clamp(2px, 0.8cqw, 8px);
-  min-width: 0;
-  max-width: 100%;
-  width: 100%;
-  padding-block: clamp(20px, 5cqw, 38px);
+  gap: clamp(12px, 3.2vw, 24px);
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  padding-block: clamp(26px, 7vw, 48px);
   overflow: hidden;
-  contain: inline-size paint;
+  overflow: clip;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .row {
-  min-width: 0;
-  max-width: 100%;
-  width: 100%;
+  position: relative;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
   overflow: hidden;
-  contain: paint;
-  filter: drop-shadow(0 16px 18px rgb(0 0 0 / 42%));
+  overflow: clip;
+  filter: drop-shadow(0 13px 13px rgb(0 0 0 / 38%));
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
-.row:first-child {
-  transform: rotate(-2.6deg) scale(1.04);
-  transform-origin: center;
-}
-
-.row:last-child {
-  transform: rotate(2.6deg) scale(1.04);
-  transform-origin: center;
-}
+.row:first-child { rotate: -1.35deg; }
+.row:last-child { rotate: 1.35deg; }
 
 .track {
   display: flex;
-  width: max-content;
-  min-width: max-content;
+  inline-size: max-content;
+  min-inline-size: max-content;
   will-change: transform;
-  transform: translate3d(0, 0, 0);
-  backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .sequence {
   position: relative;
   display: flex;
   flex: none;
-  gap: clamp(7px, 1.2cqw, 12px);
-  padding: clamp(32px, 5.8cqw, 48px) clamp(7px, 1.2cqw, 12px);
-  background: transparent;
+  gap: var(--frame-gap);
+  padding: calc(var(--rail-height) + 12px) var(--frame-gap);
+  background: #d8b978;
+  border-block: 4px solid #0a0908;
+  box-shadow:
+    inset 0 0 0 1px rgb(25 18 14 / 14%),
+    inset 0 10px 18px rgb(83 64 49 / 7%),
+    inset 0 -10px 18px rgb(83 64 49 / 7%);
+  -webkit-transform: translateZ(0);
   transform: translateZ(0);
 }
 
@@ -54,129 +62,75 @@
   content: "";
   position: absolute;
   left: 0;
+  z-index: 2;
   width: 100%;
-  height: clamp(18px, 3.1cqw, 26px);
-  background: #0b0a09;
+  height: var(--rail-height);
+  background: #0a0908;
   box-shadow:
-    inset 0 1px rgb(255 255 255 / 10%),
+    inset 0 1px rgb(255 255 255 / 9%),
     inset 0 -1px rgb(255 255 255 / 8%);
-  -webkit-mask:
-    linear-gradient(
-      to bottom,
-      #000 0 4px,
-      transparent 4px calc(100% - 4px),
-      #000 calc(100% - 4px)
-    ),
-    repeating-linear-gradient(
-      90deg,
-      #000 0 7px,
-      transparent 7px 20px,
-      #000 20px 27px
-    );
-  -webkit-mask-composite: source-over;
-  mask:
-    linear-gradient(
-      to bottom,
-      #000 0 4px,
-      transparent 4px calc(100% - 4px),
-      #000 calc(100% - 4px)
-    ),
-    repeating-linear-gradient(
-      90deg,
-      #000 0 7px,
-      transparent 7px 20px,
-      #000 20px 27px
-    );
-  mask-composite: add;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 18px, #000 18px 27px);
+  mask: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 18px, #000 18px 27px);
 }
 
-.sequence::before {
-  top: 5px;
-}
-
-.sequence::after {
-  bottom: 5px;
-  background-position: center 70%;
-}
+.sequence::before { top: 0; }
+.sequence::after { bottom: 0; }
 
 .frame {
   position: relative;
-  flex: 0 0 clamp(150px, 42cqw, 270px);
-  height: clamp(104px, 28cqw, 180px);
+  flex: 0 0 var(--frame-width);
+  width: var(--frame-width);
+  height: var(--frame-height);
   margin: 0;
   overflow: hidden;
-  border: 3px solid #111;
-  background: #111;
+  border: 4px solid #0a0908;
+  background: #d8b978;
+  box-shadow: 0 0 0 2px #d8b978;
 }
 
 .image {
   object-fit: cover;
-  transform: translateZ(0);
-  backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  transition:
-    filter 240ms ease,
-    transform 500ms ease;
+  backface-visibility: hidden;
+  transition: filter 240ms ease, transform 500ms ease;
 }
 
-.frame:nth-child(3n + 2) .image {
-  filter: grayscale(1) contrast(1.05);
-}
-
-.frame:nth-child(3n) .image {
-  filter: saturate(0.78) contrast(1.04);
-}
-
-.moveLeft {
-  animation: travelLeft var(--film-speed, 48s) linear infinite;
-}
-
-.moveRight {
-  animation: travelRight var(--film-speed, 52s) linear infinite;
-}
+.frame:nth-child(3n + 2) .image { filter: grayscale(1) contrast(1.05); }
+.frame:nth-child(3n) .image { filter: saturate(0.78) contrast(1.04); }
+.moveLeft { animation: travelLeft var(--film-speed, 48s) linear infinite; }
+.moveRight { animation: travelRight var(--film-speed, 52s) linear infinite; }
 
 @keyframes travelLeft {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(-50%, 0, 0);
-  }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
 }
 
 @keyframes travelRight {
-  from {
-    transform: translate3d(-50%, 0, 0);
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-  }
+  from { transform: translate3d(-50%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
 }
 
 @media (hover: hover) {
-  .row:hover .track {
-    animation-play-state: paused;
-  }
-
-  .frame:hover .image {
-    filter: none;
-    transform: scale(1.045);
-  }
+  .row:hover .track { animation-play-state: paused; }
+  .frame:hover .image { filter: none; transform: scale(1.045); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .track {
-    animation-play-state: paused;
-  }
+  .track { animation-play-state: paused; }
 }
 
 @media (max-width: 430px) {
   .stage {
-    gap: 0;
-    padding-block: 24px 30px;
+    --frame-width: clamp(142px, 42vw, 181px);
+    --frame-height: clamp(98px, 28vw, 121px);
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    padding-block: 28px 34px;
   }
 
-  .sequence {
-    padding-block: 31px;
-  }
+  .row:first-child,
+  .row:last-child { rotate: 0deg; }
+
+  .sequence { padding-block: calc(var(--rail-height) + 10px); }
 }

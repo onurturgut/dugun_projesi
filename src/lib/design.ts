@@ -85,6 +85,106 @@ export const cardTemplates = {
   minimal: "Minimal",
   night: "Gece",
 } as const;
+export const cardPresets = [
+  {
+    id: "campus-burgundy",
+    name: "Etkinlik Bordo",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_32_35.png",
+    template: "minimal",
+    theme: "burgundy",
+    primary: "#74151B",
+    accent: "#E4C59A",
+  },
+  {
+    id: "satin-babys-breath",
+    name: "Saten & Cipso",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_32_51.png",
+    template: "ribbon",
+    theme: "ivory",
+    primary: "#F1E5D4",
+    accent: "#8D6A3F",
+  },
+  {
+    id: "mediterranean-terracotta",
+    name: "Akdeniz Terrakota",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_32_58.png",
+    template: "couple",
+    theme: "terracotta",
+    primary: "#C77B50",
+    accent: "#493322",
+  },
+  {
+    id: "botanical-olive",
+    name: "Botanik Zeytin",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_33_28.png",
+    template: "floral",
+    theme: "olive",
+    primary: "#66654A",
+    accent: "#E4D4A9",
+  },
+  {
+    id: "moonlight-navy",
+    name: "Ay Işığı",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_33_38.png",
+    template: "night",
+    theme: "navy",
+    primary: "#101827",
+    accent: "#E6BD7C",
+  },
+  {
+    id: "black-ribbon",
+    name: "Siyah Kurdele",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_33_51.png",
+    template: "ribbon",
+    theme: "ivory",
+    primary: "#E9DAC7",
+    accent: "#171411",
+  },
+  {
+    id: "organic-blush",
+    name: "Pudra Organik",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_33_58.png",
+    template: "floral",
+    theme: "blush",
+    primary: "#EBC5B5",
+    accent: "#84372D",
+  },
+  {
+    id: "elegant-sepia",
+    name: "Zarif Sepya",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_34_11.png",
+    template: "couple",
+    theme: "ivory",
+    primary: "#E7D4BC",
+    accent: "#4B3929",
+  },
+  {
+    id: "burgundy-glow",
+    name: "Bordo Işıltı",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_34_35.png",
+    template: "couple",
+    theme: "burgundy",
+    primary: "#651016",
+    accent: "#F0C46F",
+  },
+  {
+    id: "ivory-floral",
+    name: "Fildişi Çiçek",
+    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_34_45.png",
+    template: "floral",
+    theme: "ivory",
+    primary: "#EEE0CB",
+    accent: "#9A7132",
+  },
+] as const satisfies ReadonlyArray<{
+  id: string;
+  name: string;
+  image: string;
+  template: keyof typeof cardTemplates;
+  theme: ThemeId;
+  primary: `#${string}`;
+  accent: `#${string}`;
+}>;
 export const pageTemplates = {
   filmstrip: "Hareketli film şeridi",
 } as const;

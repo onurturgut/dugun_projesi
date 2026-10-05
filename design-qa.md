@@ -1,56 +1,67 @@
-# Design QA — Hareketli Film Kolajı
+# Design QA — Hazır QR Kartı Tasarımları
 
-- Source visual truth: `C:/Users/onurt/Downloads/fotograf_seridi.png`
-- Implementation route: `/wedding/design-preview`
-- Intended viewport: responsive mobile-first wedding page, approximately 393 CSS px wide
-- Source pixels: 920 × 460, transparent PNG
-- Implementation pixels: unavailable
-- Density normalization: unavailable because no browser capture could be produced
-- State: wedding page after the opening scene, upload form idle
+- Source visual truth: `public/qrtasarım/` içindeki 10 referans görsel
+- Implementation surface: Yönetim paneli → Tasarım → Masanızdaki küçük hatıra
+- Tested viewports: 1262 px masaüstü ve 390 × 844 px mobil
+- Tested state: Tasarım paneli açık, “Ay Işığı” seçili
 
-**Findings**
+## Sonuç
 
-- [P0] Browser-rendered comparison is unavailable.
-  Location: `WeddingFilmstrip` on the wedding page.
-  Evidence: the source PNG was opened and inspected, but the available browser inventory returned no browser surfaces, so an implementation screenshot could not be captured.
-  Impact: iki bandın ters yönlü hareketi, kare kırpımları, responsive taşma ve sonraki bölüme geçiş aralığı görsel olarak onaylanamıyor.
-  Fix: open the running local route in an available browser at 393 CSS px width, capture the film-strip region, compare it beside the source PNG, and iterate on any visible differences.
+- 10 referans görselin tamamı ayrı hazır tasarım olarak görünüyor.
+- Kaynak görseller tutarlı 3:2 önizleme alanlarında kullanılıyor.
+- Masaüstü ve mobilde iki sütunlu ızgara, etiketler ve seçili durum işareti okunaklı.
+- Seçim kart şablonunu, bağımsız kart temasını ve özel renkleri birlikte uyguluyor.
+- Seçimden sonra canlı önizleme otomatik olarak QR kartı sekmesine geçiyor.
+- Yatay taşma veya Next.js hata katmanı bulunmadı.
+- 10/10 görsel tarayıcıda başarıyla yüklendi.
 
-**Required fidelity surfaces**
+## Kanıt
 
-- Fonts and typography: the handwritten date treatment is retained; visual comparison blocked.
-- Spacing and layout rhythm: fotoğraflar iki responsive bantta eşit kare aralıklarıyla yerleştirildi; visual comparison blocked.
-- Colors and visual tokens: the supplied black film frame is used over the existing burgundy page; visual comparison blocked.
-- Image quality and asset fidelity: the supplied transparent PNG is used directly as the visible film frame; gallery images remain full-resolution source assets; browser crop comparison blocked.
-- Copy and content: wedding title, image alt text, and localized date content are preserved.
+- Masaüstü: `artifacts/qr-presets-desktop.png`
+- Mobil: `artifacts/qr-presets-mobile.png`
+- Otomatik kontroller: TypeScript, ESLint ve 11 test başarılı.
 
-**Full-view comparison evidence**
+## Açık bulgu
 
-- Source image opened successfully at its original resolution.
-- Browser-rendered implementation screenshot unavailable; no valid side-by-side comparison was possible.
+P0, P1, P2 veya P3 seviyesinde açık tasarım kusuru bulunmadı.
 
-**Focused region comparison evidence**
+final result: passed
 
-- Not performed because the implementation could not be captured in a browser.
+---
 
-**Primary interactions tested**
+# Design QA — Wedding film şeridi yeniden tasarımı
 
-- Static checks only. The film strip itself is presentational; surrounding menu scroll, favorite toggle, and upload flow still require browser interaction testing.
+- Source visual truth path: `C:/Users/onurt/OneDrive/Resimler/Ekran Görüntüleri/Ekran görüntüsü 2026-10-03 223935.png`
+- Source pixels: 459 × 398 px; paylaşılan iOS sorun durumu
+- Implementation screenshot path: mevcut değil
+- Intended CSS viewport: 393 px mobil; density normalization uygulanamadı
+- State: iki hareketli fotoğraf film şeridi ve altındaki başlık
+- Browser-rendered evidence: ortamda IAB, Chrome veya Edge tarayıcı yüzeyi bulunamadı
+- Primary interactions tested: animasyon davranışı kod ve reduced-motion kuralı düzeyinde kontrol edildi; tarayıcı etkileşim testi engellendi
+- Console errors checked: tarayıcı bulunmadığı için engellendi
 
-**Console errors checked**
+## Bulgular
 
-- Not checked because no browser surface was available.
+- Kaynakta görülen sağ kenar taşmasına karş sayfa, kabuk, sahne ve her satırda yatay kırpma sınırı eklendi.
+- Mobilde döndürme kaldırıldı; film şeridinin hareketli iç rayı sabit genişlikli kırpma alanından ayrı tutuldu.
+- Film deliklerinin altı, fotoğraf ile ray arası ve fotoğraf kareleri arası `#d8b978` belirgin altın-şampanya yüzeyle dolduruldu.
+- Tipografi, renk paleti, fotoğraf içeriği ve metin kopyası değiştirilmedi.
 
-**Implementation checklist**
+## Karşılaştırma geçmişi
 
-- Capture the implementation at 393 CSS px width.
-- Verify that the top film row moves left and the bottom film row moves right without a visible seam.
-- Verify image crops and complete image coverage with one and multiple cover images.
-- Check the transition spacing between the reel and “Sıradaki kare sizden.”
-- Check the browser console and repeat visual QA after any fixes.
+- İlk kaynak incelemesindeki P1: iOS'ta film şeridinin sayfa genişliğini aşması ve sağda siyah alan oluşması.
+- Uygulanan düzeltme: `overflow: clip` + `hidden` geri dönüşü, `min-width: 0`, yüzde 100 mantıksal genişlik ve mobilde dönüşümün kaldırılması.
+- Uygulama sonrası görsel kanıt: tarayıcı yüzeyi bulunmadığı için alınamadı.
 
-**Comparison history**
+## Doğrulanan kontroller
 
-- Initial pass: blocked before visual comparison because no browser surface was available.
+- TypeScript: geçti
+- ESLint: geçti
+- 11 otomatik test: geçti
+- Next.js production build: geçti
+
+## Engelleyici
+
+Kaynak ve tarayıcıda render edilmiş uygulama aynı karşılaştırma girdisinde açılamadı. Bu nedenle görsel QA geçmiş sayılamaz.
 
 final result: blocked

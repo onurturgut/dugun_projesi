@@ -211,6 +211,71 @@
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
+.presetGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.presetGrid button {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid #ffffff18;
+  border-radius: 10px;
+  background: #11120f;
+  color: #d2cbbb;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    background 160ms ease;
+}
+.presetGrid button:hover {
+  transform: translateY(-1px);
+  border-color: #d8bb8060;
+}
+.presetGrid button[aria-pressed="true"] {
+  border-color: #d8bb80;
+  background: #d8bb8010;
+  box-shadow: 0 0 0 1px #d8bb8035;
+}
+.presetGrid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-bottom: 1px solid #ffffff12;
+}
+.presetGrid button > span:not(.presetCheck) {
+  display: block;
+  padding: 10px 11px;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.presetCheck {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid #f1d69b;
+  border-radius: 50%;
+  background: #171710e8;
+  color: #f1d69b;
+  box-shadow: 0 3px 12px #0008;
+}
+.presetHint {
+  margin-top: -8px;
+  color: #8f8b81;
+  font-size: 10px;
+  line-height: 1.55;
+}
 .templates button {
   display: flex;
   align-items: center;
@@ -548,6 +613,9 @@
   }
   .templates button {
     font-size: 8px;
+  }
+  .presetGrid {
+    gap: 8px;
   }
   .themes {
     gap: 10px 6px;

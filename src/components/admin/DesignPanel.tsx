@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 import { api, type Wedding } from "@/lib/api";
 import {
   cardTemplates,
+  cardPresets,
   defaultDesign,
   designMonogram,
   designNames,
@@ -301,6 +303,53 @@ export function DesignPanel({ event }: { event: Wedding }) {
               <p>QR kartınızın stilini ve renklerini seçin.</p>
             </div>
           </div>
+          <div className={styles.presetGrid} aria-label="Hazır QR kartı tasarımları">
+            {cardPresets.map((preset) => {
+              const selected =
+                design.cardTemplate === preset.template &&
+                design.cardTheme === preset.theme &&
+                design.customColors &&
+                design.primary.toLowerCase() === preset.primary.toLowerCase() &&
+                design.accent.toLowerCase() === preset.accent.toLowerCase();
+              return (
+                <button
+                  type="button"
+                  key={preset.id}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setDesign((current) => ({
+                      ...current,
+                      cardTemplate: preset.template,
+                      linked: false,
+                      cardTheme: preset.theme,
+                      customColors: true,
+                      primary: preset.primary,
+                      accent: preset.accent,
+                    }));
+                    setPreview("card");
+                  }}
+                >
+                  <Image
+                    src={preset.image}
+                    alt={`${preset.name} QR kartı tasarımı`}
+                    width={1536}
+                    height={1024}
+                    sizes="(max-width: 680px) 42vw, 190px"
+                  />
+                  <span>{preset.name}</span>
+                  {selected && (
+                    <span className={styles.presetCheck} aria-hidden="true">
+                      <Check size={14} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className={styles.presetHint}>
+            Hazır tasarım; kart stilini, temasını ve renklerini birlikte uygular.
+            Aşağıdaki kontrollerle son dokunuşları yapabilirsiniz.
+          </p>
           <div className={styles.templates}>
             {Object.entries(cardTemplates).map(([id, name]) => (
               <button
