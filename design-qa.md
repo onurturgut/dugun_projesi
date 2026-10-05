@@ -160,3 +160,36 @@ final result: blocked
 - Bu oturumda kullanılabilir tarayıcı yüzeyi bulunmadığı için canlı ekran görüntüsü ve konsol kontrolü yapılamadı.
 
 final result: blocked
+
+---
+
+# Design QA — Canlı tema renk eşitlemesi
+
+- Source visual truth paths:
+  - `C:/Users/onurt/OneDrive/Resimler/Ekran Görüntüleri/Ekran görüntüsü 2026-10-06 011238.png`
+  - `C:/Users/onurt/OneDrive/Resimler/Ekran Görüntüleri/Ekran görüntüsü 2026-10-06 011245.png`
+- Source pixels: 820 × 881 px ve 820 × 617 px
+- Implementation surface: Wedding sayfası canlı önizlemesi
+- Implementation screenshot: alınamadı
+- State: tema seçimi sonrasında sayfa, film şeridi ve yükleme alanı
+
+## Uygulanan değişiklikler
+
+- Film şeridinin metalik yüzeyi `--wedding-base`, `--wedding-light` ve `--wedding-accent` değişkenlerine bağlandı.
+- Film perforasyonu ve çerçeveler seçilen temanın ana renginden türetiliyor.
+- Yükleme kartı, dropzone, ikon, metin ve form alanı gradientleri seçilen temadan türetiliyor.
+- Tema vurgu renginde okunabilir form metni için `--wedding-accent-ink` eklendi.
+- Aynı değişkenler gerçek wedding sayfası ve yönetim panelindeki canlı önizleme tarafından paylaşılıyor.
+
+## Doğrulanan kontroller
+
+- TypeScript: geçti
+- ESLint: geçti
+- 11 otomatik test: geçti
+- `git diff --check`: geçti
+
+## Görsel doğrulama engeli
+
+- Bu oturumda kullanılabilir tarayıcı yüzeyi olmadığı için tema düğmelerinin görsel geçişi ve konsol hataları canlı doğrulanamadı.
+
+final result: blocked

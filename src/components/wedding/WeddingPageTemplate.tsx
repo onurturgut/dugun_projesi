@@ -4,7 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
-import { resolveDesign, themes, type WeddingDesign } from "@/lib/design";
+import {
+  readableInk,
+  resolveDesign,
+  themes,
+  type WeddingDesign,
+} from "@/lib/design";
 import { WeddingFilmstrip } from "./WeddingFilmstrip";
 import styles from "@/app/wedding/[slug]/wedding.module.css";
 
@@ -37,6 +42,7 @@ export function WeddingPageTemplate({
           "--wedding-base": palette.base,
           "--wedding-light": palette.light,
           "--wedding-accent": palette.accent,
+          "--wedding-accent-ink": readableInk(palette.accent),
           "--wedding-ink": palette.ink,
         } as CSSProperties
       }

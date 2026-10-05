@@ -4,7 +4,15 @@
   --frame-gap: clamp(7px, 1.9vw, 11px);
   --rail-height: clamp(16px, 4.6vw, 22px);
   --film-gold: color-mix(in srgb, var(--wedding-accent, #d8b978) 82%, #c99d57 18%);
-  --film-ink: #17130f;
+  --film-gold-gradient: linear-gradient(
+    108deg,
+    color-mix(in srgb, var(--wedding-accent, #d8b978) 72%, var(--wedding-base, #80501e) 28%) 0%,
+    color-mix(in srgb, var(--wedding-accent, #d8b978) 86%, var(--wedding-light, #f7e7bb) 14%) 24%,
+    color-mix(in srgb, var(--wedding-accent, #d8b978) 70%, white 30%) 43%,
+    color-mix(in srgb, var(--wedding-accent, #d8b978) 88%, var(--wedding-base, #b7772d) 12%) 68%,
+    color-mix(in srgb, var(--wedding-accent, #d8b978) 68%, var(--wedding-base, #744518) 32%) 100%
+  );
+  --film-ink: color-mix(in srgb, var(--wedding-base, #17130f) 76%, black 24%);
   position: relative;
   isolation: isolate;
   display: grid;
@@ -49,7 +57,7 @@
   flex: none;
   gap: var(--frame-gap);
   padding: calc(var(--rail-height) + 8px) var(--frame-gap);
-  background: var(--film-gold);
+  background: var(--film-gold-gradient);
   border-block: 3px solid var(--film-ink);
   box-shadow:
     inset 0 0 0 1px rgb(25 18 14 / 14%),
@@ -86,7 +94,7 @@
   margin: 0;
   overflow: hidden;
   border: 3px solid var(--film-ink);
-  background: var(--film-gold);
+  background: var(--film-gold-gradient);
   box-shadow: 0 0 0 1px var(--film-gold);
 }
 
