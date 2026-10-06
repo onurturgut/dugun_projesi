@@ -1,4 +1,5 @@
 ﻿export type { Wedding, Media, Account, Partner } from "./models";
+export type { MediaPage, MediaSummary } from "./models";
 export class ApiError extends Error {
   constructor(
     message: string,

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { db } from "./db";
-import { hash } from "./auth";
+import { hash, invalidateSessionCache } from "./auth";
 import { passwordFields, matches } from "./passwords";
 import {
   HttpError,
@@ -23,7 +23,7 @@ import {
   mediaIds,
   uploadInput,
 } from "./validation";
-import { storage, deleteObject } from "./r2";
+import { storage, deleteObject, signedObjectUrl } from "./r2";
 import { mediaResponse, zipResponse } from "./media-response";
 import { cleanup } from "./maintenance";
 import { uploadCover, validateCovers, coverResponse } from "./covers";
@@ -41,6 +41,27 @@ const json = (value: unknown, status = 200) =>
     status,
     headers: { "Cache-Control": "no-store" },
   });
+const escapeRegex = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+type MediaCursor = { value: string | number; id: string };
+const encodeCursor = (cursor: MediaCursor) =>
+  Buffer.from(JSON.stringify(cursor)).toString("base64url");
+const decodeCursor = (value: string | null): MediaCursor | null => {
+  if (!value) return null;
+  try {
+    const cursor = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as Partial<MediaCursor>;
+    if (
+      (typeof cursor.value !== "string" && typeof cursor.value !== "number") ||
+      typeof cursor.id !== "string"
+    )
+      throw new Error();
+    return cursor as MediaCursor;
+  } catch {
+    throw new HttpError(400, "Geçersiz sayfalama bilgisi.");
+  }
+};
 const publicEvent = (w: Wedding) => ({
   id: w.id,
   slug: w.slug,
@@ -93,6 +114,7 @@ export async function handle(
         )
           .collection("sessions")
           .deleteOne({ token: hash(token) });
+      invalidateSessionCache(token);
       jar.delete("wm_session");
       return json({ ok: true });
     }
@@ -186,21 +208,20 @@ export async function handle(
         ))
       )
         throw new HttpError(400, "Mevcut şifre hatalı.");
-      await database
-        .collection("users")
-        .updateOne(
-          { id: user.id },
-          {
-            $set: {
-              ...(await passwordFields(data.password)),
-              must_change_password: false,
-            },
+      await database.collection("users").updateOne(
+        { id: user.id },
+        {
+          $set: {
+            ...(await passwordFields(data.password)),
+            must_change_password: false,
           },
-        );
+        },
+      );
       const current = (await cookies()).get("wm_session")?.value;
       await database
         .collection("sessions")
         .deleteMany({ userId: user.id, token: { $ne: hash(current || "") } });
+      invalidateSessionCache();
       return json({ ok: true });
     }
     if (route === "weddings" && method === "GET")
@@ -244,28 +265,24 @@ export async function handle(
           throw new HttpError(400, "Logo HTTPS adresi olmalı.");
         const id = randomUUID();
         const fields = await passwordFields(data.password);
-        await database
-          .collection("users")
-          .insertOne({
-            id: randomUUID(),
-            email: data.username,
-            ...fields,
-            role: "partner",
-            partner_id: id,
-            display_name: data.display_name,
-            must_change_password: true,
-            disabled: false,
-          });
+        await database.collection("users").insertOne({
+          id: randomUUID(),
+          email: data.username,
+          ...fields,
+          role: "partner",
+          partner_id: id,
+          display_name: data.display_name,
+          must_change_password: true,
+          disabled: false,
+        });
         try {
-          await database
-            .collection("partners")
-            .insertOne({
-              id,
-              name: data.name,
-              logo_url: data.logo_url,
-              active: true,
-              created_at: new Date().toISOString(),
-            });
+          await database.collection("partners").insertOne({
+            id,
+            name: data.name,
+            logo_url: data.logo_url,
+            active: true,
+            created_at: new Date().toISOString(),
+          });
         } catch (e) {
           await database
             .collection("users")
@@ -289,6 +306,7 @@ export async function handle(
       await database
         .collection("partners")
         .updateOne({ id: path[2] }, { $set: data });
+      invalidateSessionCache();
       return json({ ok: true });
     }
     if (route === "admin/status" && method === "GET" && user) {
@@ -312,40 +330,13 @@ export async function handle(
           .sort({ created_at: -1 })
           .toArray();
         return json(
-          await Promise.all(
-            events.map(async (w) => {
-              const stats = await media
-                .aggregate([
-                  { $match: { wedding_id: w.id } },
-                  {
-                    $group: {
-                      _id: null,
-                      total: {
-                        $sum: {
-                          $cond: [
-                            { $eq: [{ $ifNull: ["$deleted_at", null] }, null] },
-                            1,
-                            0,
-                          ],
-                        },
-                      },
-                      trashed: {
-                        $sum: {
-                          $cond: [
-                            { $ne: [{ $ifNull: ["$deleted_at", null] }, null] },
-                            1,
-                            0,
-                          ],
-                        },
-                      },
-                      size_bytes: { $sum: "$size_bytes" },
-                    },
-                  },
-                ])
-                .toArray();
-              return { ...w, ...stats[0], _id: undefined };
-            }),
-          ),
+          events.map((w) => ({
+            ...w,
+            total: (w.photo_count || 0) + (w.video_count || 0),
+            trashed: w.trashed_count || 0,
+            size_bytes: w.media_bytes || 0,
+            _id: undefined,
+          })),
         );
       }
       if (method === "POST") {
@@ -384,6 +375,13 @@ export async function handle(
           uploads_open_at: now,
           upload_enabled: true,
           purged_at: null,
+          photo_count: 0,
+          video_count: 0,
+          media_bytes: 0,
+          trashed_photo_count: 0,
+          trashed_video_count: 0,
+          trashed_count: 0,
+          trashed_bytes: 0,
           created_at: now,
           ...times,
           logo_url: data.logo_url || partner.logo_url || "",
@@ -402,7 +400,8 @@ export async function handle(
           { id, ...weddingScope(user) },
           { $set: { design } },
         );
-        if (!result.matchedCount) throw new HttpError(404, "Organizasyon bulunamadı.");
+        if (!result.matchedCount)
+          throw new HttpError(404, "Organizasyon bulunamadı.");
         return json({ design });
       }
       if (path.length === 3) {
@@ -437,7 +436,8 @@ export async function handle(
               throw new HttpError(400, "Geçersiz tarih.");
             }
           }
-          if (data.cover_images) await validateCovers(data.cover_images, event.partner_id);
+          if (data.cover_images)
+            await validateCovers(data.cover_images, event.partner_id);
           await weddings.updateOne({ id }, { $set: { ...data, ...times } });
           return json({ ok: true });
         }
@@ -447,20 +447,18 @@ export async function handle(
         if (method === "GET")
           return json(
             event.owner_id
-              ? await database
-                  .collection("users")
-                  .findOne(
-                    { id: event.owner_id },
-                    {
-                      projection: {
-                        _id: 0,
-                        id: 1,
-                        email: 1,
-                        display_name: 1,
-                        must_change_password: 1,
-                      },
+              ? await database.collection("users").findOne(
+                  { id: event.owner_id },
+                  {
+                    projection: {
+                      _id: 0,
+                      id: 1,
+                      email: 1,
+                      display_name: 1,
+                      must_change_password: 1,
                     },
-                  )
+                  },
+                )
               : null,
           );
         if (method === "POST") {
@@ -475,19 +473,17 @@ export async function handle(
           if (!claimed.modifiedCount)
             throw new HttpError(409, "Sahip hesabı oluşturuluyor.");
           try {
-            await database
-              .collection("users")
-              .insertOne({
-                id: ownerId,
-                email: data.username,
-                display_name: data.display_name,
-                ...(await passwordFields(data.password)),
-                role: "owner",
-                partner_id: event.partner_id,
-                owner_event_id: id,
-                must_change_password: true,
-                disabled: false,
-              });
+            await database.collection("users").insertOne({
+              id: ownerId,
+              email: data.username,
+              display_name: data.display_name,
+              ...(await passwordFields(data.password)),
+              role: "owner",
+              partner_id: event.partner_id,
+              owner_event_id: id,
+              must_change_password: true,
+              disabled: false,
+            });
           } catch (e) {
             await weddings.updateOne(
               { id, owner_id: ownerId },
@@ -503,29 +499,101 @@ export async function handle(
           throw new HttpError(410, "Bu organizasyonun saklama süresi doldu.");
         if (path.length === 4 && method === "GET") {
           const trash = req.nextUrl.searchParams.get("trash") === "1";
-          const rows = await media
-            .find(
-              {
-                wedding_id: id,
-                deleted_at: trash ? { $ne: null } : null,
-                purging: { $ne: true },
-                ...(trash
-                  ? { purge_at: { $gt: new Date().toISOString() } }
-                  : {}),
-              },
-              { projection: { _id: 0 } },
-            )
-            .sort({ uploaded_at: -1 })
-            .toArray();
-          return json(
-            rows.map((r) => ({
-              ...r,
-              storage_path: undefined,
-              uploader_session_id: undefined,
-              url: `/api/admin/weddings/${id}/media/${r.id}${trash ? "?trash_preview=1" : ""}`,
-              download_url: `/api/admin/weddings/${id}/media/${r.id}?download=1`,
-            })),
+          const limit = Math.min(
+            60,
+            Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 24),
           );
+          const kind = req.nextUrl.searchParams.get("type");
+          const sort = req.nextUrl.searchParams.get("sort") || "new";
+          const search = (req.nextUrl.searchParams.get("search") || "")
+            .trim()
+            .slice(0, 100);
+          if (kind && !["photo", "video"].includes(kind))
+            throw new HttpError(400, "Geçersiz medya türü.");
+          if (!["new", "old", "size"].includes(sort))
+            throw new HttpError(400, "Geçersiz sıralama.");
+          const baseFilter: Record<string, unknown> = {
+            wedding_id: id,
+            deleted_at: trash ? { $ne: null } : null,
+            purging: { $ne: true },
+            ...(trash ? { purge_at: { $gt: new Date().toISOString() } } : {}),
+            ...(kind ? { type: kind } : {}),
+            ...(search
+              ? {
+                  $or: ["guest_name", "guest_message", "file_name"].map(
+                    (field) => ({
+                      [field]: { $regex: escapeRegex(search), $options: "i" },
+                    }),
+                  ),
+                }
+              : {}),
+          };
+          const cursor = decodeCursor(req.nextUrl.searchParams.get("cursor"));
+          const sortField = sort === "size" ? "size_bytes" : "uploaded_at";
+          const direction = sort === "old" ? 1 : -1;
+          const operator = direction === 1 ? "$gt" : "$lt";
+          const cursorFilter = cursor
+            ? {
+                $or: [
+                  { [sortField]: { [operator]: cursor.value } },
+                  { [sortField]: cursor.value, id: { [operator]: cursor.id } },
+                ],
+              }
+            : {};
+          const summary = trash
+            ? {
+                photos: event.trashed_photo_count || 0,
+                videos: event.trashed_video_count || 0,
+                totalBytes: event.trashed_bytes || 0,
+              }
+            : {
+                photos: event.photo_count || 0,
+                videos: event.video_count || 0,
+                totalBytes: event.media_bytes || 0,
+              };
+          const unfilteredTotal = summary.photos + summary.videos;
+          const [rows, total] = await Promise.all([
+            media
+              .find(
+                { $and: [baseFilter, cursorFilter] },
+                { projection: { _id: 0 } },
+              )
+              .sort({ [sortField]: direction, id: direction })
+              .limit(limit + 1)
+              .toArray(),
+            cursor
+              ? Promise.resolve(0)
+              : kind || search
+                ? media.countDocuments(baseFilter)
+                : Promise.resolve(unfilteredTotal),
+          ]);
+          const hasMore = rows.length > limit;
+          const pageRows = rows.slice(0, limit);
+          const last = pageRows.at(-1);
+          return json({
+            items: await Promise.all(
+              pageRows.map(async (r) => ({
+                ...r,
+                storage_path: undefined,
+                preview_path: undefined,
+                uploader_session_id: undefined,
+                url: await signedObjectUrl(r.storage_path),
+                preview_url: r.preview_path
+                  ? await signedObjectUrl(r.preview_path)
+                  : undefined,
+                download_url: `/api/admin/weddings/${id}/media/${r.id}?download=1`,
+              })),
+            ),
+            nextCursor:
+              hasMore && last
+                ? encodeCursor({
+                    value: last[sortField as "uploaded_at" | "size_bytes"],
+                    id: last.id,
+                  })
+                : null,
+            total,
+            summary,
+          });
         }
         if (path.length === 4 && (method === "DELETE" || method === "PATCH")) {
           const data = z
@@ -533,7 +601,18 @@ export async function handle(
             .parse(await req.json());
           if (method === "DELETE") {
             const now = new Date().toISOString();
-            await media.updateMany(
+            const affected = await media
+              .find(
+                {
+                  wedding_id: id,
+                  id: { $in: data.ids },
+                  deleted_at: null,
+                  purging: { $ne: true },
+                },
+                { projection: { type: 1, size_bytes: 1 } },
+              )
+              .toArray();
+            const result = await media.updateMany(
               {
                 wedding_id: id,
                 id: { $in: data.ids },
@@ -542,10 +621,41 @@ export async function handle(
               },
               { $set: { deleted_at: now, purge_at: trashDeadline(event) } },
             );
+            if (result.modifiedCount) {
+              const photos = affected.filter((row) => row.type === "photo").length;
+              const videos = affected.length - photos;
+              const bytes = affected.reduce((sum, row) => sum + row.size_bytes, 0);
+              await weddings.updateOne(
+                { id },
+                {
+                  $inc: {
+                    photo_count: -photos,
+                    video_count: -videos,
+                    media_bytes: -bytes,
+                    trashed_photo_count: photos,
+                    trashed_video_count: videos,
+                    trashed_count: affected.length,
+                    trashed_bytes: bytes,
+                  },
+                },
+              );
+            }
           } else {
             if (data.action !== "restore")
               throw new HttpError(400, "Geçersiz işlem.");
-            await media.updateMany(
+            const affected = await media
+              .find(
+                {
+                  wedding_id: id,
+                  id: { $in: data.ids },
+                  deleted_at: { $ne: null },
+                  purge_at: { $gt: new Date().toISOString() },
+                  purging: { $ne: true },
+                },
+                { projection: { type: 1, size_bytes: 1 } },
+              )
+              .toArray();
+            const result = await media.updateMany(
               {
                 wedding_id: id,
                 id: { $in: data.ids },
@@ -555,25 +665,81 @@ export async function handle(
               },
               { $set: { deleted_at: null, purge_at: null } },
             );
+            if (result.modifiedCount) {
+              const photos = affected.filter((row) => row.type === "photo").length;
+              const videos = affected.length - photos;
+              const bytes = affected.reduce((sum, row) => sum + row.size_bytes, 0);
+              await weddings.updateOne(
+                { id },
+                {
+                  $inc: {
+                    photo_count: photos,
+                    video_count: videos,
+                    media_bytes: bytes,
+                    trashed_photo_count: -photos,
+                    trashed_video_count: -videos,
+                    trashed_count: -affected.length,
+                    trashed_bytes: -bytes,
+                  },
+                },
+              );
+            }
           }
           return json({ ok: true });
         }
         if (path.length === 5 && method === "GET") {
-          const trashPreview = req.nextUrl.searchParams.get("trash_preview") === "1";
+          const trashPreview =
+            req.nextUrl.searchParams.get("trash_preview") === "1";
           if (trashPreview && req.nextUrl.searchParams.get("download") === "1")
-            throw new HttpError(400, "İndirmek için içeriği önce albüme geri alın.");
+            throw new HttpError(
+              400,
+              "İndirmek için içeriği önce albüme geri alın.",
+            );
           const row = await media.findOne({
             id: path[4],
             wedding_id: id,
             deleted_at: trashPreview ? { $ne: null } : null,
             purging: { $ne: true },
-            ...(trashPreview ? { purge_at: { $gt: new Date().toISOString() } } : {}),
+            ...(trashPreview
+              ? { purge_at: { $gt: new Date().toISOString() } }
+              : {}),
           });
           if (!row) throw new HttpError(404, "Dosya bulunamadı.");
           return await mediaResponse(
             row,
             req.nextUrl.searchParams.get("download") === "1",
             req.headers.get("range"),
+          );
+        }
+        if (
+          path.length === 6 &&
+          path[5] === "preview" &&
+          method === "GET"
+        ) {
+          const trashPreview =
+            req.nextUrl.searchParams.get("trash_preview") === "1";
+          const row = await media.findOne({
+            id: path[4],
+            wedding_id: id,
+            deleted_at: trashPreview ? { $ne: null } : null,
+            purging: { $ne: true },
+            preview_path: { $type: "string" },
+            ...(trashPreview
+              ? { purge_at: { $gt: new Date().toISOString() } }
+              : {}),
+          });
+          if (!row?.preview_path)
+            throw new HttpError(404, "Önizleme bulunamadı.");
+          return mediaResponse(
+            {
+              ...row,
+              storage_path: row.preview_path,
+              mime_type: row.preview_mime_type || "image/webp",
+              file_name: `${row.id}.webp`,
+            },
+            false,
+            req.headers.get("range"),
+            "private, max-age=86400, immutable",
           );
         }
       }
@@ -680,13 +846,14 @@ export async function handle(
         await deleteObject(t.storage_path);
         throw new HttpError(400, "Dosya doğrulanamadı.");
       }
-      await media.updateOne(
+      const mediaType = t.mime_type.startsWith("image/") ? "photo" : "video";
+      const inserted = await media.updateOne(
         { storage_path: t.storage_path },
         {
           $setOnInsert: {
             id: randomUUID(),
             wedding_id: event.id,
-            type: t.mime_type.startsWith("image/") ? "photo" : "video",
+            type: mediaType,
             storage_path: t.storage_path,
             file_name: t.file_name,
             mime_type: t.mime_type,
@@ -697,10 +864,23 @@ export async function handle(
             uploaded_at: new Date().toISOString(),
             deleted_at: null,
             purge_at: null,
+            processing_status: "pending",
+            processing_attempts: 0,
           },
         },
         { upsert: true },
       );
+      if (inserted.upsertedCount)
+        await weddings.updateOne(
+          { id: event.id },
+          {
+            $inc: {
+              photo_count: mediaType === "photo" ? 1 : 0,
+              video_count: mediaType === "video" ? 1 : 0,
+              media_bytes: t.size_bytes,
+            },
+          },
+        );
       await database
         .collection("upload_tickets")
         .updateOne({ _id: t._id }, { $set: { completed: true } });

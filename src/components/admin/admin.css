@@ -368,6 +368,8 @@
 .admin-media-card {
   min-width: 0;
   overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 360px;
   border: 1px solid #ffffff14;
   border-radius: 12px;
   background: #1e1e1a;

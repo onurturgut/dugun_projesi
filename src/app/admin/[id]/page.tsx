@@ -3,8 +3,12 @@ import { SelectField } from "@/components/admin/SelectField";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams } from "next/navigation";
-import { useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   ArrowLeft,
@@ -22,7 +26,13 @@ import {
   Palette,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, type Account, type Wedding, type Media } from "@/lib/api";
+import {
+  api,
+  type Account,
+  type Wedding,
+  type Media,
+  type MediaPage,
+} from "@/lib/api";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { QrPanel } from "@/components/admin/QrPanel";
 import { DesignPanel } from "@/components/admin/DesignPanel";
@@ -54,8 +64,8 @@ export default function EventDetail() {
     [trash, setTrash] = useState(false),
     [kind, setKind] = useState("all"),
     [search, setSearch] = useState(""),
-    [sort, setSort] = useState("new"),
-    [limit, setLimit] = useState(24);
+    [debouncedSearch, setDebouncedSearch] = useState(""),
+    [sort, setSort] = useState("new");
   const [selected, setSelected] = useState<string[]>([]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -63,6 +73,13 @@ export default function EventDetail() {
     [pending, setPending] = useState<string[]>([]);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const deleteReturnFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const timeout = window.setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      350,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [search]);
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api<Account>("/auth/me"),
@@ -75,37 +92,39 @@ export default function EventDetail() {
     expired =
       !!w?.purged_at ||
       !!(w?.expires_at && Date.parse(w.expires_at) <= Date.now());
-  const media = useQuery({
-    queryKey: ["admin-media", id, trash],
-    queryFn: () =>
-      api<Media[]>(`/admin/weddings/${id}/media${trash ? "?trash=1" : ""}`),
-    enabled: !!w && !expired,
-    refetchInterval: 10000,
+  const media = useInfiniteQuery({
+    queryKey: ["admin-media", id, trash, kind, debouncedSearch, sort],
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: "24", sort });
+      if (trash) params.set("trash", "1");
+      if (kind !== "all") params.set("type", kind);
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (pageParam) params.set("cursor", pageParam);
+      return api<MediaPage>(`/admin/weddings/${id}/media?${params}`);
+    },
+    initialPageParam: "",
+    getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
+    enabled: !!w && !expired && section === "album",
+    staleTime: 15_000,
+    refetchInterval: section === "album" ? 30_000 : false,
+    refetchIntervalInBackground: false,
   });
-  const all = media.data || [];
-  const rows = all
-    .filter(
-      (m) =>
-        (kind === "all" || m.type === kind) &&
-        `${m.guest_name} ${m.guest_message} ${m.file_name}`
-          .toLocaleLowerCase("tr")
-          .includes(search.toLocaleLowerCase("tr")),
-    )
-    .sort((a, b) =>
-      sort === "size"
-        ? b.size_bytes - a.size_bytes
-        : sort === "old"
-          ? a.uploaded_at.localeCompare(b.uploaded_at)
-          : b.uploaded_at.localeCompare(a.uploaded_at),
-    );
-  const visible = rows.slice(0, limit),
-    rowIds = new Set(rows.map((m) => m.id)),
-    validSelected = selected.filter((id) => rowIds.has(id));
+  const rows = useMemo(
+    () => media.data?.pages.flatMap((page) => page.items) || [],
+    [media.data],
+  );
+  const firstPage = media.data?.pages[0];
+  const summary = firstPage?.summary || { photos: 0, videos: 0, totalBytes: 0 };
+  const total = firstPage?.total || 0;
+  const rowIds = useMemo(() => new Set(rows.map((m) => m.id)), [rows]);
+  const validSelected = useMemo(
+    () => selected.filter((selectedId) => rowIds.has(selectedId)),
+    [rowIds, selected],
+  );
   const filtered = kind !== "all" || !!search;
   const archive = `/api/admin/weddings/${id}/archive`;
   function resetSelection() {
     setSelected([]);
-    setLimit(24);
   }
   function requestDelete(ids: string[]) {
     setError("");
@@ -187,17 +206,15 @@ export default function EventDetail() {
           <div className="admin-summary">
             <div className="admin-stats">
               <span>
-                <strong>{all.filter((m) => m.type === "photo").length}</strong>
+                <strong>{summary.photos}</strong>
                 fotoğraf
               </span>
               <span>
-                <strong>{all.filter((m) => m.type === "video").length}</strong>
+                <strong>{summary.videos}</strong>
                 video
               </span>
               <span>
-                <strong>
-                  {formatBytes(all.reduce((s, m) => s + m.size_bytes, 0))}
-                </strong>
+                <strong>{formatBytes(summary.totalBytes)}</strong>
                 {trash ? "çöp kutusunda" : "toplam"}
               </span>
             </div>
@@ -293,7 +310,7 @@ export default function EventDetail() {
                     {trash ? "Albüme dön" : "Çöp kutusu"}
                   </button>
                 </div>
-                {!trash && !expired && all.length > 0 && (
+                {!trash && !expired && summary.photos + summary.videos > 0 && (
                   <a className="admin-button" href={archive}>
                     <Download size={16} /> Tüm albümü indir
                   </a>
@@ -352,7 +369,7 @@ export default function EventDetail() {
               </div>
               <div className="admin-result-row">
                 <span aria-live="polite">
-                  {rows.length} içerik{filtered ? " eşleşti" : ""}
+                  {total} içerik{filtered ? " eşleşti" : ""}
                 </span>
                 <div className="admin-actions">
                   {rows.length > 0 && (
@@ -362,7 +379,7 @@ export default function EventDetail() {
                         const ids = [
                           ...new Set([
                             ...validSelected,
-                            ...visible.map((m) => m.id),
+                            ...rows.map((m) => m.id),
                           ]),
                         ];
                         setSelected(ids.slice(0, 200));
@@ -421,7 +438,7 @@ export default function EventDetail() {
               ) : (
                 <>
                   <div className="admin-grid">
-                    {visible.map((m) => (
+                    {rows.map((m) => (
                       <article
                         key={m.id}
                         className={`admin-media-card ${validSelected.includes(m.id) ? "is-selected" : ""}`}
@@ -435,9 +452,9 @@ export default function EventDetail() {
                             }}
                             aria-label={`${m.file_name} görüntüle`}
                           >
-                            {m.type === "photo" ? (
+                            {m.type === "photo" || m.preview_url ? (
                               <Image
-                                src={m.url}
+                                src={m.preview_url || m.url}
                                 alt={m.file_name}
                                 fill
                                 unoptimized
@@ -445,7 +462,7 @@ export default function EventDetail() {
                                 className="object-cover"
                               />
                             ) : (
-                              <VideoPreview url={m.url} />
+                              <VideoPreview />
                             )}
                           </button>
                           <label className="admin-check">
@@ -509,27 +526,35 @@ export default function EventDetail() {
                       </article>
                     ))}
                   </div>
-                  {visible.length < rows.length && (
+                  {media.hasNextPage && (
                     <div className="mt-6 text-center">
                       <button
                         className="admin-button"
-                        onClick={() => setLimit(limit + 24)}
+                        disabled={media.isFetchingNextPage}
+                        onClick={() => media.fetchNextPage()}
                       >
-                        Daha fazla göster ({rows.length - visible.length})
+                        {media.isFetchingNextPage
+                          ? "Yükleniyor…"
+                          : `Daha fazla göster (${total - rows.length})`}
                       </button>
                     </div>
                   )}
                 </>
               )}
-              {!trash && filtered && rows.length > 0 && rows.length <= 200 && (
-                <a
-                  className="admin-button mt-5"
-                  href={`${archive}?ids=${rows.map((m) => m.id).join(",")}`}
-                >
-                  <Download size={16} /> Filtrelenen {rows.length} içeriği indir
-                </a>
-              )}
-              {!trash && filtered && rows.length > 200 && (
+              {!trash &&
+                filtered &&
+                rows.length > 0 &&
+                !media.hasNextPage &&
+                rows.length <= 200 && (
+                  <a
+                    className="admin-button mt-5"
+                    href={`${archive}?ids=${rows.map((m) => m.id).join(",")}`}
+                  >
+                    <Download size={16} /> Filtrelenen {rows.length} içeriği
+                    indir
+                  </a>
+                )}
+              {!trash && filtered && total > 200 && (
                 <p className="admin-hint mt-4">
                   Filtrelenen içerikleri indirmek için en fazla 200 dosyalık
                   gruplar seçin.

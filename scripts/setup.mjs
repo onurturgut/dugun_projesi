@@ -1,5 +1,6 @@
 import { MongoClient } from "mongodb";
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
+import { rebuildMediaCounters } from "./media-counters.mjs";
 const { MONGODB_URI, ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
 const databaseOnly = process.argv.includes("--database-only");
 if (
@@ -17,7 +18,12 @@ try {
   await Promise.all([
     db.collection("partners").createIndex({ id: 1 }, { unique: true }),
     db.collection("users").createIndex({ id: 1 }, { unique: true }),
-    db.collection("users").createIndex({ owner_event_id: 1 }, { unique: true, partialFilterExpression: { role: "owner" } }),
+    db
+      .collection("users")
+      .createIndex(
+        { owner_event_id: 1 },
+        { unique: true, partialFilterExpression: { role: "owner" } },
+      ),
     db.collection("weddings").createIndex({ partner_id: 1, owner_id: 1 }),
     db.collection("weddings").createIndex({ expires_at: 1 }),
     db.collection("media").createIndex({ id: 1 }, { unique: true }),
@@ -26,7 +32,24 @@ try {
     db.collection("weddings").createIndex({ slug: 1 }, { unique: true }),
     db.collection("weddings").createIndex({ id: 1 }, { unique: true }),
     db.collection("media").createIndex({ storage_path: 1 }, { unique: true }),
-    db.collection("media").createIndex({ wedding_id: 1, uploaded_at: -1 }),
+    db
+      .collection("media")
+      .createIndex({ wedding_id: 1, deleted_at: 1, uploaded_at: -1, id: -1 }),
+    db
+      .collection("media")
+      .createIndex({
+        wedding_id: 1,
+        deleted_at: 1,
+        type: 1,
+        uploaded_at: -1,
+        id: -1,
+      }),
+    db
+      .collection("media")
+      .createIndex({ wedding_id: 1, deleted_at: 1, size_bytes: -1, id: -1 }),
+    db
+      .collection("media")
+      .createIndex({ processing_status: 1, processing_attempts: 1, uploaded_at: 1 }),
     db.collection("sessions").createIndex({ token: 1 }, { unique: true }),
     db
       .collection("sessions")
@@ -89,26 +112,26 @@ try {
     },
     { upsert: true },
   );
-  await db
-    .collection("partners")
-    .updateOne(
-      { id: "platform" },
-      {
-        $setOnInsert: {
-          id: "platform",
-          name: "Platform organizasyonları",
-          logo_url: "",
-          active: true,
-          created_at: new Date().toISOString(),
-        },
+  await db.collection("partners").updateOne(
+    { id: "platform" },
+    {
+      $setOnInsert: {
+        id: "platform",
+        name: "Platform organizasyonları",
+        logo_url: "",
+        active: true,
+        created_at: new Date().toISOString(),
       },
-      { upsert: true },
-    );
+    },
+    { upsert: true },
+  );
+  const counterCount = await rebuildMediaCounters(db);
   console.log(
     databaseOnly
       ? "İndeksler ve Oğuz & Hilal düğünü hazır. Yönetici hesabı değiştirilmedi."
       : "İndeksler, yönetici hesabı ve Oğuz & Hilal düğünü hazır. Mevcut kayıtlar değiştirilmedi.",
   );
+  console.log(`${counterCount} organizasyonun medya sayaÃ§larÄ± yenilendi.`);
 } finally {
   await client.close();
 }

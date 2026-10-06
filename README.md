@@ -4,13 +4,13 @@ Aktif uygulama Next.js App Router, MongoDB ve Cloudflare R2 kullanır. Partner i
 
 ## Geliştirme
 
-Node.js 22+ ve npm gereklidir. Bağlantı ayarları ve ilk yönetici hesabı için kurulum rehberini izleyin.
+Node.js 22+ ve projeye sabitlenmiş Yarn gereklidir. Bağlantı ayarları ve ilk yönetici hesabı için kurulum rehberini izleyin.
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm i
-npm run dev
+yarn install
+yarn dev
 ```
 
 ## Teknolojiler

@@ -2,9 +2,20 @@ import "server-only";
 import { db } from "./db";
 import { deleteObject } from "./r2";
 import { cleanupCovers } from "./covers";
+import { processMediaPreviews } from "./media-processing";
 export async function cleanup(now = new Date()) {
   const database = await db();
   const iso = now.toISOString();
+  await database.collection("media").updateMany(
+    {
+      processing_status: "processing",
+      processing_started_at: {
+        $lt: new Date(now.getTime() - 15 * 60_000).toISOString(),
+      },
+    },
+    { $set: { processing_status: "failed" } },
+  );
+  const previews = await processMediaPreviews(8);
   let files = 0,
     tickets = 0,
     events = 0;
@@ -43,9 +54,28 @@ export async function cleanup(now = new Date()) {
     if (!claimed) continue;
     try {
       await deleteObject(row.storage_path);
+      if (row.preview_path) await deleteObject(row.preview_path);
       await database
         .collection("media")
         .deleteOne({ id: row.id, purging: true });
+      const inTrash = row.deleted_at != null;
+      await database.collection("weddings").updateOne(
+        { id: row.wedding_id },
+        {
+          $inc: inTrash
+            ? {
+                trashed_photo_count: row.type === "photo" ? -1 : 0,
+                trashed_video_count: row.type === "video" ? -1 : 0,
+                trashed_count: -1,
+                trashed_bytes: -row.size_bytes,
+              }
+            : {
+                photo_count: row.type === "photo" ? -1 : 0,
+                video_count: row.type === "video" ? -1 : 0,
+                media_bytes: -row.size_bytes,
+              },
+        },
+      );
       files++;
     } catch {
       errors.push(`media:${row.id}`);
@@ -89,7 +119,7 @@ export async function cleanup(now = new Date()) {
     }
   }
   await cleanupCovers(now, errors);
-  const result = { at: iso, files, tickets, events, errors };
+  const result = { at: iso, files, tickets, events, ...previews, errors };
   await database.collection("maintenance_runs").insertOne(result);
   return result;
 }

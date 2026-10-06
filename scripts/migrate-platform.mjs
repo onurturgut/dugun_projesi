@@ -1,4 +1,5 @@
 import { MongoClient } from "mongodb";
+import { rebuildMediaCounters } from "./media-counters.mjs";
 const { MONGODB_URI, ADMIN_EMAIL } = process.env;
 if (!MONGODB_URI || !ADMIN_EMAIL)
   throw new Error("MONGODB_URI ve ADMIN_EMAIL gerekli.");
@@ -7,35 +8,31 @@ try {
   await client.connect();
   const db = client.db(process.env.MONGODB_DB || "wedding_memories");
   const now = new Date().toISOString();
-  await db
-    .collection("partners")
-    .updateOne(
-      { id: "platform" },
-      {
-        $setOnInsert: {
-          id: "platform",
-          name: "Platform organizasyonları",
-          logo_url: "",
-          active: true,
-          created_at: now,
-        },
+  await db.collection("partners").updateOne(
+    { id: "platform" },
+    {
+      $setOnInsert: {
+        id: "platform",
+        name: "Platform organizasyonları",
+        logo_url: "",
+        active: true,
+        created_at: now,
       },
-      { upsert: true },
-    );
-  const admin = await db
-    .collection("users")
-    .updateOne(
-      { email: ADMIN_EMAIL.trim().toLowerCase() },
-      {
-        $set: {
-          role: "platform",
-          partner_id: null,
-          disabled: false,
-          must_change_password: false,
-        },
-        $setOnInsert: { display_name: "Platform yöneticisi" },
+    },
+    { upsert: true },
+  );
+  const admin = await db.collection("users").updateOne(
+    { email: ADMIN_EMAIL.trim().toLowerCase() },
+    {
+      $set: {
+        role: "platform",
+        partner_id: null,
+        disabled: false,
+        must_change_password: false,
       },
-    );
+      $setOnInsert: { display_name: "Platform yöneticisi" },
+    },
+  );
   if (!admin.matchedCount)
     throw new Error("Önce npm run setup ile yönetici hesabını oluşturun.");
   for (const w of await db
@@ -59,40 +56,36 @@ try {
         ).toISOString(),
       };
     }
-    await db
-      .collection("weddings")
-      .updateOne(
-        { id: w.id, partner_id: { $exists: false } },
-        {
-          $set: {
-            partner_id: "platform",
-            owner_id: null,
-            title: [w.groom_name, w.bride_name].filter(Boolean).join(" & "),
-            event_type: "Düğün",
-            logo_url: "",
-            upload_days: 7,
-            trash_days: 7,
-            uploads_open_at: w.created_at || now,
-            upload_enabled: true,
-            purged_at: null,
-            ...times,
-          },
-        },
-      );
-  }
-  await db
-    .collection("media")
-    .updateMany(
-      { deleted_at: { $exists: false } },
+    await db.collection("weddings").updateOne(
+      { id: w.id, partner_id: { $exists: false } },
       {
         $set: {
-          deleted_at: null,
-          purge_at: null,
-          guest_name: "",
-          guest_message: "",
+          partner_id: "platform",
+          owner_id: null,
+          title: [w.groom_name, w.bride_name].filter(Boolean).join(" & "),
+          event_type: "Düğün",
+          logo_url: "",
+          upload_days: 7,
+          trash_days: 7,
+          uploads_open_at: w.created_at || now,
+          upload_enabled: true,
+          purged_at: null,
+          ...times,
         },
       },
     );
+  }
+  await db.collection("media").updateMany(
+    { deleted_at: { $exists: false } },
+    {
+      $set: {
+        deleted_at: null,
+        purge_at: null,
+        guest_name: "",
+        guest_message: "",
+      },
+    },
+  );
   // Tickets must remain until orphaned R2 objects are cleaned. TTL alone would lose their keys.
   for (const index of await db
     .collection("upload_tickets")
@@ -109,15 +102,35 @@ try {
     db.collection("media").createIndex({ purge_at: 1 }),
     db.collection("media").createIndex({ id: 1 }, { unique: true }),
     db
+      .collection("media")
+      .createIndex({ wedding_id: 1, deleted_at: 1, uploaded_at: -1, id: -1 }),
+    db
+      .collection("media")
+      .createIndex({
+        wedding_id: 1,
+        deleted_at: 1,
+        type: 1,
+        uploaded_at: -1,
+        id: -1,
+      }),
+    db
+      .collection("media")
+      .createIndex({ wedding_id: 1, deleted_at: 1, size_bytes: -1, id: -1 }),
+    db
+      .collection("media")
+      .createIndex({ processing_status: 1, processing_attempts: 1, uploaded_at: 1 }),
+    db
       .collection("users")
       .createIndex(
         { owner_event_id: 1 },
         { unique: true, partialFilterExpression: { role: "owner" } },
       ),
   ]);
+  const counterCount = await rebuildMediaCounters(db);
   console.log(
     "Rol ve işletme geçişi tamamlandı. Mevcut organizasyonlar korundu; tarihsiz organizasyonların tarihi panelden ayarlanmalıdır.",
   );
+  console.log(`${counterCount} organizasyonun medya sayaÃ§larÄ± yenilendi.`);
 } finally {
   await client.close();
 }

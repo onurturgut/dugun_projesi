@@ -39,6 +39,13 @@ export interface Wedding {
   expires_at: string | null;
   upload_enabled: boolean;
   purged_at: string | null;
+  photo_count?: number;
+  video_count?: number;
+  media_bytes?: number;
+  trashed_photo_count?: number;
+  trashed_video_count?: number;
+  trashed_count?: number;
+  trashed_bytes?: number;
   total?: number;
   trashed?: number;
   size_bytes?: number;
@@ -59,6 +66,25 @@ export interface Media {
   deleted_at: string | null;
   purge_at: string | null;
   purging?: boolean;
+  processing_status?: "pending" | "processing" | "ready" | "failed";
+  processing_attempts?: number;
+  processing_started_at?: string;
+  preview_path?: string;
+  preview_mime_type?: string;
+  preview_url?: string;
   url: string;
   download_url: string;
+}
+
+export interface MediaSummary {
+  photos: number;
+  videos: number;
+  totalBytes: number;
+}
+
+export interface MediaPage {
+  items: Media[];
+  nextCursor: string | null;
+  total: number;
+  summary: MediaSummary;
 }

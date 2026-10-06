@@ -11,6 +11,7 @@ export async function mediaResponse(
   row: Media,
   download: boolean,
   range: string | null,
+  cacheControl = "private, no-store",
 ) {
   const { client, bucket } = storage();
   const result = await client.send(
@@ -25,7 +26,7 @@ export async function mediaResponse(
     status: result.ContentRange ? 206 : 200,
     headers: {
       "Content-Type": row.mime_type,
-      "Cache-Control": "private, no-store",
+      "Cache-Control": cacheControl,
       "X-Content-Type-Options": "nosniff",
       "Accept-Ranges": "bytes",
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(filename(row.file_name))}`,

@@ -36,21 +36,19 @@ function WeddingExperience({ slug }: { slug: string }) {
     refetchInterval: 30000,
   });
 
+  if (isLoading) return <WeddingSkeleton />;
+  if (isError || !data)
+    return <WeddingContent data={data} isError={isError} />;
+
   return (
     <WeddingIntro
-      design={data?.design}
-      title={data?.title}
-      ready={!isLoading}
-      failed={isError || (!isLoading && !data)}
-      coverSrc={
-        data ? data.cover_images?.[0] || "/covers/couple-1.jpg" : undefined
-      }
+      design={data.design}
+      title={data.title}
+      ready
+      failed={false}
+      coverSrc={data.cover_images?.[0] || "/covers/couple-1.jpg"}
     >
-      {isLoading ? (
-        <WeddingSkeleton />
-      ) : (
-        <WeddingContent data={data} isError={isError} />
-      )}
+      <WeddingContent data={data} isError={false} />
     </WeddingIntro>
   );
 }

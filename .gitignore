@@ -1,4 +1,7 @@
 node_modules/
+.yarn/*
+!.yarn/releases/
+!.yarn/releases/**
 .next/
 .next-test/
 .next-design-test/
