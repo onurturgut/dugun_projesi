@@ -33,32 +33,36 @@ export async function session() {
     .collection("sessions")
     .findOne({ token: tokenHash, expiresAt: { $gt: new Date() } });
   if (!current) return null;
-  const user = await database
-    .collection<Account>("users")
-    .findOne(
-      { id: current.userId, disabled: { $ne: true } },
-      {
-        projection: {
-          _id: 0,
-          id: 1,
-          email: 1,
-          role: 1,
-          partner_id: 1,
-          display_name: 1,
-          must_change_password: 1,
-          disabled: 1,
-        },
+  const user = await database.collection<Account>("users").findOne(
+    { id: current.userId, disabled: { $ne: true } },
+    {
+      projection: {
+        _id: 0,
+        id: 1,
+        email: 1,
+        role: 1,
+        partner_id: 1,
+        display_name: 1,
+        must_change_password: 1,
+        disabled: 1,
+        mfa_enabled: 1,
+        theme: 1,
       },
-    );
+    },
+  );
   if (!user || !["platform", "partner", "owner"].includes(user.role))
     return null;
-  if (
-    user.role !== "platform" &&
-    !(await database
-      .collection("partners")
-      .findOne({ id: user.partner_id, active: true }))
-  )
-    return null;
+  const partner = await database.collection("partners").findOne({
+    id: user.partner_id || "platform",
+    active: true,
+  });
+  if (user.role !== "platform" && !partner) return null;
+  const account = {
+    ...user,
+    partner_name: partner?.name || "ShineQR Platform",
+    partner_logo_url: partner?.logo_url || "",
+    theme: user.theme || "dark",
+  };
   if (sessionCache.size >= SESSION_CACHE_MAX_ENTRIES) {
     const now = Date.now();
     for (const [key, value] of sessionCache) {
@@ -67,11 +71,11 @@ export async function session() {
     if (sessionCache.size >= SESSION_CACHE_MAX_ENTRIES) sessionCache.clear();
   }
   sessionCache.set(tokenHash, {
-    account: user,
+    account,
     expiresAt: Math.min(
       Date.now() + SESSION_CACHE_TTL_MS,
       new Date(current.expiresAt).getTime(),
     ),
   });
-  return user;
+  return account;
 }

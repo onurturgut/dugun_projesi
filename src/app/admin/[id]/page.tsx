@@ -26,6 +26,7 @@ import {
   Palette,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ArchiveButton } from "@/components/admin/ArchiveButton";
 import {
   api,
   type Account,
@@ -35,7 +36,6 @@ import {
 } from "@/lib/api";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { QrPanel } from "@/components/admin/QrPanel";
-import { DesignPanel } from "@/components/admin/DesignPanel";
 import { EventForm } from "@/components/admin/EventForm";
 import { OwnerForm } from "@/components/admin/OwnerForm";
 import { MediaViewer } from "@/components/admin/MediaViewer";
@@ -231,12 +231,9 @@ export default function EventDetail() {
             </details>
           </div>
           <nav className="admin-tabs" aria-label="Organizasyon bölümleri">
-            <button
-              aria-pressed={section === "design"}
-              onClick={() => setSection("design")}
-            >
+            <Link href={`/admin/${id}/design/wedding`}>
               <Palette size={18} /> Tasarım
-            </button>
+            </Link>
             <button
               aria-pressed={section === "album"}
               onClick={() => setSection("album")}
@@ -260,7 +257,6 @@ export default function EventDetail() {
               </>
             )}
           </nav>
-          {section === "design" && <DesignPanel key={w.id} event={w} />}
           {section === "share" && me.data?.role !== "owner" && (
             <div className="admin-panels">
               <QrPanel slug={w.slug} />
@@ -315,9 +311,7 @@ export default function EventDetail() {
                   </button>
                 </div>
                 {!trash && !expired && summary.photos + summary.videos > 0 && (
-                  <a className="admin-button" href={archive}>
-                    <Download size={16} /> Tüm albümü indir
-                  </a>
+                  <ArchiveButton weddingId={id} />
                 )}
               </div>
               {trash && (

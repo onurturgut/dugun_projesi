@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Field, Notice } from "@/components/admin/Fields";
+import { Notice, PasswordField } from "@/components/admin/Fields";
+import { SecurityPanel } from "@/components/admin/SecurityPanel";
 export default function Password() {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -36,7 +37,7 @@ export default function Password() {
     }
   }
   return (
-    <main className="mx-auto flex min-h-screen max-w-md items-center px-5">
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-5 px-5 py-10">
       <form
         onSubmit={submit}
         className="card-luxe w-full space-y-4 rounded-2xl p-6"
@@ -45,25 +46,22 @@ export default function Password() {
         <p className="text-sm text-muted-foreground">
           İlk girişte size verilen geçici şifreyi değiştirmeniz gerekir.
         </p>
-        <Field
+        <PasswordField
           label="Mevcut / geçici şifre"
-          type="password"
           name="current_password"
           autoComplete="current-password"
           required
         />
-        <Field
+        <PasswordField
           label="Yeni şifre"
-          type="password"
           name="password"
           autoComplete="new-password"
           minLength={12}
           maxLength={256}
           required
         />
-        <Field
+        <PasswordField
           label="Yeni şifre tekrar"
-          type="password"
           name="confirm"
           autoComplete="new-password"
           minLength={12}
@@ -87,6 +85,7 @@ export default function Password() {
           Çıkış yap
         </button>
       </form>
+      <SecurityPanel />
     </main>
   );
 }

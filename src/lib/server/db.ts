@@ -1,7 +1,7 @@
 import "server-only";
 import { MongoClient } from "mongodb";
 const globalDb = globalThis as unknown as { mongo?: Promise<MongoClient> };
-export async function db() {
+export async function mongoClient() {
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error("MONGODB_URI yapılandırılmamış.");
   if (!globalDb.mongo)
@@ -11,7 +11,8 @@ export async function db() {
         globalDb.mongo = undefined;
         throw e;
       });
-  return (await globalDb.mongo).db(
-    process.env.MONGODB_DB || "wedding_memories",
-  );
+  return await globalDb.mongo;
+}
+export async function db() {
+  return (await mongoClient()).db(process.env.MONGODB_DB || "wedding_memories");
 }

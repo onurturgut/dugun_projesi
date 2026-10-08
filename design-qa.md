@@ -68,6 +68,31 @@ final result: blocked
 
 ---
 
+# Design QA — Yönetim paneli yeniden yapılandırması
+
+- Uygulama yüzeyleri: header, hesap menüsü, partner oluşturma, organizasyon kartları, organizasyon formu, kapak yükleme, albüm kartları ve tasarım stüdyosu
+- Masaüstü hedefi: iki sütunlu oluşturma akışı ve sabit canlı önizleme
+- Mobil hedefi: tasarım araçları soldan, canlı önizleme sağdan açılan paneller
+- Tema hedefleri: hesapta saklanan gündüz, gece ve sistem tercihleri
+
+## Kod ve davranış doğrulaması
+
+- ESLint: geçti
+- TypeScript: geçti
+- 11 otomatik test: geçti
+- Next.js production build: geçti
+- MongoDB + yerel S3 entegrasyon testleri: geçti
+- Kalıcı silme, tenant izolasyonu, upload, ZIP ve worker senaryoları: geçti
+
+## Görsel doğrulama engeli
+
+- Bu oturumda kullanılabilir IAB, Chrome veya Edge tarayıcı yüzeyi bulunmadı.
+- Masaüstü/mobil ekran görüntüsü, drawer hareketi, gündüz/gece geçişi ve görsel taşma kontrolü canlı tarayıcıda doğrulanamadı.
+
+final result: blocked
+
+---
+
 # Design QA — Yükleme kartı bordo şampanya gradient
 
 - Source visual truth: Kullanıcının 6 Ekim 2026 tarihinde paylaştığı yükleme kartı ekran görüntüsü

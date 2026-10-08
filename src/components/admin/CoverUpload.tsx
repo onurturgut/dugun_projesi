@@ -5,6 +5,9 @@ import {
   ArrowLeft,
   ArrowRight,
   ImagePlus,
+  Images,
+  GripVertical,
+  Star,
   LoaderCircle,
   X,
 } from "lucide-react";
@@ -111,6 +114,14 @@ export function CoverUpload({
       <div className="admin-cover-grid">
         {value.map((url, index) => (
           <div className="admin-cover-card" key={`${url}-${index}`}>
+            <span className="admin-cover-drag" aria-hidden="true">
+              <GripVertical size={15} />
+            </span>
+            {index === 0 ? (
+              <span className="admin-cover-primary">
+                <Star size={12} fill="currentColor" /> Ana kapak
+              </span>
+            ) : null}
             <Image
               src={url}
               alt={`${index + 1}. kapak fotoğrafı`}
@@ -119,7 +130,7 @@ export function CoverUpload({
               unoptimized
             />
             <div className="admin-cover-controls">
-              <span>{index === 0 ? "İlk kapak" : `${index + 1}. kapak`}</span>
+              <span>{index + 1}. görsel</span>
               <button
                 type="button"
                 disabled={locked || index === 0}
@@ -164,13 +175,26 @@ export function CoverUpload({
         className="admin-cover-add"
         disabled={locked || value.length >= 20}
         onClick={() => input.current?.click()}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          void upload(Array.from(event.dataTransfer.files));
+        }}
       >
         {progress ? (
           <LoaderCircle size={22} className="animate-spin" />
         ) : (
-          <ImagePlus size={22} />
+          <span className="admin-cover-add-icon">
+            <Images size={24} />
+            <ImagePlus size={15} />
+          </span>
         )}
-        {progress ? "Görseller yükleniyor…" : "Kapak fotoğrafı ekle"}
+        <span>
+          {progress
+            ? "Görseller yükleniyor…"
+            : "Görselleri buraya bırakın veya seçin"}
+          <small>İlk görsel organizasyon kartının arka planı olur</small>
+        </span>
       </button>
       {progress && (
         <p className="admin-hint" role="status">

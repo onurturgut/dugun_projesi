@@ -2,7 +2,8 @@
 import { DateField } from "@/components/admin/DateField";
 import { SelectField } from "@/components/admin/SelectField";
 import Link from "next/link";
-import { useState } from "react";
+import Image from "next/image";
+import { useDeferredValue, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, ArrowUpRight, ShieldCheck } from "lucide-react";
 import { api, type Wedding, type Account } from "@/lib/api";
@@ -22,15 +23,28 @@ export default function Events() {
   const [open, setOpen] = useState(false),
     [search, setSearch] = useState(""),
     [statusFilter, setStatusFilter] = useState("all"),
-    [date, setDate] = useState("");
+    [date, setDate] = useState(""),
+    [page, setPage] = useState(1);
   const qc = useQueryClient();
+  const deferredSearch = useDeferredValue(search);
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api<Account>("/auth/me"),
   });
   const events = useQuery({
-    queryKey: ["admin-weddings"],
-    queryFn: () => api<Wedding[]>("/admin/weddings"),
+    queryKey: ["admin-weddings", deferredSearch, statusFilter, date, page],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page), limit: "24" });
+      if (deferredSearch) params.set("search", deferredSearch);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (date) params.set("date", date);
+      return api<{
+        items: Wedding[];
+        total: number;
+        page: number;
+        pages: number;
+      }>(`/admin/weddings?${params}`);
+    },
   });
   const status = useQuery({
     queryKey: ["platform-status"],
@@ -41,14 +55,7 @@ export default function Events() {
       }>("/admin/status"),
     enabled: me.data?.role === "platform",
   });
-  const rows = (events.data || []).filter(
-    (w) =>
-      `${w.title} ${w.event_type}`
-        .toLocaleLowerCase("tr")
-        .includes(search.toLocaleLowerCase("tr")) &&
-      (statusFilter === "all" || stateOf(w) === statusFilter) &&
-      (!date || w.wedding_date === date),
-  );
+  const rows = events.data?.items || [];
   return (
     <AdminShell>
       <div className="admin-heading">
@@ -112,7 +119,10 @@ export default function Events() {
             aria-label="Organizasyon ara"
             placeholder="Organizasyon ara…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </label>
         <div className="admin-actions">
@@ -120,7 +130,10 @@ export default function Events() {
             aria-label="Organizasyon durumu"
             className="admin-field"
             value={statusFilter}
-            onValueChange={setStatusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value);
+              setPage(1);
+            }}
           >
             <option value="all">Tüm durumlar</option>
             <option value="open">Yükleme açık</option>
@@ -130,7 +143,10 @@ export default function Events() {
           <DateField
             label="Organizasyon tarihi"
             value={date}
-            onValueChange={setDate}
+            onValueChange={(value) => {
+              setDate(value);
+              setPage(1);
+            }}
           />
           {(search || date || statusFilter !== "all") && (
             <button
@@ -147,7 +163,7 @@ export default function Events() {
         </div>
       </div>
       <p className="admin-hint mb-4" aria-live="polite">
-        {rows.length} organizasyon
+        {events.data?.total || 0} organizasyon
       </p>
       {events.isLoading ? (
         <div className="admin-empty" role="status">
@@ -156,12 +172,12 @@ export default function Events() {
       ) : rows.length === 0 ? (
         <div className="admin-empty">
           <h2>
-            {events.data?.length
+            {events.data?.total
               ? "Eşleşen organizasyon bulunamadı"
               : "İlk organizasyonunuzu oluşturun"}
           </h2>
           <p>
-            {events.data?.length
+            {events.data?.total
               ? "Arama veya tarih filtrenizi değiştirin."
               : "Organizasyonlarınız ve özel albümleriniz burada görünecek."}
           </p>
@@ -174,41 +190,78 @@ export default function Events() {
               href={`/admin/${w.id}`}
               className="admin-event-card"
             >
-              <div className="flex justify-between items-center gap-3">
-                <span className="admin-kicker">{w.event_type}</span>
-                <span
-                  className={`admin-pill ${stateOf(w) !== "open" ? "closed" : ""}`}
-                >
-                  {labels[stateOf(w)]}
-                </span>
+              <div className="admin-event-cover">
+                {w.cover_images?.[0] ? (
+                  <Image
+                    src={w.cover_images[0]}
+                    alt=""
+                    fill
+                    unoptimized
+                    sizes="(max-width: 640px) 100vw, 33vw"
+                  />
+                ) : (
+                  <span>SHINEQR</span>
+                )}
+                <div className="admin-event-cover-shade" />
               </div>
-              <h2>{w.title}</h2>
-              <p className="admin-hint">
-                {w.wedding_date
-                  ? new Date(
-                      `${w.wedding_date}T12:00:00+03:00`,
-                    ).toLocaleDateString("tr-TR", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })
-                  : "Tarih belirlenmedi"}
-              </p>
-              <div className="admin-event-meta">
-                <span>
-                  {w.total || 0} içerik · {formatBytes(w.size_bytes || 0)}
-                </span>
-                <ArrowUpRight size={17} />
-              </div>
-              {!!w.trashed && (
-                <p className="admin-hint mt-2">
-                  {w.trashed} içerik çöp kutusunda
+              <div className="admin-event-card-body">
+                <div className="flex justify-between items-center gap-3">
+                  <span className="admin-kicker">{w.event_type}</span>
+                  <span
+                    className={`admin-pill ${stateOf(w) !== "open" ? "closed" : ""}`}
+                  >
+                    {labels[stateOf(w)]}
+                  </span>
+                </div>
+                <h2>{w.title}</h2>
+                <p className="admin-hint">
+                  {w.wedding_date
+                    ? new Date(
+                        `${w.wedding_date}T12:00:00+03:00`,
+                      ).toLocaleDateString("tr-TR", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })
+                    : "Tarih belirlenmedi"}
                 </p>
-              )}
+                <div className="admin-event-meta">
+                  <span>
+                    {w.total || 0} içerik · {formatBytes(w.size_bytes || 0)}
+                  </span>
+                  <ArrowUpRight size={17} />
+                </div>
+                {!!w.trashed && (
+                  <p className="admin-hint mt-2">
+                    {w.trashed} içerik çöp kutusunda
+                  </p>
+                )}
+              </div>
             </Link>
           ))}
         </div>
       )}
+      {events.data && events.data.pages > 1 ? (
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <button
+            className="admin-button"
+            disabled={page <= 1}
+            onClick={() => setPage((value) => value - 1)}
+          >
+            Önceki
+          </button>
+          <span className="admin-hint">
+            {page} / {events.data.pages}
+          </span>
+          <button
+            className="admin-button"
+            disabled={page >= events.data.pages}
+            onClick={() => setPage((value) => value + 1)}
+          >
+            Sonraki
+          </button>
+        </div>
+      ) : null}
       <p className="admin-hint mt-8 flex items-center gap-2">
         <ShieldCheck size={15} /> Albümler yalnızca yetkili hesaplar tarafından
         görüntülenir.

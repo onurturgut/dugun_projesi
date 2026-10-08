@@ -5,7 +5,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { db } from "./db";
+import { db, mongoClient } from "./db";
 import { hash, invalidateSessionCache } from "./auth";
 import { passwordFields, matches } from "./passwords";
 import {
@@ -36,6 +36,13 @@ import {
 } from "@/lib/policy";
 import type { Wedding, Media, Account } from "@/lib/models";
 import { designSchema } from "@/lib/design";
+import { audit } from "./audit";
+import {
+  createTotpSecret,
+  decryptTotpSecret,
+  encryptTotpSecret,
+  verifyTotp,
+} from "./totp";
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
     status,
@@ -82,6 +89,7 @@ export async function handle(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
+  const requestId = req.headers.get("x-vercel-id") || randomUUID();
   try {
     const { path } = await params;
     const route = path.join("/"),
@@ -116,12 +124,16 @@ export async function handle(
           .deleteOne({ token: hash(token) });
       invalidateSessionCache(token);
       jar.delete("wm_session");
+      await audit(req, "auth.logout", null);
       return json({ ok: true });
     }
     const user =
       route.startsWith("admin/") ||
       route === "auth/me" ||
-      route === "auth/password"
+      route === "auth/password" ||
+      route === "auth/preferences" ||
+      route.startsWith("auth/2fa/") ||
+      route.startsWith("auth/sessions")
         ? await requireAccount(route === "auth/me" || route === "auth/password")
         : null;
     const database = await db(),
@@ -132,22 +144,39 @@ export async function handle(
     if (path.length === 2 && path[0] === "covers" && method === "GET")
       return await coverResponse(path[1]);
     if (route === "auth/login" && method === "POST") {
-      const { email, password } = z
-        .object({ email: loginName, password: z.string().min(1).max(256) })
+      const { email, password, totp } = z
+        .object({
+          email: loginName,
+          password: z.string().min(1).max(256),
+          totp: z.string().optional(),
+        })
         .parse(await req.json());
       const key = hash(email),
+        ip =
+          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+          req.headers.get("x-real-ip") ||
+          "unknown",
+        ipKey = hash(ip),
         attempts = database.collection("login_attempts");
-      if (
-        (await attempts.countDocuments({
-          key,
-          createdAt: { $gt: new Date(Date.now() - 900000) },
-        })) >= 10
-      )
+      const since = new Date(Date.now() - 900000);
+      const [accountAttempts, ipAttempts] = await Promise.all([
+        attempts.countDocuments({ key, createdAt: { $gt: since } }),
+        attempts.countDocuments({ ipKey, createdAt: { $gt: since } }),
+      ]);
+      if (accountAttempts >= 10 || ipAttempts >= 50) {
+        await audit(
+          req,
+          "auth.login_rate_limited",
+          null,
+          { account_key: key },
+          "failure",
+        );
         throw new HttpError(
           429,
           "Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.",
         );
-      await attempts.insertOne({ key, createdAt: new Date() });
+      }
+      await attempts.insertOne({ key, ipKey, createdAt: new Date() });
       const account = await database.collection("users").findOne({ email });
       const valid = await matches(
         password,
@@ -158,8 +187,16 @@ export async function handle(
         !account ||
         account.disabled ||
         !["platform", "partner", "owner"].includes(account.role)
-      )
+      ) {
+        await audit(
+          req,
+          "auth.login_failed",
+          null,
+          { account_key: key },
+          "failure",
+        );
         throw new HttpError(401, "Kullanıcı adı veya şifre hatalı.");
+      }
       if (
         account.role !== "platform" &&
         !(await database
@@ -167,12 +204,40 @@ export async function handle(
           .findOne({ id: account.partner_id, active: true }))
       )
         throw new HttpError(401, "Hesap kullanıma kapalı.");
+      if (account.mfa_enabled) {
+        if (!totp) return json({ mfa_required: true }, 428);
+        if (
+          !account.mfa_secret ||
+          !verifyTotp(decryptTotpSecret(account.mfa_secret), totp)
+        ) {
+          await audit(
+            req,
+            "auth.mfa_failed",
+            {
+              id: account.id,
+              role: account.role,
+              partner_id: account.partner_id || null,
+            },
+            {},
+            "failure",
+          );
+          throw new HttpError(401, "Doğrulama kodu hatalı.");
+        }
+      }
       await attempts.deleteMany({ key });
       const token = randomBytes(32).toString("hex"),
         expiresAt = new Date(Date.now() + 7 * 86400000);
-      await database
-        .collection("sessions")
-        .insertOne({ token: hash(token), userId: account.id, expiresAt });
+      await database.collection("sessions").insertOne({
+        id: randomUUID(),
+        token: hash(token),
+        userId: account.id,
+        expiresAt,
+        createdAt: new Date(),
+        lastSeenAt: new Date(),
+        userAgent:
+          req.headers.get("user-agent")?.slice(0, 500) || "Bilinmeyen cihaz",
+        ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+      });
       (await cookies()).set("wm_session", token, {
         httpOnly: true,
         sameSite: "lax",
@@ -180,12 +245,143 @@ export async function handle(
         path: "/",
         expires: expiresAt,
       });
+      await audit(req, "auth.login", {
+        id: account.id,
+        role: account.role,
+        partner_id: account.partner_id || null,
+      });
       return json({
         ok: true,
         must_change_password: !!account.must_change_password,
       });
     }
     if (route === "auth/me" && method === "GET") return json(user);
+    if (route === "auth/preferences" && method === "PATCH" && user) {
+      const data = z
+        .object({ theme: z.enum(["light", "dark", "system"]) })
+        .parse(await req.json());
+      await database
+        .collection("users")
+        .updateOne({ id: user.id }, { $set: data });
+      invalidateSessionCache();
+      return json({ ok: true });
+    }
+    if (route === "auth/sessions" && method === "GET" && user) {
+      const current = hash((await cookies()).get("wm_session")?.value || "");
+      const rows = await database
+        .collection("sessions")
+        .find(
+          { userId: user.id, expiresAt: { $gt: new Date() } },
+          {
+            projection: {
+              _id: 0,
+              token: 1,
+              id: 1,
+              createdAt: 1,
+              lastSeenAt: 1,
+              userAgent: 1,
+              ip: 1,
+            },
+          },
+        )
+        .sort({ createdAt: -1 })
+        .toArray();
+      return json(
+        rows
+          .filter((row) => row.id || row.token === current)
+          .map((row) => ({
+            ...row,
+            id: row.id || "current",
+            current: row.token === current,
+            token: undefined,
+          })),
+      );
+    }
+    if (
+      path.length === 3 &&
+      path[0] === "auth" &&
+      path[1] === "sessions" &&
+      method === "DELETE" &&
+      user
+    ) {
+      const current = hash((await cookies()).get("wm_session")?.value || "");
+      const target = await database
+        .collection("sessions")
+        .findOne({ id: path[2], userId: user.id });
+      if (!target) throw new HttpError(404, "Oturum bulunamadı.");
+      if (target.token === current)
+        throw new HttpError(400, "Geçerli oturumu buradan kapatamazsınız.");
+      await database
+        .collection("sessions")
+        .deleteOne({ id: path[2], userId: user.id });
+      invalidateSessionCache();
+      await audit(req, "auth.session_revoked", user, { session_id: path[2] });
+      return json({ ok: true });
+    }
+    if (route === "auth/2fa/setup" && method === "POST" && user) {
+      requirePlatform(user);
+      const secret = createTotpSecret();
+      await database
+        .collection("users")
+        .updateOne(
+          { id: user.id },
+          { $set: { mfa_pending_secret: encryptTotpSecret(secret) } },
+        );
+      const issuer = encodeURIComponent("ShineQR");
+      const label = encodeURIComponent(`ShineQR:${user.email}`);
+      return json({
+        secret,
+        uri: `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&digits=6&period=30`,
+      });
+    }
+    if (route === "auth/2fa/enable" && method === "POST" && user) {
+      requirePlatform(user);
+      const { code } = z
+        .object({ code: z.string().regex(/^\d{6}$/) })
+        .parse(await req.json());
+      const account = await database
+        .collection("users")
+        .findOne({ id: user.id });
+      if (!account?.mfa_pending_secret)
+        throw new HttpError(400, "Önce 2FA kurulumu başlatın.");
+      const secret = decryptTotpSecret(account.mfa_pending_secret);
+      if (!verifyTotp(secret, code))
+        throw new HttpError(400, "Doğrulama kodu hatalı.");
+      await database.collection("users").updateOne(
+        { id: user.id },
+        {
+          $set: { mfa_enabled: true, mfa_secret: account.mfa_pending_secret },
+          $unset: { mfa_pending_secret: "" },
+        },
+      );
+      invalidateSessionCache();
+      await audit(req, "auth.2fa_enabled", user);
+      return json({ ok: true });
+    }
+    if (route === "auth/2fa/disable" && method === "POST" && user) {
+      requirePlatform(user);
+      const { code } = z
+        .object({ code: z.string().regex(/^\d{6}$/) })
+        .parse(await req.json());
+      const account = await database
+        .collection("users")
+        .findOne({ id: user.id });
+      if (
+        !account?.mfa_secret ||
+        !verifyTotp(decryptTotpSecret(account.mfa_secret), code)
+      )
+        throw new HttpError(400, "Doğrulama kodu hatalı.");
+      await database.collection("users").updateOne(
+        { id: user.id },
+        {
+          $set: { mfa_enabled: false },
+          $unset: { mfa_secret: "", mfa_pending_secret: "" },
+        },
+      );
+      invalidateSessionCache();
+      await audit(req, "auth.2fa_disabled", user);
+      return json({ ok: true });
+    }
     if (route === "auth/password" && method === "POST" && user) {
       const data = z
         .object({
@@ -222,6 +418,7 @@ export async function handle(
         .collection("sessions")
         .deleteMany({ userId: user.id, token: { $ne: hash(current || "") } });
       invalidateSessionCache();
+      await audit(req, "auth.password_changed", user, { user_id: user.id });
       return json({ ok: true });
     }
     if (route === "weddings" && method === "GET")
@@ -258,34 +455,44 @@ export async function handle(
         const data = accountInput
           .extend({
             name: z.string().trim().min(1).max(120),
+            id: z.string().uuid().optional(),
+            logo_url: z.string().max(2048).default(""),
           })
           .parse(await req.json());
-        const id = randomUUID();
+        const id = data.id || randomUUID();
+        if (data.logo_url) await validateCovers([data.logo_url], id);
         const fields = await passwordFields(data.password);
-        await database.collection("users").insertOne({
-          id: randomUUID(),
-          email: data.username,
-          ...fields,
-          role: "partner",
-          partner_id: id,
-          display_name: data.display_name,
-          must_change_password: true,
-          disabled: false,
-        });
+        const transaction = (await mongoClient()).startSession();
         try {
-          await database.collection("partners").insertOne({
-            id,
-            name: data.name,
-            logo_url: "",
-            active: true,
-            created_at: new Date().toISOString(),
+          await transaction.withTransaction(async () => {
+            await database.collection("users").insertOne(
+              {
+                id: randomUUID(),
+                email: data.username,
+                ...fields,
+                role: "partner",
+                partner_id: id,
+                display_name: data.display_name,
+                must_change_password: true,
+                disabled: false,
+              },
+              { session: transaction },
+            );
+            await database.collection("partners").insertOne(
+              {
+                id,
+                name: data.name,
+                logo_url: data.logo_url,
+                active: true,
+                created_at: new Date().toISOString(),
+              },
+              { session: transaction },
+            );
           });
-        } catch (e) {
-          await database
-            .collection("users")
-            .deleteOne({ partner_id: id, role: "partner" });
-          throw e;
+        } finally {
+          await transaction.endSession();
         }
+        await audit(req, "partner.created", user, { partner_id: id });
         return json({ id }, 201);
       }
     }
@@ -312,20 +519,36 @@ export async function handle(
         .collection("partners")
         .findOne({ id: path[2] });
       if (!currentPartner) throw new HttpError(404, "İşletme bulunamadı.");
-      if (data.logo_url !== undefined) {
+      if (data.logo_url !== undefined)
         await validateCovers([data.logo_url], path[2]);
-        await weddings.updateMany(
-          {
-            partner_id: path[2],
-            logo_url: { $in: ["", currentPartner.logo_url || ""] },
-          },
-          { $set: { logo_url: data.logo_url } },
-        );
+      const transaction = (await mongoClient()).startSession();
+      try {
+        await transaction.withTransaction(async () => {
+          if (data.logo_url !== undefined)
+            await weddings.updateMany(
+              {
+                partner_id: path[2],
+                logo_url: { $in: ["", currentPartner.logo_url || ""] },
+              },
+              { $set: { logo_url: data.logo_url } },
+              { session: transaction },
+            );
+          await database
+            .collection("partners")
+            .updateOne(
+              { id: path[2] },
+              { $set: data },
+              { session: transaction },
+            );
+        });
+      } finally {
+        await transaction.endSession();
       }
-      await database
-        .collection("partners")
-        .updateOne({ id: path[2] }, { $set: data });
       invalidateSessionCache();
+      await audit(req, "partner.updated", user, {
+        partner_id: path[2],
+        fields: Object.keys(data),
+      });
       return json({ ok: true });
     }
     if (route === "admin/status" && method === "GET" && user) {
@@ -342,21 +565,112 @@ export async function handle(
           .findOne({}, { sort: { at: -1 }, projection: { _id: 0 } }),
       });
     }
+    if (route === "admin/audit" && method === "GET" && user) {
+      requirePlatform(user);
+      const page = Math.max(
+        1,
+        Number(req.nextUrl.searchParams.get("page")) || 1,
+      );
+      const limit = 30;
+      const collection = database.collection("audit_logs");
+      const [items, total] = await Promise.all([
+        collection
+          .find({}, { projection: { _id: 0 } })
+          .sort({ at: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .toArray(),
+        collection.countDocuments(),
+      ]);
+      return json({
+        items,
+        total,
+        page,
+        pages: Math.max(1, Math.ceil(total / limit)),
+      });
+    }
     if (route === "admin/weddings" && user) {
       if (method === "GET") {
-        const events = await weddings
-          .find(weddingScope(user), { projection: { _id: 0 } })
-          .sort({ created_at: -1 })
-          .toArray();
-        return json(
-          events.map((w) => ({
+        const page = Math.max(
+          1,
+          Number(req.nextUrl.searchParams.get("page")) || 1,
+        );
+        const limit = Math.min(
+          50,
+          Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 24),
+        );
+        const search = (req.nextUrl.searchParams.get("search") || "")
+          .trim()
+          .slice(0, 100);
+        const date = req.nextUrl.searchParams.get("date") || "";
+        const status = req.nextUrl.searchParams.get("status") || "all";
+        if (!["all", "open", "closed", "expired"].includes(status))
+          throw new HttpError(400, "Geçersiz durum filtresi.");
+        const now = new Date().toISOString();
+        const filter: Record<string, unknown> = {
+          ...weddingScope(user),
+          ...(date ? { wedding_date: date } : {}),
+          ...(search
+            ? {
+                $or: ["title", "event_type"].map((field) => ({
+                  [field]: { $regex: escapeRegex(search), $options: "i" },
+                })),
+              }
+            : {}),
+          ...(status === "expired"
+            ? { expires_at: { $ne: null, $lte: now } }
+            : {}),
+          ...(status === "open"
+            ? {
+                upload_enabled: true,
+                uploads_open_at: { $lte: now },
+                $and: [
+                  {
+                    $or: [
+                      { uploads_close_at: null },
+                      { uploads_close_at: { $gt: now } },
+                    ],
+                  },
+                  { $or: [{ expires_at: null }, { expires_at: { $gt: now } }] },
+                ],
+              }
+            : {}),
+          ...(status === "closed"
+            ? {
+                $and: [
+                  {
+                    $or: [
+                      { upload_enabled: false },
+                      { uploads_open_at: { $gt: now } },
+                      { uploads_close_at: { $ne: null, $lte: now } },
+                    ],
+                  },
+                  { $or: [{ expires_at: null }, { expires_at: { $gt: now } }] },
+                ],
+              }
+            : {}),
+        };
+        const [events, total] = await Promise.all([
+          weddings
+            .find(filter, { projection: { _id: 0 } })
+            .sort({ created_at: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .toArray(),
+          weddings.countDocuments(filter),
+        ]);
+        return json({
+          items: events.map((w) => ({
             ...w,
             total: (w.photo_count || 0) + (w.video_count || 0),
             trashed: w.trashed_count || 0,
             size_bytes: w.media_bytes || 0,
             _id: undefined,
           })),
-        );
+          total,
+          page,
+          pages: Math.max(1, Math.ceil(total / limit)),
+        });
       }
       if (method === "POST") {
         requireManager(user);
@@ -407,6 +721,7 @@ export async function handle(
         };
         await validateCovers(w.cover_images, partner_id);
         await weddings.insertOne(w);
+        await audit(req, "wedding.created", user, { wedding_id: w.id });
         return json(w, 201);
       }
     }
@@ -458,6 +773,10 @@ export async function handle(
           if (data.cover_images)
             await validateCovers(data.cover_images, event.partner_id);
           await weddings.updateOne({ id }, { $set: { ...data, ...times } });
+          await audit(req, "wedding.updated", user, {
+            wedding_id: id,
+            fields: Object.keys(data),
+          });
           return json({ ok: true });
         }
       }
@@ -485,31 +804,38 @@ export async function handle(
             throw new HttpError(409, "Bu organizasyonun sahibi zaten var.");
           const data = accountInput.parse(await req.json()),
             ownerId = randomUUID();
-          const claimed = await weddings.updateOne(
-            { id, owner_id: null },
-            { $set: { owner_id: ownerId } },
-          );
-          if (!claimed.modifiedCount)
-            throw new HttpError(409, "Sahip hesabı oluşturuluyor.");
+          const transaction = (await mongoClient()).startSession();
           try {
-            await database.collection("users").insertOne({
-              id: ownerId,
-              email: data.username,
-              display_name: data.display_name,
-              ...(await passwordFields(data.password)),
-              role: "owner",
-              partner_id: event.partner_id,
-              owner_event_id: id,
-              must_change_password: true,
-              disabled: false,
+            await transaction.withTransaction(async () => {
+              const claimed = await weddings.updateOne(
+                { id, owner_id: null },
+                { $set: { owner_id: ownerId } },
+                { session: transaction },
+              );
+              if (!claimed.modifiedCount)
+                throw new HttpError(409, "Bu organizasyonun sahibi zaten var.");
+              await database.collection("users").insertOne(
+                {
+                  id: ownerId,
+                  email: data.username,
+                  display_name: data.display_name,
+                  ...(await passwordFields(data.password)),
+                  role: "owner",
+                  partner_id: event.partner_id,
+                  owner_event_id: id,
+                  must_change_password: true,
+                  disabled: false,
+                },
+                { session: transaction },
+              );
             });
-          } catch (e) {
-            await weddings.updateOne(
-              { id, owner_id: ownerId },
-              { $set: { owner_id: null } },
-            );
-            throw e;
+          } finally {
+            await transaction.endSession();
           }
+          await audit(req, "owner.created", user, {
+            wedding_id: id,
+            owner_id: ownerId,
+          });
           return json({ id: ownerId }, 201);
         }
       }
@@ -775,6 +1101,16 @@ export async function handle(
           } else {
             throw new HttpError(400, "Geçersiz işlem.");
           }
+          await audit(
+            req,
+            method === "DELETE"
+              ? "media.trashed"
+              : data.action === "restore"
+                ? "media.restored"
+                : "media.purged",
+            user,
+            { wedding_id: id, media_ids: data.ids },
+          );
           return json({ ok: true });
         }
         if (path.length === 5 && method === "GET") {
@@ -843,6 +1179,49 @@ export async function handle(
           .toArray();
         if (!rows.length) throw new HttpError(400, "İndirilecek içerik yok.");
         return zipResponse(rows, event);
+      }
+      if (
+        path.length === 4 &&
+        path[3] === "archive-jobs" &&
+        method === "POST"
+      ) {
+        const existing = await database.collection("archive_jobs").findOne({
+          wedding_id: id,
+          requested_by: user.id,
+          status: { $in: ["pending", "processing"] },
+        });
+        if (existing) return json({ id: existing.id, status: existing.status });
+        const jobId = randomUUID();
+        await database.collection("archive_jobs").insertOne({
+          id: jobId,
+          wedding_id: id,
+          requested_by: user.id,
+          status: "pending",
+          storage_path: `archives/${id}/${jobId}.zip`,
+          created_at: new Date(),
+          expires_at: new Date(Date.now() + 24 * 60 * 60_000),
+        });
+        await audit(req, "archive.requested", user, {
+          wedding_id: id,
+          job_id: jobId,
+        });
+        return json({ id: jobId, status: "pending" }, 202);
+      }
+      if (path.length === 5 && path[3] === "archive-jobs" && method === "GET") {
+        const job = await database
+          .collection("archive_jobs")
+          .findOne({ id: path[4], wedding_id: id, requested_by: user.id });
+        if (!job) throw new HttpError(404, "Arşiv işi bulunamadı.");
+        return json({
+          id: job.id,
+          status: job.status,
+          error: job.error || null,
+          file_count: job.file_count || 0,
+          url:
+            job.status === "ready"
+              ? await signedObjectUrl(job.storage_path, 900)
+              : null,
+        });
       }
     }
     if (route === "uploads/sign" && method === "POST") {
@@ -987,11 +1366,21 @@ export async function handle(
         409,
       );
     console.error(
-      "API error:",
-      error instanceof Error ? error.message : "Unknown error",
+      JSON.stringify({
+        level: "error",
+        request_id: requestId,
+        method: req.method,
+        path: req.nextUrl.pathname,
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+        at: new Date().toISOString(),
+      }),
     );
     return json(
-      { error: "İşlem tamamlanamadı. Bağlantı ayarlarını kontrol edin." },
+      {
+        error: "İşlem tamamlanamadı. Bağlantı ayarlarını kontrol edin.",
+        request_id: requestId,
+      },
       503,
     );
   }

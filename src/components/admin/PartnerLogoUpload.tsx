@@ -10,12 +10,14 @@ export function PartnerLogoUpload({
   partnerName,
   value,
   disabled,
+  draft = false,
   onUploaded,
 }: {
   partnerId: string;
   partnerName: string;
   value: string;
   disabled?: boolean;
+  draft?: boolean;
   onUploaded: (url: string) => Promise<void>;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -31,6 +33,7 @@ export function PartnerLogoUpload({
       const form = new FormData();
       form.append("file", blob, "logo.webp");
       form.append("partner_id", partnerId);
+      if (draft) form.append("draft_partner", "1");
       const response = await fetch("/api/admin/covers", {
         method: "POST",
         body: form,

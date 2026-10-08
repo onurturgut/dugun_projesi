@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { SelectField } from "./SelectField";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -22,6 +23,13 @@ export function EventForm({
   const [partnerId, setPartnerId] = useState(
     event?.partner_id || user.partner_id || "platform",
   );
+  const [preview, setPreview] = useState({
+    bride: event?.bride_name || "Gelin",
+    groom: event?.groom_name || "Damat",
+    date: event?.wedding_date || "",
+    message:
+      event?.hero_message || "Bu özel günü anılarınızla ölümsüzleştirelim.",
+  });
   const partners = useQuery({
     queryKey: ["partners"],
     queryFn: () => api<Partner[]>("/admin/partners"),
@@ -70,157 +78,207 @@ export function EventForm({
   return (
     <form
       onSubmit={submit}
-      className="card-luxe grid gap-4 rounded-2xl p-5 md:grid-cols-2"
+      onInput={(event) => {
+        const form = new FormData(event.currentTarget);
+        setPreview({
+          bride: String(form.get("bride_name") || "Gelin"),
+          groom: String(form.get("groom_name") || "Damat"),
+          date: String(form.get("wedding_date") || ""),
+          message: String(form.get("hero_message") || ""),
+        });
+      }}
+      className="admin-event-composer"
     >
-      <Field
-        label="Organizasyon başlığı"
-        name="title"
-        defaultValue={event?.title}
-        placeholder="Hilal & Oğuz"
-        required
-        maxLength={160}
-      />
-      <label className="form-field">
-        <span>Organizasyon türü</span>
-        <SelectField
-          name="event_type"
-          defaultValue={event?.event_type || "Düğün"}
-        >
-          {["Düğün", "Nişan", "Doğum günü", "Kurumsal etkinlik", "Diğer"].map(
-            (t) => (
-              <option key={t}>{t}</option>
-            ),
-          )}
-        </SelectField>
-      </label>
-      <Field
-        label="Organizasyon tarihi"
-        name="wedding_date"
-        type="date"
-        defaultValue={event?.wedding_date || ""}
-        required
-      />
-      <Field
-        label="Sayfa adresi"
-        name="slug"
-        defaultValue={event?.slug}
-        placeholder="hilal-oguz"
-        pattern="[a-z0-9]+(-[a-z0-9]+)*"
-        required
-      />
-      <Field
-        label="Gelin adı (isteğe bağlı)"
-        name="bride_name"
-        defaultValue={event?.bride_name}
-      />
-      <Field
-        label="Damat adı (isteğe bağlı)"
-        name="groom_name"
-        defaultValue={event?.groom_name}
-      />
-      <div className="md:col-span-2">
-        <CoverUpload
-          value={covers}
-          onChange={setCovers}
-          eventId={event?.id}
-          partnerId={partnerId}
-          disabled={busy}
-          onBusyChange={setCoverBusy}
+      <div className="card-luxe admin-event-form-fields rounded-2xl p-5">
+        <Field
+          label="Organizasyon başlığı"
+          name="title"
+          defaultValue={event?.title}
+          placeholder="Hilal & Oğuz"
+          required
+          maxLength={160}
         />
-      </div>
-      <Field
-        label="İşletme logosu adresi (HTTPS)"
-        name="logo_url"
-        defaultValue={event?.logo_url || ""}
-      />
-      {user.role === "platform" && !event && (
         <label className="form-field">
-          <span>İşletme</span>
+          <span>Organizasyon türü</span>
           <SelectField
-            name="partner_id"
-            value={partnerId}
-            disabled={coverBusy || busy}
-            onValueChange={(value) => {
-              setPartnerId(value);
-              setCovers([]);
-            }}
+            name="event_type"
+            defaultValue={event?.event_type || "Düğün"}
           >
-            {partners.data
-              ?.filter((p) => p.active)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+            {["Düğün", "Nişan", "Doğum günü", "Kurumsal etkinlik", "Diğer"].map(
+              (t) => (
+                <option key={t}>{t}</option>
+              ),
+            )}
           </SelectField>
         </label>
-      )}
-      <TextField
-        label="Karşılama mesajı"
-        name="hero_message"
-        defaultValue={
-          event?.hero_message || "Bu özel günü anılarınızla ölümsüzleştirelim."
-        }
-      />
-      <TextField
-        label="Teşekkür mesajı"
-        name="thank_you_message"
-        defaultValue={
-          event?.thank_you_message ||
-          "Bu mutlu günümüze eşlik ettiğiniz için teşekkür ederiz."
-        }
-      />
-      {user.role === "platform" && (
-        <>
-          <Field
-            label="Yüklemeler kaç gün sonra kapansın?"
-            name="upload_days"
-            type="number"
-            min={1}
-            max={90}
-            defaultValue={event?.upload_days || 7}
-            required
-          />
-          <Field
-            label="Çöp kutusu süresi (gün)"
-            name="trash_days"
-            type="number"
-            min={1}
-            max={30}
-            defaultValue={event?.trash_days || 7}
-            required
-          />
-        </>
-      )}
-      {event && (
-        <label className="flex items-center gap-3 text-sm">
-          <input
-            type="checkbox"
-            name="upload_enabled"
-            defaultChecked={event.upload_enabled}
-          />
-          Misafir yüklemelerine izin ver
-        </label>
-      )}
-      <p className="text-xs text-muted-foreground md:col-span-2">
-        Saatler Türkiye saatine göredir. Fotoğraf ve videolar organizasyon
-        tarihinden 3 takvim ayı sonra kalıcı silinir.
-      </p>
-      {error && (
+        <Field
+          label="Organizasyon tarihi"
+          name="wedding_date"
+          type="date"
+          defaultValue={event?.wedding_date || ""}
+          required
+        />
+        <Field
+          label="Sayfa adresi"
+          name="slug"
+          defaultValue={event?.slug}
+          placeholder="hilal-oguz"
+          pattern="[a-z0-9]+(-[a-z0-9]+)*"
+          required
+        />
+        <Field
+          label="Gelin adı"
+          name="bride_name"
+          defaultValue={event?.bride_name}
+          required
+        />
+        <Field
+          label="Damat adı"
+          name="groom_name"
+          defaultValue={event?.groom_name}
+          required
+        />
         <div className="md:col-span-2">
-          <Notice>{error}</Notice>
+          <CoverUpload
+            value={covers}
+            onChange={setCovers}
+            eventId={event?.id}
+            partnerId={partnerId}
+            disabled={busy}
+            onBusyChange={setCoverBusy}
+          />
         </div>
-      )}
-      <button
-        className="btn-primary md:col-span-2"
-        disabled={busy || coverBusy || partners.isLoading}
+        <Field
+          label="İşletme logosu adresi (HTTPS)"
+          name="logo_url"
+          defaultValue={event?.logo_url || ""}
+        />
+        {user.role === "platform" && !event && (
+          <label className="form-field">
+            <span>İşletme</span>
+            <SelectField
+              name="partner_id"
+              value={partnerId}
+              disabled={coverBusy || busy}
+              onValueChange={(value) => {
+                setPartnerId(value);
+                setCovers([]);
+              }}
+            >
+              {partners.data
+                ?.filter((p) => p.active)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </SelectField>
+          </label>
+        )}
+        <TextField
+          label="Karşılama mesajı"
+          name="hero_message"
+          defaultValue={
+            event?.hero_message ||
+            "Bu özel günü anılarınızla ölümsüzleştirelim."
+          }
+        />
+        <TextField
+          label="Teşekkür mesajı"
+          name="thank_you_message"
+          defaultValue={
+            event?.thank_you_message ||
+            "Bu mutlu günümüze eşlik ettiğiniz için teşekkür ederiz."
+          }
+        />
+        {user.role === "platform" && (
+          <>
+            <Field
+              label="Yüklemeler kaç gün sonra kapansın?"
+              name="upload_days"
+              type="number"
+              min={1}
+              max={90}
+              defaultValue={event?.upload_days || 7}
+              required
+            />
+            <Field
+              label="Çöp kutusu süresi (gün)"
+              name="trash_days"
+              type="number"
+              min={1}
+              max={30}
+              defaultValue={event?.trash_days || 7}
+              required
+            />
+          </>
+        )}
+        {event && (
+          <label className="flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="upload_enabled"
+              defaultChecked={event.upload_enabled}
+            />
+            Misafir yüklemelerine izin ver
+          </label>
+        )}
+        <p className="text-xs text-muted-foreground md:col-span-2">
+          Saatler Türkiye saatine göredir. Fotoğraf ve videolar organizasyon
+          tarihinden 3 takvim ayı sonra kalıcı silinir.
+        </p>
+        {error && (
+          <div className="md:col-span-2">
+            <Notice>{error}</Notice>
+          </div>
+        )}
+        <button
+          className="btn-primary md:col-span-2"
+          disabled={busy || coverBusy || partners.isLoading}
+        >
+          {busy
+            ? "Kaydediliyor…"
+            : event
+              ? "Değişiklikleri kaydet"
+              : "Organizasyon oluştur"}
+        </button>
+      </div>
+      <aside
+        className="admin-event-live-preview"
+        aria-label="Organizasyon canlı önizleme"
       >
-        {busy
-          ? "Kaydediliyor…"
-          : event
-            ? "Değişiklikleri kaydet"
-            : "Organizasyon oluştur"}
-      </button>
+        <p className="admin-kicker">CANLI ÖNİZLEME</p>
+        <div className="admin-event-preview-card">
+          {covers[0] ? (
+            <Image
+              src={covers[0]}
+              alt="İlk kapak önizlemesi"
+              fill
+              unoptimized
+              sizes="420px"
+            />
+          ) : (
+            <div className="admin-event-preview-empty">
+              İlk kapak fotoğrafınız burada görünecek
+            </div>
+          )}
+          <div className="admin-event-preview-overlay" />
+          <div className="admin-event-preview-copy">
+            <span>
+              {preview.date
+                ? new Date(`${preview.date}T12:00:00+03:00`).toLocaleDateString(
+                    "tr-TR",
+                    { day: "numeric", month: "long", year: "numeric" },
+                  )
+                : "Tarih seçilmedi"}
+            </span>
+            <h2>
+              {preview.bride} <em>&</em> {preview.groom}
+            </h2>
+            <p>{preview.message}</p>
+          </div>
+        </div>
+      </aside>
     </form>
   );
 }

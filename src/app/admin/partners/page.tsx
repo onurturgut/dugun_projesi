@@ -4,12 +4,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Account, Partner } from "@/lib/models";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { Field, Notice } from "@/components/admin/Fields";
+import { Field, Notice, PasswordField } from "@/components/admin/Fields";
 import { PartnerLogoUpload } from "@/components/admin/PartnerLogoUpload";
 export default function Partners() {
   const qc = useQueryClient(),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [draftId, setDraftId] = useState(() => crypto.randomUUID()),
+    [draftLogo, setDraftLogo] = useState("");
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api<Account>("/auth/me"),
@@ -27,9 +29,15 @@ export default function Partners() {
     try {
       await api("/admin/partners", {
         method: "POST",
-        body: JSON.stringify(Object.fromEntries(new FormData(element))),
+        body: JSON.stringify({
+          ...Object.fromEntries(new FormData(element)),
+          id: draftId,
+          logo_url: draftLogo,
+        }),
       });
       element.reset();
+      setDraftLogo("");
+      setDraftId(crypto.randomUUID());
       qc.invalidateQueries({ queryKey: ["partners"] });
     } catch (e) {
       setError((e as Error).message);
@@ -69,15 +77,28 @@ export default function Partners() {
               name="username"
               required
             />
-            <Field
+            <PasswordField
               label="Geçici şifre (en az 12 karakter)"
               name="password"
-              type="password"
               minLength={12}
               maxLength={256}
               autoComplete="new-password"
               required
             />
+            <div className="partner-create-logo">
+              <PartnerLogoUpload
+                partnerId={draftId}
+                partnerName="Yeni işletme"
+                value={draftLogo}
+                draft
+                disabled={busy}
+                onUploaded={async (url) => setDraftLogo(url)}
+              />
+              <p className="admin-hint">
+                Kare, yüksek çözünürlüklü bir logo yükleyin. Açık ve koyu
+                zeminde kullanılacaktır.
+              </p>
+            </div>
             <button disabled={busy} className="btn-primary">
               {busy ? "Oluşturuluyor…" : "İşletme hesabı oluştur"}
             </button>

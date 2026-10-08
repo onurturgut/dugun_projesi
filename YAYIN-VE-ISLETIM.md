@@ -32,7 +32,20 @@ R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY ve R2_BUCKET_NAME gerekli.
 Tarayıcı doğrudan imzalı PUT URL'sine yükler. Bucket CORS ayarı kendi yayın adresinizi içermelidir:
 
 ```json
-[{"AllowedOrigins":["http://localhost:3000","https://alan-adiniz.com"],"AllowedMethods":["GET","HEAD","PUT"],"AllowedHeaders":["content-type","range"],"ExposeHeaders":["ETag","Content-Length","Content-Range","Accept-Ranges"],"MaxAgeSeconds":3600}]
+[
+  {
+    "AllowedOrigins": ["http://localhost:3000", "https://alan-adiniz.com"],
+    "AllowedMethods": ["GET", "HEAD", "PUT"],
+    "AllowedHeaders": ["content-type", "range"],
+    "ExposeHeaders": [
+      "ETag",
+      "Content-Length",
+      "Content-Range",
+      "Accept-Ranges"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]
 ```
 
 Özel albüm listesi yetki kontrolünden sonra 15 dakika geçerli imzalı R2 adresleri üretir. Tam boy fotoğraf ve video trafiği doğrudan R2'den akar; indirmeler ve cache'lenebilir küçük önizlemeler uygulama API'sinde yetki denetiminden geçer. Video ileri/geri sarma için R2 CORS ayarında Range başlığına izin verilmelidir. Misafir sayfasındaki kapaklar ve işletme logosu halka açık görsellerdir; özel albüm bucketının adresini kapak olarak kullanmayın. Mevcut kapak yükleme komutu ayrı public bucket kullanır: `yarn upload:covers`.
@@ -75,6 +88,13 @@ Worker her tamamlanan turdan bir dakika sonra tekrar çalışır. Tek tur en faz
 Çöp kutusundan geri alma, silme işlemi başlamış veya süresi dolmuş dosyalarda kapalıdır. Süre sonunda dosyalar ve bağlı misafir isim/mesajları silinir; organizasyon başlık/tarih kaydı panelde kalır. Tamamlanmamış yükleme anahtarları TTL ile kaybedilmez; orphan dosyalar temizlendikten sonra biletler kaldırılır. Platform panelinde son temizlik çalışması ve hata durumu görünür.
 
 ## Kontroller
+
+## Güvenlik ve arşiv ortam ayarları
+
+- Platform yöneticisinin 2FA anahtarlarını şifrelemek için Production ve Preview ortamlarına en az 32 karakterlik `MFA_ENCRYPTION_KEY` ekleyin ve güvenli parola kasasında yedekleyin.
+- Yeni audit, oturum, arşiv işi ve rate-limit indekslerini oluşturmak için sürümden sonra bir kez `yarn setup --database-only` çalıştırın.
+- Tüm albüm arşivleri worker tarafından hazırlanır, R2'ye yazılır ve 24 saat sonra worker tarafından silinir. Bu nedenle cron/worker kesintisiz çalışmalıdır.
+- Kritik yönetim hareketleri platform yöneticisinin `/admin/audit` ekranında görüntülenir.
 
 ```text
 yarn typecheck

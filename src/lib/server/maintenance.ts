@@ -3,6 +3,7 @@ import { db } from "./db";
 import { deleteObject } from "./r2";
 import { cleanupCovers } from "./covers";
 import { processMediaPreviews } from "./media-processing";
+import { processArchiveJobs } from "./archive-jobs";
 export async function cleanup(now = new Date()) {
   const database = await db();
   const iso = now.toISOString();
@@ -15,11 +16,25 @@ export async function cleanup(now = new Date()) {
     },
     { $set: { processing_status: "failed" } },
   );
+  const errors: string[] = [];
   const previews = await processMediaPreviews(8);
+  const archives = await processArchiveJobs(1);
+  const expiredArchives = await database
+    .collection("archive_jobs")
+    .find({ expires_at: { $lte: now } })
+    .limit(100)
+    .toArray();
+  for (const archive of expiredArchives) {
+    try {
+      if (archive.status === "ready") await deleteObject(archive.storage_path);
+      await database.collection("archive_jobs").deleteOne({ id: archive.id });
+    } catch {
+      errors.push(`archive:${archive.id}`);
+    }
+  }
   let files = 0,
     tickets = 0,
     events = 0;
-  const errors: string[] = [];
   const expiredEvents = await database
     .collection("weddings")
     .find({ expires_at: { $type: "string", $lte: iso }, purged_at: null })
@@ -38,19 +53,14 @@ export async function cleanup(now = new Date()) {
     .toArray();
   for (const row of due) {
     // Compare the deadline again: a simultaneous restore may have cleared it.
-    const claimed = await database
-      .collection("media")
-      .findOneAndUpdate(
-        {
-          id: row.id,
-          $or: [
-            { purge_at: { $type: "string", $lte: iso } },
-            { purging: true },
-          ],
-        },
-        { $set: { purging: true } },
-        { returnDocument: "after" },
-      );
+    const claimed = await database.collection("media").findOneAndUpdate(
+      {
+        id: row.id,
+        $or: [{ purge_at: { $type: "string", $lte: iso } }, { purging: true }],
+      },
+      { $set: { purging: true } },
+      { returnDocument: "after" },
+    );
     if (!claimed) continue;
     try {
       await deleteObject(row.storage_path);
@@ -119,7 +129,15 @@ export async function cleanup(now = new Date()) {
     }
   }
   await cleanupCovers(now, errors);
-  const result = { at: iso, files, tickets, events, ...previews, errors };
+  const result = {
+    at: iso,
+    files,
+    tickets,
+    events,
+    archives,
+    ...previews,
+    errors,
+  };
   await database.collection("maintenance_runs").insertOne(result);
   return result;
 }

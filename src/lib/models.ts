@@ -8,6 +8,10 @@ export interface Account {
   display_name: string;
   must_change_password: boolean;
   disabled: boolean;
+  mfa_enabled?: boolean;
+  partner_name?: string;
+  partner_logo_url?: string;
+  theme?: "light" | "dark" | "system";
 }
 export interface Partner {
   id: string;

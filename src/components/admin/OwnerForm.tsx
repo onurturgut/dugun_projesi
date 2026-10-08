@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Field, Notice } from "./Fields";
+import { Field, Notice, PasswordField } from "./Fields";
 export function OwnerForm({ id }: { id: string }) {
   const qc = useQueryClient(),
     [error, setError] = useState(""),
@@ -51,7 +51,7 @@ export function OwnerForm({ id }: { id: string }) {
       ) : (
         <form onSubmit={submit} className="mt-4 space-y-3">
           <Field label="Ad soyad" name="display_name" required />
-          <Field
+          <PasswordField
             label="Kullanıcı adı veya e-posta"
             name="username"
             required
@@ -60,7 +60,6 @@ export function OwnerForm({ id }: { id: string }) {
           <Field
             label="Geçici şifre (en az 12 karakter)"
             name="password"
-            type="password"
             minLength={12}
             maxLength={256}
             required

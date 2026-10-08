@@ -26,7 +26,10 @@ export async function uploadCover(req: Request, user: Account) {
     (user.role === "platform"
       ? String(form.get("partner_id") || "platform")
       : user.partner_id!);
+  const draftPartner =
+    user.role === "platform" && form.get("draft_partner") === "1";
   if (
+    !draftPartner &&
     !(await database
       .collection("partners")
       .findOne({ id: partnerId, active: true }))

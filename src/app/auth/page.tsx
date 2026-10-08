@@ -2,13 +2,16 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { GoldDivider } from "@/components/wedding/GoldDivider";
+import { PasswordField } from "@/components/admin/Fields";
 export default function AuthPage() {
   const navigate = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [totp, setTotp] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,7 +21,11 @@ export default function AuthPage() {
         "/auth/login",
         {
           method: "POST",
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({
+            email,
+            password,
+            ...(mfaRequired ? { totp } : {}),
+          }),
         },
       );
       navigate.push(
@@ -26,6 +33,10 @@ export default function AuthPage() {
       );
       navigate.refresh();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 428) {
+        setMfaRequired(true);
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Giriş yapılamadı.");
     } finally {
       setBusy(false);
@@ -50,9 +61,9 @@ export default function AuthPage() {
             placeholder="Kullanıcı adı veya e-posta"
             className="min-h-[48px] w-full rounded-xl border border-border bg-surface px-4 text-sm text-cream outline-none placeholder:text-muted-foreground focus:border-gold/60"
           />
-          <input
-            type="password"
-            aria-label="Şifre"
+          <PasswordField
+            label="Şifre"
+            hideLabel
             autoComplete="current-password"
             required
             minLength={6}
@@ -61,6 +72,22 @@ export default function AuthPage() {
             placeholder="Şifre"
             className="min-h-[48px] w-full rounded-xl border border-border bg-surface px-4 text-sm text-cream outline-none placeholder:text-muted-foreground focus:border-gold/60"
           />
+          {mfaRequired ? (
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              required
+              value={totp}
+              onChange={(event) =>
+                setTotp(event.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              placeholder="6 haneli doğrulama kodu"
+              aria-label="İki aşamalı doğrulama kodu"
+              className="min-h-[48px] w-full rounded-xl border border-border bg-surface px-4 text-sm text-cream outline-none placeholder:text-muted-foreground focus:border-gold/60"
+            />
+          ) : null}
           <button
             type="submit"
             disabled={busy}

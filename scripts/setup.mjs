@@ -35,25 +35,26 @@ try {
     db
       .collection("media")
       .createIndex({ wedding_id: 1, deleted_at: 1, uploaded_at: -1, id: -1 }),
-    db
-      .collection("media")
-      .createIndex({
-        wedding_id: 1,
-        deleted_at: 1,
-        type: 1,
-        uploaded_at: -1,
-        id: -1,
-      }),
+    db.collection("media").createIndex({
+      wedding_id: 1,
+      deleted_at: 1,
+      type: 1,
+      uploaded_at: -1,
+      id: -1,
+    }),
     db
       .collection("media")
       .createIndex({ wedding_id: 1, deleted_at: 1, size_bytes: -1, id: -1 }),
-    db
-      .collection("media")
-      .createIndex({ processing_status: 1, processing_attempts: 1, uploaded_at: 1 }),
+    db.collection("media").createIndex({
+      processing_status: 1,
+      processing_attempts: 1,
+      uploaded_at: 1,
+    }),
     db.collection("sessions").createIndex({ token: 1 }, { unique: true }),
     db
       .collection("sessions")
       .createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.collection("sessions").createIndex({ userId: 1, createdAt: -1 }),
     db.collection("upload_tickets").createIndex({ token: 1 }, { unique: true }),
     db.collection("upload_tickets").createIndex({ expiresAt: 1 }),
     db.collection("upload_tickets").createIndex({ weddingId: 1, createdAt: 1 }),
@@ -61,19 +62,30 @@ try {
       .collection("login_attempts")
       .createIndex({ createdAt: 1 }, { expireAfterSeconds: 900 }),
     db.collection("login_attempts").createIndex({ key: 1, createdAt: 1 }),
+    db.collection("login_attempts").createIndex({ ipKey: 1, createdAt: 1 }),
+    db.collection("audit_logs").createIndex({ at: -1 }),
+    db.collection("audit_logs").createIndex({ actor_id: 1, at: -1 }),
+    db.collection("audit_logs").createIndex({ partner_id: 1, at: -1 }),
+    db.collection("archive_jobs").createIndex({ id: 1 }, { unique: true }),
+    db.collection("archive_jobs").createIndex({ status: 1, created_at: 1 }),
+    db.collection("archive_jobs").createIndex({ expires_at: 1 }),
+    db
+      .collection("maintenance_runs")
+      .createIndex({ at: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 }),
   ]);
   if (!databaseOnly) {
     const salt = randomBytes(16).toString("hex");
     await db.collection("users").updateOne(
       { email: ADMIN_EMAIL.toLowerCase().trim() },
       {
+        $set: { display_name: "Süperadmin" },
         $setOnInsert: {
           id: randomUUID(),
           salt,
           passwordHash: scryptSync(ADMIN_PASSWORD, salt, 64).toString("hex"),
           role: "platform",
           partner_id: null,
-          display_name: "Platform yöneticisi",
+          display_name: "Süperadmin",
           disabled: false,
           must_change_password: false,
         },
@@ -81,9 +93,13 @@ try {
       { upsert: true },
     );
   }
+  await db
+    .collection("users")
+    .updateMany({ role: "platform" }, { $set: { display_name: "Süperadmin" } });
   await db.collection("weddings").updateOne(
     { slug: "oguz-hilal" },
     {
+      $set: { name: "ShineQR Platform" },
       $setOnInsert: {
         id: randomUUID(),
         slug: "oguz-hilal",
@@ -117,7 +133,7 @@ try {
     {
       $setOnInsert: {
         id: "platform",
-        name: "Platform organizasyonları",
+        name: "ShineQR Platform",
         logo_url: "",
         active: true,
         created_at: new Date().toISOString(),
