@@ -92,7 +92,10 @@ export async function handle(
       req.headers.get("origin") !== req.nextUrl.origin
     )
       throw new HttpError(403, "Geçersiz kaynak.");
-    if (route === "maintenance" && method === "POST") {
+    if (
+      route === "maintenance" &&
+      (method === "GET" || method === "POST")
+    ) {
       const secret = process.env.CRON_SECRET,
         provided = req.headers.get("authorization") || "";
       if (
