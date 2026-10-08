@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import type { Account, Partner } from "@/lib/models";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Field, Notice } from "@/components/admin/Fields";
+import { PartnerLogoUpload } from "@/components/admin/PartnerLogoUpload";
 export default function Partners() {
   const qc = useQueryClient(),
     [error, setError] = useState(""),
@@ -77,11 +78,6 @@ export default function Partners() {
               autoComplete="new-password"
               required
             />
-            <Field
-              label="Logo adresi (isteğe bağlı, HTTPS)"
-              name="logo_url"
-              type="url"
-            />
             <button disabled={busy} className="btn-primary">
               {busy ? "Oluşturuluyor…" : "İşletme hesabı oluştur"}
             </button>
@@ -91,8 +87,23 @@ export default function Partners() {
           )}
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {list.data?.map((p) => (
-              <article key={p.id} className="card-luxe rounded-2xl p-5">
-                <h2 className="text-xl">{p.name}</h2>
+              <article
+                key={p.id}
+                className="card-luxe partner-card rounded-2xl p-5"
+              >
+                <PartnerLogoUpload
+                  partnerId={p.id}
+                  partnerName={p.name}
+                  value={p.logo_url || ""}
+                  onUploaded={async (logo_url) => {
+                    await api(`/admin/partners/${p.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ logo_url }),
+                    });
+                    await qc.invalidateQueries({ queryKey: ["partners"] });
+                  }}
+                />
+                <h2 className="partner-card-name">{p.name}</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {p.active ? "Aktif" : "Erişim kapalı"}
                 </p>

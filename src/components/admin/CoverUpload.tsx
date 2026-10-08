@@ -9,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 
-async function prepare(file: File) {
+export async function prepareAdminImage(file: File) {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
     throw new Error("JPG, PNG veya WebP seçin.");
   if (file.size > 15 * 1024 * 1024)
@@ -69,7 +69,7 @@ export function CoverUpload({
       for (const [index, file] of files.entries()) {
         setProgress(`${index + 1} / ${files.length} yükleniyor: ${file.name}`);
         try {
-          const blob = await prepare(file);
+          const blob = await prepareAdminImage(file);
           const form = new FormData();
           form.append("file", blob, "kapak.webp");
           form.append("partner_id", partnerId);

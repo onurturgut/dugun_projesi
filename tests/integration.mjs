@@ -173,6 +173,20 @@ try {
       201,
     )
   ).data.id;
+  const logoForm = new FormData();
+  const logoBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+  logoForm.append('file', new Blob([logoBytes], {type: 'image/png'}), 'logo.png');
+  logoForm.append('partner_id', partnerA);
+  const logoUpload = await fetch(base + '/api/admin/covers', {
+    method: 'POST',
+    headers: {cookie: platform},
+    body: logoForm,
+  });
+  assert.equal(logoUpload.status, 201);
+  const logoUrl = (await logoUpload.json()).url;
+  await call('/admin/partners/' + partnerA, 'PATCH', {logo_url: logoUrl}, platform);
+  assert.equal((await call('/admin/partners', 'GET', undefined, platform)).data.find((partner) => partner.id === partnerA).logo_url, logoUrl);
+  assert.equal((await fetch(base + logoUrl)).status, 200);
   const a = await activate('partner-a'),
     b = await activate('partner-b');
   await call('/admin/partners', 'GET', undefined, a, 403);
@@ -322,6 +336,28 @@ try {
   await call(trashPreview + '&download=1', 'GET', undefined, owner, 400);
   await call(`/admin/weddings/${eventA.id}/media`, 'PATCH', {ids: [row.id], action: 'restore'}, owner);
   console.log('PASS: direct upload, idempotent completion, private download/video ranges, ZIP, trash and restore');
+  const permanentId = randomUUID();
+  const permanentPath = 'integration/permanent-delete.png';
+  objects.set('/test-media/' + permanentPath, {body: payload, type: 'image/png'});
+  await db.collection('media').insertOne({
+    id: permanentId,
+    wedding_id: eventA.id,
+    type: 'photo',
+    storage_path: permanentPath,
+    file_name: 'permanent-delete.png',
+    mime_type: 'image/png',
+    size_bytes: payload.length,
+    guest_name: 'Kalıcı',
+    guest_message: '',
+    uploaded_at: new Date().toISOString(),
+    deleted_at: new Date().toISOString(),
+    purge_at: new Date(Date.now() + 86400000).toISOString(),
+  });
+  await db.collection('weddings').updateOne({id: eventA.id}, {$inc: {trashed_photo_count: 1, trashed_count: 1, trashed_bytes: payload.length}});
+  await call('/admin/weddings/' + eventA.id + '/media', 'PATCH', {ids: [permanentId], action: 'purge'}, owner);
+  assert.equal(await db.collection('media').countDocuments({id: permanentId}), 0);
+  assert.equal(objects.has('/test-media/' + permanentPath), false);
+  console.log('PASS: immediate permanent deletion removes MongoDB and R2 objects');
   await db.collection('weddings').updateOne({id: eventA.id}, {$set: {uploads_close_at: new Date(Date.now() - 1000).toISOString()}});
   await call('/uploads/sign', 'POST', upload, undefined, 410);
   await db.collection('weddings').updateOne({id: eventA.id}, {$set: {uploads_close_at: eventA.uploads_close_at}});
@@ -354,7 +390,7 @@ try {
   await cleanup();
   assert.ok((await db.collection('weddings').findOne({id: eventA.id})).purged_at);
   assert.equal(await db.collection('upload_tickets').countDocuments({weddingId: eventA.id}), 0);
-  assert.equal(objects.size, 0);
+  assert.equal(objects.size, 1, 'The partner logo must remain in R2');
   await call(`/admin/weddings/${eventA.id}/media`, 'GET', undefined, owner, 410);
   await call(`/admin/partners/${partnerA}`, 'PATCH', {active: false}, platform);
   await call('/admin/weddings', 'GET', undefined, a, 401);

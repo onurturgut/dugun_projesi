@@ -70,7 +70,8 @@ export default function EventDetail() {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [view, setView] = useState<Media | null>(null),
-    [pending, setPending] = useState<string[]>([]);
+    [pending, setPending] = useState<string[]>([]),
+    [pendingAction, setPendingAction] = useState<"trash" | "purge">("trash");
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const deleteReturnFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -126,9 +127,10 @@ export default function EventDetail() {
   function resetSelection() {
     setSelected([]);
   }
-  function requestDelete(ids: string[]) {
+  function requestDelete(ids: string[], permanent = false) {
     setError("");
     deleteReturnFocus.current = document.activeElement as HTMLElement | null;
+    setPendingAction(permanent ? "purge" : "trash");
     setPending(ids);
   }
   function selectOne(id: string) {
@@ -137,15 +139,15 @@ export default function EventDetail() {
       toast.info("Bir işlemde en fazla 200 dosya seçebilirsiniz.");
     else setSelected([...selected, id]);
   }
-  async function mutate(ids: string[], restore = false) {
+  async function mutate(ids: string[], action: "trash" | "restore" | "purge") {
     setBusy(true);
     setError("");
     try {
       await api(`/admin/weddings/${id}/media`, {
-        method: restore ? "PATCH" : "DELETE",
+        method: action === "trash" ? "DELETE" : "PATCH",
         body: JSON.stringify({
           ids,
-          ...(restore ? { action: "restore" } : {}),
+          ...(action !== "trash" ? { action } : {}),
         }),
       });
       setSelected([]);
@@ -156,9 +158,11 @@ export default function EventDetail() {
         qc.invalidateQueries({ queryKey: ["admin-weddings"] }),
       ]);
       toast.success(
-        restore
+        action === "restore"
           ? "İçerikler albüme geri alındı."
-          : "İçerikler çöp kutusuna taşındı.",
+          : action === "purge"
+            ? "İçerikler veritabanı ve depolamadan kalıcı olarak silindi."
+            : "İçerikler çöp kutusuna taşındı.",
       );
     } catch (e) {
       setError((e as Error).message);
@@ -320,7 +324,8 @@ export default function EventDetail() {
                 <p className="admin-notice">
                   Silinen içerikler {w.trash_days} gün geri alınabilir.
                   Organizasyonun saklama süresi daha erken dolarsa o tarihte
-                  kalıcı silinir. İndirmek için önce albüme geri alın.
+                  kalıcı silinir. Dilerseniz seçtiğiniz içerikleri hemen kalıcı
+                  olarak silebilirsiniz. İndirmek için önce albüme geri alın.
                 </p>
               )}
               <div className="admin-toolbar">
@@ -497,12 +502,21 @@ export default function EventDetail() {
                           )}
                           <div className="admin-card-actions">
                             {trash ? (
-                              <button
-                                disabled={busy}
-                                onClick={() => mutate([m.id], true)}
-                              >
-                                <RotateCcw size={15} /> Albüme geri al
-                              </button>
+                              <>
+                                <button
+                                  disabled={busy}
+                                  onClick={() => mutate([m.id], "restore")}
+                                >
+                                  <RotateCcw size={15} /> Albüme geri al
+                                </button>
+                                <button
+                                  disabled={busy}
+                                  className="danger"
+                                  onClick={() => requestDelete([m.id], true)}
+                                >
+                                  <Trash2 size={15} /> Kalıcı sil
+                                </button>
+                              </>
                             ) : (
                               <>
                                 <a href={m.download_url}>
@@ -584,18 +598,32 @@ export default function EventDetail() {
                       <Download size={16} /> Seçilenleri indir
                     </a>
                   )}
-                  <button
-                    disabled={busy}
-                    className="admin-button danger"
-                    onClick={() =>
-                      trash
-                        ? mutate(validSelected, true)
-                        : requestDelete(validSelected)
-                    }
-                  >
-                    {trash ? <RotateCcw size={16} /> : <Trash2 size={16} />}{" "}
-                    {trash ? "Geri al" : "Çöp kutusuna taşı"}
-                  </button>
+                  {trash ? (
+                    <>
+                      <button
+                        disabled={busy}
+                        className="admin-button"
+                        onClick={() => mutate(validSelected, "restore")}
+                      >
+                        <RotateCcw size={16} /> Geri al
+                      </button>
+                      <button
+                        disabled={busy}
+                        className="admin-button danger"
+                        onClick={() => requestDelete(validSelected, true)}
+                      >
+                        <Trash2 size={16} /> Kalıcı sil
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      disabled={busy}
+                      className="admin-button danger"
+                      onClick={() => requestDelete(validSelected)}
+                    >
+                      <Trash2 size={16} /> Çöp kutusuna taşı
+                    </button>
+                  )}
                 </div>
               )}
             </section>
@@ -624,11 +652,24 @@ export default function EventDetail() {
                   }
                 }}
               >
-                <Dialog.Title>Çöp kutusuna taşınsın mı?</Dialog.Title>
+                <Dialog.Title>
+                  {pendingAction === "purge"
+                    ? "Kalıcı olarak silinsin mi?"
+                    : "Çöp kutusuna taşınsın mı?"}
+                </Dialog.Title>
                 <Dialog.Description>
-                  {pending.length} içerik albümden kaldırılacak. {w.trash_days}{" "}
-                  gün içinde, organizasyonun saklama süresi dolmadıysa geri
-                  alabilirsiniz.
+                  {pendingAction === "purge" ? (
+                    <>
+                      {pending.length} içerik veritabanından, R2 depolamadan ve
+                      önizlemelerden tamamen silinecek. Bu işlem geri alınamaz.
+                    </>
+                  ) : (
+                    <>
+                      {pending.length} içerik albümden kaldırılacak.{" "}
+                      {w.trash_days} gün içinde, organizasyonun saklama süresi
+                      dolmadıysa geri alabilirsiniz.
+                    </>
+                  )}
                 </Dialog.Description>
                 {error && <p role="alert">{error}</p>}
                 <div className="admin-actions">
@@ -638,9 +679,15 @@ export default function EventDetail() {
                   <button
                     className="admin-button danger"
                     disabled={busy}
-                    onClick={() => mutate(pending)}
+                    onClick={() => mutate(pending, pendingAction)}
                   >
-                    {busy ? "Taşınıyor…" : "Çöp kutusuna taşı"}
+                    {busy
+                      ? pendingAction === "purge"
+                        ? "Siliniyor…"
+                        : "Taşınıyor…"
+                      : pendingAction === "purge"
+                        ? "Kalıcı olarak sil"
+                        : "Çöp kutusuna taşı"}
                   </button>
                 </div>
               </Dialog.Content>

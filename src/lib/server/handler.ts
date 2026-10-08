@@ -92,10 +92,7 @@ export async function handle(
       req.headers.get("origin") !== req.nextUrl.origin
     )
       throw new HttpError(403, "Geçersiz kaynak.");
-    if (
-      route === "maintenance" &&
-      (method === "GET" || method === "POST")
-    ) {
+    if (route === "maintenance" && (method === "GET" || method === "POST")) {
       const secret = process.env.CRON_SECRET,
         provided = req.headers.get("authorization") || "";
       if (
@@ -261,11 +258,8 @@ export async function handle(
         const data = accountInput
           .extend({
             name: z.string().trim().min(1).max(120),
-            logo_url: z.string().max(2048).default(""),
           })
           .parse(await req.json());
-        if (data.logo_url && !data.logo_url.startsWith("https://"))
-          throw new HttpError(400, "Logo HTTPS adresi olmalı.");
         const id = randomUUID();
         const fields = await passwordFields(data.password);
         await database.collection("users").insertOne({
@@ -282,7 +276,7 @@ export async function handle(
           await database.collection("partners").insertOne({
             id,
             name: data.name,
-            logo_url: data.logo_url,
+            logo_url: "",
             active: true,
             created_at: new Date().toISOString(),
           });
@@ -303,9 +297,31 @@ export async function handle(
       user
     ) {
       requirePlatform(user);
-      if (path[2] === "platform")
+      const data = z
+        .object({
+          active: z.boolean().optional(),
+          logo_url: z.string().max(2048).optional(),
+        })
+        .refine(
+          (value) => value.active !== undefined || value.logo_url !== undefined,
+        )
+        .parse(await req.json());
+      if (path[2] === "platform" && data.active !== undefined)
         throw new HttpError(400, "Platform işletmesi kapatılamaz.");
-      const data = z.object({ active: z.boolean() }).parse(await req.json());
+      const currentPartner = await database
+        .collection("partners")
+        .findOne({ id: path[2] });
+      if (!currentPartner) throw new HttpError(404, "İşletme bulunamadı.");
+      if (data.logo_url !== undefined) {
+        await validateCovers([data.logo_url], path[2]);
+        await weddings.updateMany(
+          {
+            partner_id: path[2],
+            logo_url: { $in: ["", currentPartner.logo_url || ""] },
+          },
+          { $set: { logo_url: data.logo_url } },
+        );
+      }
       await database
         .collection("partners")
         .updateOne({ id: path[2] }, { $set: data });
@@ -600,7 +616,10 @@ export async function handle(
         }
         if (path.length === 4 && (method === "DELETE" || method === "PATCH")) {
           const data = z
-            .object({ ids: mediaIds, action: z.literal("restore").optional() })
+            .object({
+              ids: mediaIds,
+              action: z.enum(["restore", "purge"]).optional(),
+            })
             .parse(await req.json());
           if (method === "DELETE") {
             const now = new Date().toISOString();
@@ -625,9 +644,14 @@ export async function handle(
               { $set: { deleted_at: now, purge_at: trashDeadline(event) } },
             );
             if (result.modifiedCount) {
-              const photos = affected.filter((row) => row.type === "photo").length;
+              const photos = affected.filter(
+                (row) => row.type === "photo",
+              ).length;
               const videos = affected.length - photos;
-              const bytes = affected.reduce((sum, row) => sum + row.size_bytes, 0);
+              const bytes = affected.reduce(
+                (sum, row) => sum + row.size_bytes,
+                0,
+              );
               await weddings.updateOne(
                 { id },
                 {
@@ -643,9 +667,7 @@ export async function handle(
                 },
               );
             }
-          } else {
-            if (data.action !== "restore")
-              throw new HttpError(400, "Geçersiz işlem.");
+          } else if (data.action === "restore") {
             const affected = await media
               .find(
                 {
@@ -669,9 +691,14 @@ export async function handle(
               { $set: { deleted_at: null, purge_at: null } },
             );
             if (result.modifiedCount) {
-              const photos = affected.filter((row) => row.type === "photo").length;
+              const photos = affected.filter(
+                (row) => row.type === "photo",
+              ).length;
               const videos = affected.length - photos;
-              const bytes = affected.reduce((sum, row) => sum + row.size_bytes, 0);
+              const bytes = affected.reduce(
+                (sum, row) => sum + row.size_bytes,
+                0,
+              );
               await weddings.updateOne(
                 { id },
                 {
@@ -687,6 +714,66 @@ export async function handle(
                 },
               );
             }
+          } else if (data.action === "purge") {
+            const affected = await media
+              .find({
+                wedding_id: id,
+                id: { $in: data.ids },
+                deleted_at: { $ne: null },
+                purging: { $ne: true },
+              })
+              .toArray();
+            let photos = 0,
+              videos = 0,
+              bytes = 0;
+            const failures: string[] = [];
+            for (const row of affected) {
+              const claimed = await media.findOneAndUpdate(
+                {
+                  id: row.id,
+                  wedding_id: id,
+                  deleted_at: { $ne: null },
+                  purging: { $ne: true },
+                },
+                { $set: { purging: true } },
+                { returnDocument: "after" },
+              );
+              if (!claimed) continue;
+              try {
+                await deleteObject(row.storage_path);
+                if (row.preview_path) await deleteObject(row.preview_path);
+                await media.deleteOne({
+                  id: row.id,
+                  wedding_id: id,
+                  purging: true,
+                });
+                if (row.type === "photo") photos++;
+                else videos++;
+                bytes += row.size_bytes;
+              } catch {
+                failures.push(row.id);
+              }
+            }
+            const deleted = photos + videos;
+            if (deleted)
+              await weddings.updateOne(
+                { id },
+                {
+                  $inc: {
+                    trashed_photo_count: -photos,
+                    trashed_video_count: -videos,
+                    trashed_count: -deleted,
+                    trashed_bytes: -bytes,
+                  },
+                },
+              );
+            if (failures.length)
+              throw new HttpError(
+                503,
+                `${failures.length} içerik depolamadan silinemedi; worker yeniden deneyecek.`,
+              );
+          } else {
+            throw new HttpError(400, "Geçersiz işlem.");
           }
           return json({ ok: true });
         }
@@ -714,11 +801,7 @@ export async function handle(
             req.headers.get("range"),
           );
         }
-        if (
-          path.length === 6 &&
-          path[5] === "preview" &&
-          method === "GET"
-        ) {
+        if (path.length === 6 && path[5] === "preview" && method === "GET") {
           const trashPreview =
             req.nextUrl.searchParams.get("trash_preview") === "1";
           const row = await media.findOne({

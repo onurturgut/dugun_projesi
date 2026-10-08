@@ -104,18 +104,21 @@ export async function coverResponse(id: string) {
     .collection("cover_assets")
     .findOne({ id, ready: true, deleting: { $ne: true } });
   if (!asset) throw new HttpError(404, "Kapak bulunamadı.");
-  const published = await database
-    .collection("weddings")
-    .findOne({
-      cover_images: url,
+  const now = new Date().toISOString();
+  const [published, logoPartner] = await Promise.all([
+    database.collection("weddings").findOne({
+      $or: [{ cover_images: url }, { logo_url: url }],
       purged_at: null,
-      expires_at: { $gt: new Date().toISOString() },
-    });
+      expires_at: { $gt: now },
+    }),
+    database.collection("partners").findOne({ logo_url: url, active: true }),
+  ]);
   const active =
-    published &&
-    (await database
-      .collection("partners")
-      .findOne({ id: published.partner_id, active: true }));
+    logoPartner ||
+    (published &&
+      (await database
+        .collection("partners")
+        .findOne({ id: published.partner_id, active: true })));
   if (!active) {
     const user = await requireAccount();
     requireManager(user);
@@ -145,17 +148,17 @@ export async function cleanupCovers(now: Date, errors: string[]) {
     .limit(500)
     .toArray();
   for (const row of rows) {
-    if (
-      !row.deleting &&
-      (await database
-        .collection("weddings")
-        .findOne({
-          cover_images: row.url,
+    if (!row.deleting) {
+      const referenced = await Promise.all([
+        database.collection("weddings").findOne({
+          $or: [{ cover_images: row.url }, { logo_url: row.url }],
           purged_at: null,
           expires_at: { $gt: now.toISOString() },
-        }))
-    )
-      continue;
+        }),
+        database.collection("partners").findOne({ logo_url: row.url }),
+      ]);
+      if (referenced.some(Boolean)) continue;
+    }
     const claimed = await assets.findOneAndUpdate(
       { id: row.id, touched_at: row.touched_at },
       { $set: { deleting: true } },
