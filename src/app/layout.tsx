@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "./providers";
 import "../styles.css";
 export const metadata: Metadata = {
@@ -14,6 +15,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <html lang="tr" className="dark">
       <body>
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );
