@@ -9,12 +9,28 @@ import {
   themeIds,
   cardTemplates,
   cardPresets,
+  availableTemplates,
 } from "../src/lib/design";
 import { buildQrCards } from "../src/lib/qr-card";
+import { defaultQrProduct, validateQrProduct, withPrintMarks } from "../src/lib/qr-products";
 
 test("existing invitations keep their original video and speed", () => {
   assert.equal(resolveDesign().intro, "video");
   assert.equal(resolveDesign().speed, 1.5);
+  assert.equal(resolveDesign().version, 2);
+});
+test("legacy design values migrate to studio schema v2", () => {
+  const legacy = { ...defaultDesign, version: 1 as const, theme: "navy" as const };
+  const migrated = resolveDesign(legacy);
+  assert.equal(migrated.version, 2);
+  assert.equal(migrated.theme, "navy");
+});
+test("template libraries expose only available templates", () => {
+  for (const surface of ["wedding", "loading", "qr"] as const) {
+    const templates = availableTemplates(surface);
+    assert.ok(templates.length > 0);
+    assert.ok(templates.every((template) => template.available && template.surface === surface));
+  }
 });
 test("all QR reference designs are available as valid presets", () => {
   assert.equal(cardPresets.length, 10);
@@ -97,7 +113,7 @@ test("linked, independent and custom QR colors resolve independently", () => {
   );
   assert.equal(designMonogram(defaultDesign, "İpek & Özgür"), "İ · Ö");
 });
-test("every card style and palette renders A6 cards with a high contrast QR and escaped user text", () => {
+test("The Editorial renders 15 × 20 cm cards with a high contrast QR and escaped user text", () => {
   for (const theme of themeIds)
     for (const cardTemplate of Object.keys(
       cardTemplates,
@@ -114,15 +130,15 @@ test("every card style and palette renders A6 cards with a high contrast QR and 
         "2026-10-02",
         "https://example.com/wedding/test",
       );
-      assert.match(cards.front, /width="105mm" height="148mm"/);
+      assert.match(cards.front, /width="150mm" height="200mm"/);
       assert.doesNotMatch(cards.front + cards.back, /<script>|<img>/);
       assert.match(cards.back, /A &amp; B &lt;img&gt;/);
-      assert.match(cards.back, /shape-rendering="crispEdges"/);
-      assert.match(cards.back, /fill="#fff"/);
-      assert.match(cards.back, /fill="#111"/);
+      assert.match(cards.front, /shape-rendering="crispEdges"/);
+      assert.match(cards.front, /fill="#fff"/);
+      assert.match(cards.front, /fill="#111"/);
     }
 });
-test("QR pattern changes with the real invitation target", () => {
+test("QR pattern changes with the real invitation target without changing the reverse face", () => {
   const a = buildQrCards(
     defaultDesign,
     "A & B",
@@ -135,6 +151,22 @@ test("QR pattern changes with the real invitation target", () => {
     null,
     "https://example.com/wedding/b",
   );
-  assert.notEqual(a.back, b.back);
-  assert.equal(a.front, b.front);
+  assert.notEqual(a.front, b.front);
+  assert.equal(a.back, b.back);
+});
+test("QR physical product enforces compatibility, bleed and safe area", () => {
+  const target = "https://example.com/q/67e55044-10b1-426f-9247-bb680e5fe0c8";
+  const validation = validateQrProduct(defaultQrProduct, defaultDesign, target);
+  assert.equal(validation.passed, true);
+  assert.equal(defaultQrProduct.bleedMm, 3);
+  assert.equal(defaultQrProduct.safeAreaMm, 5);
+  assert.equal(validateQrProduct(defaultQrProduct, defaultDesign, "https://example.com/wedding/degisebilir").passed, false);
+});
+test("print exports include bleed canvas and crop marks without changing QR target", () => {
+  const target = "https://example.com/q/67e55044-10b1-426f-9247-bb680e5fe0c8";
+  const cards = buildQrCards(defaultDesign, "A & B", null, target);
+  const printable = withPrintMarks(cards.front, defaultQrProduct);
+  assert.match(printable, /width="156mm" height="206mm"/);
+  assert.match(printable, /viewBox="0 0 811\.2 1071\.2"/);
+  assert.match(printable, /shape-rendering="crispEdges"/);
 });

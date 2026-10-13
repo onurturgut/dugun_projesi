@@ -3,28 +3,36 @@ import { DateField } from "@/components/admin/DateField";
 import { SelectField } from "@/components/admin/SelectField";
 import Link from "next/link";
 import Image from "next/image";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, ArrowUpRight, ShieldCheck } from "lucide-react";
+import { Plus, Search, ArrowUpRight, ShieldCheck, BookmarkPlus, Archive } from "lucide-react";
 import { api, type Wedding, type Account } from "@/lib/api";
 import { uploadsOpen, expired } from "@/lib/policy";
 import { formatBytes } from "@/lib/config";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { EventForm } from "@/components/admin/EventForm";
+import { EventWizard } from "@/components/admin/EventWizard";
 import { Notice } from "@/components/admin/Fields";
 const stateOf = (w: Wedding) =>
-  expired(w) ? "expired" : uploadsOpen(w) ? "open" : "closed";
+  w.lifecycle_status === "draft" || w.lifecycle_status === "archived" || w.lifecycle_status === "upcoming"
+    ? w.lifecycle_status
+    : expired(w) ? "expired" : uploadsOpen(w) ? "open" : "closed";
 const labels: Record<string, string> = {
+  draft: "Taslak",
+  upcoming: "Yaklaşan",
+  archived: "Arşivlendi",
   open: "Yükleme açık",
   closed: "Yükleme kapalı",
   expired: "Süresi doldu",
 };
 export default function Events() {
   const [open, setOpen] = useState(false),
+    [selectedDraft, setSelectedDraft] = useState<Wedding | undefined>(),
     [search, setSearch] = useState(""),
     [statusFilter, setStatusFilter] = useState("all"),
     [date, setDate] = useState(""),
-    [page, setPage] = useState(1);
+    [page, setPage] = useState(1),
+    [selected, setSelected] = useState<string[]>([]),
+    [savedViews, setSavedViews] = useState<Array<{ name: string; search: string; status: string; date: string }>>([]);
   const qc = useQueryClient();
   const deferredSearch = useDeferredValue(search);
   const me = useQuery({
@@ -56,6 +64,9 @@ export default function Events() {
     enabled: me.data?.role === "platform",
   });
   const rows = events.data?.items || [];
+  useEffect(() => { try { setSavedViews(JSON.parse(localStorage.getItem("shineqr-admin-views") || "[]")); } catch { setSavedViews([]); } }, []);
+  function saveView() { const name = window.prompt("Bu filtre görünümünün adı"); if (!name?.trim()) return; const next = [...savedViews.filter((view) => view.name !== name.trim()), { name: name.trim(), search, status: statusFilter, date }]; setSavedViews(next); localStorage.setItem("shineqr-admin-views", JSON.stringify(next)); }
+  async function bulkArchive() { if (!selected.length || !window.confirm(`${selected.length} organizasyon arşivlensin mi?`)) return; await api("/admin/weddings/bulk", { method: "POST", body: JSON.stringify({ ids: selected, action: "archive" }) }); setSelected([]); await qc.invalidateQueries({ queryKey: ["admin-weddings"] }); }
   return (
     <AdminShell>
       <div className="admin-heading">
@@ -73,7 +84,10 @@ export default function Events() {
         {me.data && me.data.role !== "owner" && (
           <button
             className="admin-button primary"
-            onClick={() => setOpen(!open)}
+            onClick={() => {
+              setSelectedDraft(undefined);
+              setOpen(!open);
+            }}
           >
             <Plus size={16} />
             {open ? "Formu kapat" : "Yeni organizasyon"}
@@ -99,15 +113,12 @@ export default function Events() {
           </details>
         )}
       {open && me.data && (
-        <div className="admin-panel mb-6">
-          <EventForm
-            user={me.data}
-            onSaved={() => {
-              setOpen(false);
-              qc.invalidateQueries({ queryKey: ["admin-weddings"] });
-            }}
-          />
-        </div>
+        <EventWizard
+          user={me.data}
+          initialEvent={selectedDraft}
+          onClose={() => { setOpen(false); setSelectedDraft(undefined); }}
+          onPublished={() => qc.invalidateQueries({ queryKey: ["admin-weddings"] })}
+        />
       )}
       {(events.error || me.error) && (
         <Notice>{events.error?.message || me.error?.message}</Notice>
@@ -136,9 +147,12 @@ export default function Events() {
             }}
           >
             <option value="all">Tüm durumlar</option>
+            <option value="draft">Taslaklar</option>
+            <option value="upcoming">Yaklaşan</option>
             <option value="open">Yükleme açık</option>
             <option value="closed">Yükleme kapalı</option>
             <option value="expired">Süresi doldu</option>
+            <option value="archived">Arşivlenenler</option>
           </SelectField>
           <DateField
             label="Organizasyon tarihi"
@@ -160,8 +174,11 @@ export default function Events() {
               Temizle
             </button>
           )}
+          <button className="admin-button" onClick={saveView}><BookmarkPlus size={15}/> Görünümü kaydet</button>
         </div>
       </div>
+      {savedViews.length ? <div className="saved-filter-row"><span>Kayıtlı görünümler</span>{savedViews.map((view) => <button key={view.name} onClick={() => { setSearch(view.search); setStatusFilter(view.status); setDate(view.date); setPage(1); }}>{view.name}</button>)}</div> : null}
+      {selected.length ? <div className="admin-bulk-bar"><strong>{selected.length} organizasyon seçildi</strong><button className="admin-button" onClick={() => setSelected([])}>Seçimi kaldır</button><button className="admin-button danger" onClick={() => void bulkArchive()}><Archive size={15}/> Arşivle</button></div> : null}
       <p className="admin-hint mb-4" aria-live="polite">
         {events.data?.total || 0} organizasyon
       </p>
@@ -185,10 +202,17 @@ export default function Events() {
       ) : (
         <div className="admin-event-grid">
           {rows.map((w) => (
+            <div className="admin-event-selectable" key={w.id}>
+            {me.data?.role !== "owner" ? <label className="admin-event-selector"><input type="checkbox" checked={selected.includes(w.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, w.id] : current.filter((id) => id !== w.id))}/><span className="sr-only">{w.title} seç</span></label> : null}
             <Link
-              key={w.id}
-              href={`/admin/${w.id}`}
+              href={w.lifecycle_status === "draft" ? "#taslak" : `/admin/${w.id}`}
               className="admin-event-card"
+              onClick={(event) => {
+                if (w.lifecycle_status !== "draft") return;
+                event.preventDefault();
+                setSelectedDraft(w);
+                setOpen(true);
+              }}
             >
               <div className="admin-event-cover">
                 {w.cover_images?.[0] ? (
@@ -238,6 +262,7 @@ export default function Events() {
                 )}
               </div>
             </Link>
+            </div>
           ))}
         </div>
       )}

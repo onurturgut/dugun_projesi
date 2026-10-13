@@ -15,7 +15,7 @@ import {
   Check,
 } from "lucide-react";
 import styles from "./preview.module.css";
-import { LandingDemo, TrackedContactLink } from "./LandingDemo";
+import { TrackedContactLink } from "./LandingDemo";
 
 const occasions = [
   [Heart, "Düğünler"],
@@ -67,110 +67,62 @@ export default function DesignPreviewPage() {
     <main className={styles.page}>
       <header className={styles.header}>
         <Link href="/" className={styles.logo} aria-label="ShineQR ana sayfa">
-          shineqr<span>.</span>
+          <Image
+            src="/brand/shineqr-lockup.png"
+            alt="ShineQR"
+            width={260}
+            height={88}
+            priority
+          />
         </Link>
-        <nav className={styles.nav} aria-label="Önizleme menüsü">
+        <nav className={styles.nav} aria-label="Ana menü">
           <a href="#nasil">Nasıl çalışır?</a>
-          <a href="#tasarimlar">QR Tasarımları</a>
+          <a href="#tasarimlar">Özellikler</a>
           <a href="#isletmeler">İşletmeler için</a>
-          <a href="#sorular">Sorular</a>
+          <a href="#sorular">SSS</a>
         </nav>
-        <Link href="/auth" className={styles.login}>
-          Giriş yap
+        <Link href="/wedding/oguz-hilal" className={styles.login}>
+          Hemen başla
         </Link>
       </header>
 
       <section className={styles.hero}>
         <div className={styles.copy}>
           <p className={styles.eyebrow}>
-            ANILARIN YENİ ADRESİ <span />
+            DÜĞÜN ANILARINIZ TEK BİR YERDE <span />
           </p>
           <h1>
             Bir gün.
             <br />
-            <em>Binlerce anı.</em>
+            Binlerce anı.
           </h1>
           <p className={styles.lead}>
-            Düğününüzde sevdiklerinizin gözünden anıları toplayın, hepsini tek
-            bir yerde, hep birlikte yaşayın.
+            Sevdiklerinizin gözünden düğününüzü yaşayın. Tüm fotoğraf ve
+            videolar tek bir yerde, ömür boyu sizinle kalsın.
           </p>
           <div className={styles.actions}>
             <Link href="/wedding/oguz-hilal" className={styles.primary}>
-              Örnek sayfayı keşfet <ArrowRight size={19} />
+              Hemen başla <ArrowRight size={19} />
             </Link>
             <a href="#nasil" className={styles.secondary}>
-              Nasıl çalışır?
+              Nasıl çalışır? <ArrowRight size={17} />
             </a>
           </div>
         </div>
 
         <div
           className={styles.visual}
-          aria-label="ShineQR organizasyon sayfası önizlemesi"
+          aria-label="ShineQR düğün sayfası ve anı film şeridi önizlemesi"
         >
-          <div className={`${styles.polaroid} ${styles.polaroidLeft}`}>
-            <Image
-              src="/marketing/printed-memories.webp"
-              alt="Masa çiçekleri ve organizasyon anıları"
-              fill
-              sizes="190px"
-            />
-          </div>
-          <div className={`${styles.note} ${styles.noteLeft}`}>
-            <strong>Her açıdan</strong>
-            <span>Aynı günü farklı gözlerden görün.</span>
-          </div>
-          <div className={styles.phone}>
-            <div className={styles.phoneTop}>
-              <span>9:41</span>
-              <i />
-            </div>
-            <div className={styles.phoneBody}>
-              <p className={styles.phoneDate}>11 EKİM 2026</p>
-              <h2>Seher &amp; Muhammed</h2>
-              <p>Bu güzel günün bir parçasısın.</p>
-              <div className={styles.mediaTabs}>
-                <span>
-                  <Camera size={14} /> Fotoğraf
-                </span>
-                <span>Video</span>
-                <span>Mesaj</span>
-              </div>
-              <LandingDemo />
-              <div className={styles.phoneGallery}>
-                <Image
-                  src="/marketing/celebration.webp"
-                  alt="Organizasyon masası"
-                  width={92}
-                  height={92}
-                />
-                <Image
-                  src="/marketing/guest-camera.webp"
-                  alt="Misafir fotoğraf çekiyor"
-                  width={92}
-                  height={92}
-                />
-                <Image
-                  src="/marketing/printed-memories.webp"
-                  alt="Basılı anılar"
-                  width={92}
-                  height={92}
-                />
-              </div>
-            </div>
-          </div>
-          <div className={`${styles.polaroid} ${styles.polaroidRight}`}>
-            <Image
-              src="/marketing/celebration.webp"
-              alt="Kutlama anı"
-              fill
-              sizes="190px"
-            />
-          </div>
-          <div className={`${styles.note} ${styles.noteRight}`}>
-            <strong>Birlikte</strong>
-            <span>Tüm anılar tek bir yerde buluşur.</span>
-          </div>
+          <Image
+            className={styles.heroComposition}
+            src="/marketing/shineqr-wedding-hero-composition.png"
+            alt="ShineQR düğün sayfasını gösteren telefon, fotoğraflar, çiçekler ve alyanslar"
+            width={1200}
+            height={1100}
+            priority
+            sizes="(max-width: 1000px) 94vw, 58vw"
+          />
         </div>
       </section>
 

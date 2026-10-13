@@ -36,8 +36,8 @@ export function SecurityPanel() {
     ]);
   };
   return (
-    <section className="card-luxe w-full rounded-2xl p-6">
-      <h2 className="text-xl text-cream">Hesap güvenliği</h2>
+    <section className="admin-panel security-settings-card">
+      <div className="admin-section-heading"><div><span>PROFİL VE OTURUMLAR</span><h2>Hesap güvenliği</h2></div></div>
       {me.data ? (
         <div className="account-profile-card">
           <div className="account-profile-logo">
@@ -98,8 +98,8 @@ export function SecurityPanel() {
       ) : null}
       {me.data?.role === "platform" ? (
         <div className="mt-4 border-b border-border pb-5">
-          <h3 className="text-sm text-cream">İki aşamalı doğrulama</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <h3>İki aşamalı doğrulama</h3>
+          <p className="admin-hint mt-1 text-xs">
             {me.data.mfa_enabled
               ? "Hesabınız doğrulama uygulamasıyla korunuyor."
               : "Google Authenticator, Microsoft Authenticator veya benzeri bir uygulama kullanın."}
@@ -168,14 +168,14 @@ export function SecurityPanel() {
         </div>
       ) : null}
       <div className="mt-5">
-        <h3 className="text-sm text-cream">Aktif oturumlar</h3>
+        <h3>Aktif oturumlar</h3>
         <div className="mt-3 space-y-3">
           {sessions.data?.map((session) => (
             <div
               key={session.id}
-              className="rounded-xl border border-border p-3 text-xs text-muted-foreground"
+              className="account-session-row"
             >
-              <p className="line-clamp-2 text-cream">{session.userAgent}</p>
+              <p className="line-clamp-2">{session.userAgent}</p>
               <p className="mt-1">
                 {session.ip || "IP bilinmiyor"} ·{" "}
                 {new Date(session.createdAt).toLocaleString("tr-TR")}

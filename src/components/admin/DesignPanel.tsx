@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Download,
@@ -12,23 +12,33 @@ import {
   Sparkles,
   SlidersHorizontal,
   Smartphone,
+  Undo2,
+  Redo2,
+  FileImage,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Wedding } from "@/lib/api";
 import {
   cardTemplates,
-  cardPresets,
   defaultDesign,
   designMonogram,
   designSchema,
-  introTypes,
-  pageTemplates,
+  editorialFontPairIds,
+  editorialPresets,
+  qrCollectionReferences,
   resolveDesign,
   themeIds,
   themes,
   type WeddingDesign,
 } from "@/lib/design";
+import { qrTemplateLibrary } from "@/lib/design-libraries/qr";
+import { weddingTemplateLibrary } from "@/lib/design-libraries/wedding";
+import { loadingTemplateLibrary } from "@/lib/design-libraries/loading";
 import { buildQrCards, svgDataUrl } from "@/lib/qr-card";
+import { defaultQrProduct, validateQrProduct, withPrintMarks } from "@/lib/qr-products";
+import { downloadPdf, downloadPng, downloadSvg } from "@/lib/qr-export";
 import { OpeningScene } from "@/components/wedding/OpeningScene";
 import { WeddingPageTemplate } from "@/components/wedding/WeddingPageTemplate";
 import { ShareMemories } from "@/components/upload/ShareMemories";
@@ -45,8 +55,10 @@ export function DesignPanel({
   surface?: "all" | "page" | "opening" | "card";
 }) {
   const qc = useQueryClient();
-  const [design, setDesign] = useState(() => resolveDesign(event.design));
+  const [design, rawSetDesign] = useState(() => resolveDesign(event.design));
   const [saved, setSaved] = useState(() => resolveDesign(event.design));
+  const past = useRef<WeddingDesign[]>([]);
+  const future = useRef<WeddingDesign[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [url, setUrl] = useState("");
@@ -81,21 +93,82 @@ export function DesignPanel({
     ],
   }[surface];
   const dirty = JSON.stringify(design) !== JSON.stringify(saved);
+  const setDesign = useCallback((next: SetStateAction<WeddingDesign>) => {
+    rawSetDesign((current) => {
+      const value = typeof next === "function" ? next(current) : next;
+      if (JSON.stringify(value) === JSON.stringify(current)) return current;
+      past.current = [...past.current.slice(-49), current];
+      future.current = [];
+      return value;
+    });
+  }, []);
+  const undo = useCallback(() => {
+    rawSetDesign((current) => {
+      const previous = past.current.at(-1);
+      if (!previous) return current;
+      past.current = past.current.slice(0, -1);
+      future.current = [current, ...future.current].slice(0, 50);
+      return previous;
+    });
+  }, []);
+  const redo = useCallback(() => {
+    rawSetDesign((current) => {
+      const next = future.current[0];
+      if (!next) return current;
+      future.current = future.current.slice(1);
+      past.current = [...past.current.slice(-49), current];
+      return next;
+    });
+  }, []);
   useEffect(() => {
-    setUrl(`${window.location.origin}/wedding/${event.slug}`);
-  }, [event.slug]);
+    setUrl(`${window.location.origin}/q/${event.id}`);
+  }, [event.id]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault();
+      e.returnValue = "";
+    };
+    const protectNavigation = (e: MouseEvent) => {
+      const link = (e.target as Element | null)?.closest("a[href]");
+      if (link && !window.confirm("Kaydedilmemiş tasarım değişiklikleri kaybolacak. Sayfadan ayrılsın mı?")) e.preventDefault();
     };
     window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
+    document.addEventListener("click", protectNavigation, true);
+    return () => { window.removeEventListener("beforeunload", warn); document.removeEventListener("click", protectNavigation, true); };
   }, [dirty]);
+  useEffect(() => {
+    const shortcuts = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    };
+    window.addEventListener("keydown", shortcuts);
+    return () => window.removeEventListener("keydown", shortcuts);
+  }, [redo, undo]);
   const cards = useMemo(
     () =>
       url ? buildQrCards(design, event.title, event.wedding_date, url) : null,
     [design, event.title, event.wedding_date, url],
+  );
+  const selectedQrPreset = useMemo(
+    () => qrTemplateLibrary.find((preset) => design.cardTemplate === preset.template && design.cardTheme === preset.theme && design.customColors && design.primary.toLowerCase() === preset.primary.toLowerCase() && design.accent.toLowerCase() === preset.accent.toLowerCase()),
+    [design],
+  );
+  const qrPresetPreviews = useMemo(
+    () => new Map(qrTemplateLibrary.map((preset) => {
+      const presetDesign: WeddingDesign = { ...design, cardTemplate: preset.template, linked: false, cardTheme: preset.theme, customColors: true, primary: preset.primary, accent: preset.accent };
+      return [preset.id, svgDataUrl(buildQrCards(presetDesign, event.title, event.wedding_date, url || "https://shineqr.example/q/preview").front)] as const;
+    })),
+    [design, event.title, event.wedding_date, url],
+  );
+  const printCards = useMemo(() => cards ? {
+    front: withPrintMarks(cards.front, defaultQrProduct),
+    back: withPrintMarks(cards.back, defaultQrProduct),
+  } : null, [cards]);
+  const productValidation = useMemo(
+    () => validateQrProduct(defaultQrProduct, design, url),
+    [design, url],
   );
   function update<K extends keyof WeddingDesign>(
     key: K,
@@ -113,32 +186,38 @@ export function DesignPanel({
     setBusy(true);
     setError("");
     try {
-      const response = await api<{ design: WeddingDesign }>(
+      const response = await api<{ design: WeddingDesign; snapshot_id: string; revision: number }>(
         `/admin/weddings/${event.id}/design`,
         { method: "PUT", body: JSON.stringify(result.data) },
       );
       setSaved(response.design);
-      setDesign(response.design);
+      rawSetDesign(response.design);
+      past.current = [];
+      future.current = [];
       qc.setQueryData<Wedding>(["admin-wedding", event.id], (current) =>
         current ? { ...current, design: response.design } : current,
       );
       await qc.invalidateQueries({ queryKey: ["wedding", event.slug] });
-      toast.success("Tasarım kaydedildi. Misafir sayfanız güncellendi.");
+      toast.success(`Tasarım kaydedildi · sürüm ${response.revision}`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  function download(side: "front" | "back") {
-    if (!cards) return;
-    const link = document.createElement("a");
-    link.href = svgDataUrl(cards[side]);
-    link.download = `${event.slug}-kart-${side === "front" ? "on" : "arka"}.svg`;
-    link.click();
+  async function exportCard(format: "svg" | "png" | "pdf", side: "front" | "back") {
+    if (!printCards || !productValidation.passed) return;
+    const name = `${event.slug}-${defaultQrProduct.id}-${side === "front" ? "on" : "arka"}.${format}`;
+    try {
+      if (format === "svg") downloadSvg(printCards[side], name);
+      else if (format === "png") await downloadPng(printCards[side], defaultQrProduct, name);
+      else await downloadPdf(printCards[side], defaultQrProduct, name);
+    } catch (reason) {
+      setError((reason as Error).message);
+    }
   }
   function print() {
-    if (!cards) return;
+    if (!printCards) return;
     const popup = window.open("", "_blank", "width=900,height=800");
     if (!popup) {
       setError("Yazdırma önizlemesi için açılır pencerelere izin verin.");
@@ -148,11 +227,11 @@ export function DesignPanel({
     popup.document.title = `${event.title} — QR kartı`;
     const style = popup.document.createElement("style");
     style.textContent =
-      "@page{size:A6;margin:0}*{box-sizing:border-box}body{margin:0;background:#ddd}img{display:block;width:105mm;height:148mm;margin:12px auto;break-after:page}button,p{display:block;margin:16px auto;text-align:center;font:14px system-ui}button{padding:12px 24px;cursor:pointer}@media print{body{background:white}button,p{display:none}img{margin:0}img:last-child{break-after:auto}}";
+      "@page{size:150mm 200mm;margin:0}*{box-sizing:border-box}body{margin:0;background:#ddd}img{display:block;width:150mm;height:200mm;margin:12px auto;break-after:page}button,p{display:block;margin:16px auto;text-align:center;font:14px system-ui}button{padding:12px 24px;cursor:pointer}@media print{body{background:white}button,p{display:none}img{margin:0}img:last-child{break-after:auto}}";
     popup.document.head.append(style);
     const note = popup.document.createElement("p");
     note.textContent =
-      "A6 · 105 × 148 mm · %100 ölçek · Kenar boşluğu yok. Çift taraflı baskıda uzun kenardan çevirin.";
+      "150 × 200 mm · %100 ölçek · Kenar boşluğu yok. Çift taraflı baskıda uzun kenardan çevirin.";
     const button = popup.document.createElement("button");
     button.textContent = "Yazdır / PDF olarak kaydet";
     button.onclick = () => popup.print();
@@ -160,7 +239,7 @@ export function DesignPanel({
     for (const side of ["front", "back"] as const) {
       const image = popup.document.createElement("img");
       image.alt = side === "front" ? "Ön yüz" : "Arka yüz";
-      image.src = svgDataUrl(cards[side]);
+      image.src = svgDataUrl(printCards[side]);
       popup.document.body.append(image);
     }
   }
@@ -173,9 +252,11 @@ export function DesignPanel({
           <h2>{surfaceCopy[1]}</h2>
           <p>{surfaceCopy[2]}</p>
         </div>
-        <span className={styles.badge}>
-          <Sparkles size={14} /> Tasarım stüdyosu
-        </span>
+        <div className={styles.headerActions}>
+          <button type="button" onClick={undo} disabled={!past.current.length || busy} title="Geri al (Ctrl+Z)"><Undo2 size={16} /> Geri al</button>
+          <button type="button" onClick={redo} disabled={!future.current.length || busy} title="Yinele (Ctrl+Shift+Z)"><Redo2 size={16} /> Yinele</button>
+          <span className={styles.badge}><Sparkles size={14} /> Studio v2</span>
+        </div>
       </header>
       <div className={styles.mobileDock}>
         <button
@@ -228,7 +309,7 @@ export function DesignPanel({
                 className={styles.pageTemplates}
                 aria-label="Wedding sayfası şablonu"
               >
-                {Object.entries(pageTemplates).map(([id, name]) => (
+                {weddingTemplateLibrary.map(({ id, name, description }) => (
                   <button
                     key={id}
                     type="button"
@@ -252,7 +333,7 @@ export function DesignPanel({
                     ) : null}
                     <span aria-hidden="true">▦</span>
                     <strong>{name}</strong>
-                    <small>Hareketli iki sıralı fotoğraf alanı</small>
+                    <small>{description}</small>
                   </button>
                 ))}
               </div>
@@ -337,7 +418,7 @@ export function DesignPanel({
                 </div>
               </div>
               <div className={styles.options}>
-                {Object.entries(introTypes).map(([id, name]) => (
+                {loadingTemplateLibrary.map(({ id, name }) => (
                   <button
                     key={id}
                     type="button"
@@ -397,18 +478,44 @@ export function DesignPanel({
                   <p>QR kartınızın stilini ve renklerini seçin.</p>
                 </div>
               </div>
+              <div className={styles.referenceGallery} aria-label="ZIP dosyasındaki QR tasarımları">
+                {qrCollectionReferences.map((item) => (
+                  <button type="button" key={item.id} aria-pressed={design.qrTemplateId === item.id} onClick={() => { update("qrTemplateId", item.id); setPreview("card"); setFace("front"); }}>
+                    <img src={item.image} alt={`${item.name} ürün mockup'ı`} width={768} height={768} />
+                    <span><b>{item.number}</b><strong>{item.name}</strong><small>{item.tagline}</small></span>
+                    {design.qrTemplateId === item.id && <i><Check size={14} /> Seçildi</i>}
+                  </button>
+                ))}
+              </div>
+              <div className={styles.collectionCard}>
+                <div><span>01</span><strong>THE EDITORIAL</strong><small>Yayınlanmış · Sürüm 1</small></div>
+                <p>Zamansız editoryal tipografi, dokulu kâğıt yüzey ve özgün mimari katmanlar.</p>
+              </div>
+              <div className={styles.presetChoices} aria-label="The Editorial renk presetleri">
+                {Object.entries(editorialPresets).map(([id, preset]) => (
+                  <button type="button" key={id} aria-pressed={design.qrPresetId === id} onClick={() => { update("qrPresetId", id as WeddingDesign["qrPresetId"]); setPreview("card"); }}>
+                    <span style={{ background: preset.gradient }} />
+                    <strong>{preset.name}</strong><small>{preset.primary}</small>
+                  </button>
+                ))}
+              </div>
+              <label className="form-field">
+                <span>Onaylı font eşleşmesi</span>
+                <select value={design.qrFontPairId} onChange={(event) => update("qrFontPairId", event.target.value as WeddingDesign["qrFontPairId"])}>
+                  {editorialFontPairIds.map((id) => <option key={id} value={id}>{id === "cormorant-manrope" ? "Cormorant Garamond + Manrope" : "Prata + Manrope"}</option>)}
+                </select>
+              </label>
+              <Field label="Hook" value={design.qrHook} maxLength={72} onChange={(event) => update("qrHook", event.target.value)} />
+              <TextField label="Açıklama" value={design.qrDescription} maxLength={110} onChange={(event) => update("qrDescription", event.target.value)} />
+              <Field label="CTA" value={design.qrCta} maxLength={48} onChange={(event) => update("qrCta", event.target.value)} />
+              <p className={styles.presetHint}>Aşağıdaki eski presetler geriye dönük organizasyon uyumluluğu için geçici olarak görünür kalır; yeni baskı motoru The Editorial kompozisyonunu kullanır.</p>
+              <div className={styles.legacyQrControls}>
               <div
                 className={styles.presetGrid}
                 aria-label="Hazır QR kartı tasarımları"
               >
-                {cardPresets.map((preset) => {
-                  const selected =
-                    design.cardTemplate === preset.template &&
-                    design.cardTheme === preset.theme &&
-                    design.customColors &&
-                    design.primary.toLowerCase() ===
-                      preset.primary.toLowerCase() &&
-                    design.accent.toLowerCase() === preset.accent.toLowerCase();
+                {qrTemplateLibrary.map((preset) => {
+                  const selected = selectedQrPreset?.id === preset.id;
                   return (
                     <button
                       type="button"
@@ -427,12 +534,11 @@ export function DesignPanel({
                         setPreview("card");
                       }}
                     >
-                      <Image
-                        src={preset.image}
-                        alt={`${preset.name} QR kartı tasarımı`}
-                        width={1536}
-                        height={1024}
-                        sizes="(max-width: 680px) 42vw, 190px"
+                      <img
+                        src={qrPresetPreviews.get(preset.id)}
+                        alt={`${preset.name} QR kartı gerçek baskı önizlemesi`}
+                        width={630}
+                        height={888}
                       />
                       <span>{preset.name}</span>
                       {selected && (
@@ -535,6 +641,7 @@ export function DesignPanel({
                   </label>
                 </div>
               )}
+              </div>
               <div className={styles.divider} />
               <div className={styles.step}>
                 <span>05</span>
@@ -669,13 +776,17 @@ export function DesignPanel({
                 </div>
               </div>
             ) : cards ? (
-              <img
-                className={styles.card}
-                src={svgDataUrl(cards[face])}
-                width={630}
-                height={888}
-                alt={`QR kartı ${face === "front" ? "ön" : "arka"} yüz önizlemesi`}
-              />
+              face === "front" ? (
+                <figure className={styles.referencePreview}>
+                  <img src={qrCollectionReferences.find((item) => item.id === design.qrTemplateId)?.image} alt={`${qrCollectionReferences.find((item) => item.id === design.qrTemplateId)?.name} birebir ürün mockup'ı`} width={768} height={768} />
+                  <figcaption><span>ZIP REFERANSI</span><strong>{qrCollectionReferences.find((item) => item.id === design.qrTemplateId)?.name}</strong></figcaption>
+                </figure>
+              ) : <div className={styles.cardScene}>
+                <div className={`${styles.card3d} ${face === "back" ? styles.cardFlipped : ""}`}>
+                  <img className={`${styles.card} ${styles.cardFront}`} src={svgDataUrl(cards.front)} width={630} height={888} alt="QR kartı ön yüz önizlemesi" />
+                  <img className={`${styles.card} ${styles.cardBack}`} src={svgDataUrl(cards.back)} width={630} height={888} alt="QR kartı arka yüz önizlemesi" />
+                </div>
+              </div>
             ) : (
               <p role="status">Kart hazırlanıyor…</p>
             )}
@@ -688,7 +799,7 @@ export function DesignPanel({
             >
               <Play size={14} /> Açılışı yeniden oynat
             </button>
-          ) : (
+          ) : preview === "card" ? (
             <div className={styles.previewTabs}>
               <button
                 type="button"
@@ -705,32 +816,26 @@ export function DesignPanel({
                 Arka yüz · QR
               </button>
             </div>
-          )}
+          ) : null}
           <div className={styles.export}>
             <h3>Baskıya hazır hatıranız</h3>
-            <p>A6 · 105 × 148 mm · Ölçeklenebilir SVG</p>
-            <div>
-              <button
-                type="button"
-                disabled={!cards}
-                onClick={() => download("front")}
-              >
-                <Download size={14} /> Ön yüz
-              </button>
-              <button
-                type="button"
-                disabled={!cards}
-                onClick={() => download("back")}
-              >
-                <Download size={14} /> Arka yüz
-              </button>
-              <button type="button" disabled={!cards} onClick={print}>
-                <Printer size={14} /> Yazdır / PDF
-              </button>
+            <p>{defaultQrProduct.name} · {defaultQrProduct.trimWidthMm} × {defaultQrProduct.trimHeightMm} mm · {defaultQrProduct.bleedMm} mm bleed · {defaultQrProduct.dpi} DPI</p>
+            <div className={styles.validation}>
+              {productValidation.checks.map((check) => <span key={check.id} data-pass={check.passed}><ShieldCheck size={12} /> {check.label}</span>)}
+            </div>
+            <div className={styles.exportGrid}>
+              {(["front", "back"] as const).map((side) => (
+                <div key={side}>
+                  <strong>{side === "front" ? "Ön yüz" : "Arka yüz · QR"}</strong>
+                  <button type="button" disabled={!printCards || !productValidation.passed} onClick={() => void exportCard("svg", side)}><Download size={14} /> SVG</button>
+                  <button type="button" disabled={!printCards || !productValidation.passed} onClick={() => void exportCard("png", side)}><FileImage size={14} /> PNG</button>
+                  <button type="button" disabled={!printCards || !productValidation.passed} onClick={() => void exportCard("pdf", side)}><FileText size={14} /> PDF</button>
+                </div>
+              ))}
+              <button type="button" disabled={!printCards} onClick={print}><Printer size={14} /> Baskı önizlemesi</button>
             </div>
             <small>
-              QR kodu gerçek misafir bağlantınıza yönlenir. Baskıdan önce
-              telefonunuzla okutun.
+              Sabit hedef: {url || "hazırlanıyor…"}. Tasarım veya sayfa adresi değişse bile basılı QR değişmez.
             </small>
           </div>
         </aside>

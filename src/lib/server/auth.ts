@@ -47,6 +47,7 @@ export async function session() {
         disabled: 1,
         mfa_enabled: 1,
         theme: 1,
+        media_permissions: 1,
       },
     },
   );
@@ -61,7 +62,7 @@ export async function session() {
     ...user,
     partner_name: partner?.name || "ShineQR Platform",
     partner_logo_url: partner?.logo_url || "",
-    theme: user.theme || "dark",
+    theme: user.theme || "light",
   };
   if (sessionCache.size >= SESSION_CACHE_MAX_ENTRIES) {
     const now = Date.now();

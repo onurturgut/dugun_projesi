@@ -19,7 +19,8 @@
     "load:test": "node --env-file=.env.local scripts/load-test.mjs",
     "load:cleanup": "node --env-file=.env.local scripts/load-cleanup.mjs",
     "test": "node ./node_modules/tsx/dist/cli.mjs --test tests/policy.test.ts tests/design.test.ts",
-    "test:integration": "node --env-file=.env.local tests/integration.mjs"
+    "test:integration": "node --env-file=.env.local tests/integration.mjs",
+    "test:migration-rollback": "node --env-file=.env.local scripts/migration-rollback-test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.990.0",

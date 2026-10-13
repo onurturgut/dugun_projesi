@@ -31,6 +31,8 @@ try {
     db.collection("users").createIndex({ email: 1 }, { unique: true }),
     db.collection("weddings").createIndex({ slug: 1 }, { unique: true }),
     db.collection("weddings").createIndex({ id: 1 }, { unique: true }),
+    db.collection("design_snapshots").createIndex({ id: 1 }, { unique: true }),
+    db.collection("design_snapshots").createIndex({ wedding_id: 1, revision: -1 }, { unique: true }),
     db.collection("media").createIndex({ storage_path: 1 }, { unique: true }),
     db
       .collection("media")

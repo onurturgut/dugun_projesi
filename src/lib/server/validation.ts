@@ -28,6 +28,8 @@ export const eventInput = z.object({
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   title: z.string().trim().min(1).max(160),
   event_type: z.string().min(1).max(60),
+  venue: z.string().trim().max(200).default(""),
+  description: z.string().trim().max(1200).default(""),
   bride_name: z.string().trim().min(1, "Gelin adı gerekli.").max(100),
   groom_name: z.string().trim().min(1, "Damat adı gerekli.").max(100),
   wedding_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -40,11 +42,18 @@ export const eventInput = z.object({
   trash_days: z.number().int().min(1).max(30).optional(),
   upload_enabled: z.boolean().optional(),
 });
+export const eventDraftInput = eventInput.partial().extend({
+  id: z.string().uuid().optional(),
+  wizard_step: z.number().int().min(1).max(7).default(1),
+  customer_name: z.string().trim().max(100).default(""),
+  customer_email: loginName.or(z.literal("")).default(""),
+});
 export const accountInput = z.object({
   username: loginName,
   password: passwordSchema,
   display_name: z.string().trim().min(1).max(100),
 });
+export const eventPublishInput = accountInput.pick({ password: true });
 export const mediaIds = z.array(z.string().uuid()).min(1).max(200);
 export const uploadInput = z.object({
   weddingId: z.string().uuid(),

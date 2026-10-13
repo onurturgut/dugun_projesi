@@ -270,6 +270,20 @@ try {
   const eventA2 = (
     await call("/admin/weddings", "POST", input("event-a-2"), a, 201)
   ).data;
+  const draft = (
+    await call("/admin/weddings/draft", "POST", {
+      title: "Güvenli taslak",
+      wizard_step: 6,
+      customer_name: "Taslak Müşteri",
+      customer_email: "draft-owner@example.com",
+      password: "taslakta-asla-kalmamali",
+    }, a, 201)
+  ).data;
+  const storedDraft = await db.collection("weddings").findOne({ id: draft.id });
+  assert.equal(storedDraft.lifecycle_status, "draft");
+  assert.equal("password" in storedDraft, false);
+  await call("/admin/weddings/draft", "POST", { id: draft.id, wizard_step: 7 }, b, 404);
+  await call("/admin/operations", "GET", undefined, a, 403);
   await call(`/admin/weddings/${eventB.id}`, "GET", undefined, a, 404);
   await call(
     `/admin/weddings/${eventB.id}`,
@@ -299,9 +313,11 @@ try {
     a,
     409,
   );
-  const owner = await activate("owner-a");
+  let owner = await activate("owner-a");
+  await call("/admin/partner-overview", "GET", undefined, owner, 403);
+  await call("/admin/accounts", "GET", undefined, owner, 403);
   const design = {
-    version: 1,
+    version: 2,
     theme: "ivory",
     intro: "curtain",
     speed: 1.5,
@@ -340,6 +356,7 @@ try {
     400,
   );
   await call(`/admin/weddings/${eventA.id}/design`, "PUT", design, owner);
+  assert.equal(await db.collection("design_snapshots").countDocuments({ wedding_id: eventA.id }), 1);
   const savedDesign = (
     await call(`/admin/weddings/${eventA.id}`, "GET", undefined, owner)
   ).data.design;
@@ -364,6 +381,13 @@ try {
     (await call("/weddings/slug/event-a")).data.design.theme,
     "navy",
   );
+  const stableQr = await fetch(`${base}/q/${eventA.id}`, { redirect: "manual" });
+  assert.equal(stableQr.status, 307);
+  assert.equal(new URL(stableQr.headers.get("location")).pathname, "/wedding/event-a");
+  await call(`/admin/weddings/${eventA.id}`, "PATCH", { slug: "event-a-yeni" }, a);
+  const stableQrAfterSlug = await fetch(`${base}/q/${eventA.id}`, { redirect: "manual" });
+  assert.equal(new URL(stableQrAfterSlug.headers.get("location")).pathname, "/wedding/event-a-yeni");
+  await call(`/admin/weddings/${eventA.id}`, "PATCH", { slug: "event-a" }, a);
   assert.equal(
     (await db.collection("weddings").findOne({ id: eventA.id })).partner_id,
     partnerA,
@@ -426,6 +450,12 @@ try {
   const mediaPage = (
     await call(`/admin/weddings/${eventA.id}/media`, "GET", undefined, owner)
   ).data;
+  const ownerRecord = await db.collection("users").findOne({ email: "owner-a" });
+  await call(`/admin/accounts/${ownerRecord.id}`, "PATCH", { media_permissions: { view: false, download: false, manage: false, archive: false } }, a);
+  await call(`/admin/weddings/${eventA.id}/media`, "GET", undefined, owner, 403);
+  await call(`/admin/accounts/${ownerRecord.id}`, "PATCH", { media_permissions: { view: true, download: true, manage: true, archive: true } }, a);
+  owner = await login("owner-a", changed);
+  await call(`/admin/weddings/${eventB.id}/media`, "GET", undefined, owner, 404);
   const rows = mediaPage.items;
   assert.equal(mediaPage.total, 1);
   assert.equal(mediaPage.summary.photos, 1);

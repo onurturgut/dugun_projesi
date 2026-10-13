@@ -31,6 +31,14 @@ export function requirePlatform(user: Account) {
       "Bu işlem için platform yöneticisi yetkisi gerekli.",
     );
 }
+export function requireMediaPermission(
+  user: Account,
+  permission: "view" | "download" | "manage" | "archive",
+) {
+  if (user.role === "platform") return;
+  if (user.media_permissions?.[permission] === false)
+    throw new HttpError(403, "Bu medya işlemi için hesabınıza yetki verilmemiş.");
+}
 export async function eventFor(user: Account, id: string): Promise<Wedding> {
   const event = await (
     await db()

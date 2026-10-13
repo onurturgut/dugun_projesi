@@ -99,6 +99,8 @@ try {
     db.collection("users").createIndex({ id: 1 }, { unique: true }),
     db.collection("weddings").createIndex({ partner_id: 1, owner_id: 1 }),
     db.collection("weddings").createIndex({ expires_at: 1 }),
+    db.collection("design_snapshots").createIndex({ id: 1 }, { unique: true }),
+    db.collection("design_snapshots").createIndex({ wedding_id: 1, revision: -1 }, { unique: true }),
     db.collection("media").createIndex({ purge_at: 1 }),
     db.collection("media").createIndex({ id: 1 }, { unique: true }),
     db

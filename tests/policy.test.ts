@@ -8,6 +8,7 @@ import {
   expired,
 } from "../src/lib/policy";
 import type { Account, Wedding } from "../src/lib/models";
+import { eventDraftInput, eventPublishInput } from "../src/lib/server/validation";
 const event = {
   id: "one",
   partner_id: "a",
@@ -50,4 +51,18 @@ test("trash cannot extend retention", () => {
   assert.equal(trashDeadline(event, end - 86400000), event.expires_at);
   assert.equal(expired(event, end), true);
   assert.equal(expired(event, end - 1), false);
+});
+test("drafts retain safe profile fields but never retain a password", () => {
+  const parsed = eventDraftInput.parse({
+    wizard_step: 6,
+    customer_name: "Hilal Oğuz",
+    customer_email: "hilal@example.com",
+    password: "this-must-never-be-saved",
+  });
+  assert.equal(parsed.customer_email, "hilal@example.com");
+  assert.equal("password" in parsed, false);
+});
+test("publishing requires a strong temporary password", () => {
+  assert.equal(eventPublishInput.safeParse({ password: "short" }).success, false);
+  assert.equal(eventPublishInput.safeParse({ password: "strong-enough-password" }).success, true);
 });

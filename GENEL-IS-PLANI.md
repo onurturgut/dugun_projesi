@@ -167,6 +167,24 @@ Satış hassasiyeti (KDV hariç gelir):
 
 ## 8. Karar bekleyenler ve sonraki adımlar
 
+### Ana sayfa ve admin paneli tasarımı tamamlandıktan sonra teknik düzenleme
+
+Bu çalışma, devam eden ana sayfa ve admin paneli tasarımı tamamlanmadan başlatılmayacaktır. Tasarım sırasında dosya taşıma, toplu silme veya geniş mimari refactor yapılmayacak; böylece aktif tasarım çalışmasıyla teknik temizlik birbirine karışmayacaktır.
+
+- [ ] Ana sayfa tasarımını tamamla ve masaüstü/mobil görsel QA yap.
+- [ ] Admin paneli tasarımını tamamla ve temel yönetim akışlarını görsel olarak doğrula.
+- [ ] Mevcut 226 çalışma ağacı kaydını sınıflandır. 13 Ekim 2026 itibarıyla bunların 1'i takip edilen dosya değişikliği, 225'i takip edilmeyen dosyadır; dizinlerin içerikleri ayrı dosya olarak sayılmıştır.
+- [ ] Değişiklikleri tek bir büyük commit yerine konu bazlı commitlere ayır: ana sayfa, admin paneli, sunumlar, planlama belgeleri, görsel varlıklar ve teknik temizlik.
+- [ ] Commit öncesinde geçici build çıktıları ile yeniden üretilebilir önizlemeleri ayır; kaynak olmayan dosyaları Git'e ekleme.
+- [ ] Code review bulgularındaki kesin kullanılmayan görselleri önce geri alınabilir bir arşive taşı; uygulama, test ve üretim derlemesi geçtikten sonra kalıcı silme kararı ver.
+- [ ] `src/assets` altındaki `public/covers` kopyalarını temizle ve canlı uygulama görsellerini `public` altında tekilleştir.
+- [ ] `presentations` klasörünü `current`, `source`, `assets` ve `archive` olarak düzenle; yalnızca güncel sunumu aktif alanda tut.
+- [ ] Kullanılmayan UI bileşenlerini ve bunlara bağlı gereksiz paketleri bağımlılık kontrolünden sonra kaldır.
+- [ ] Herkese açık son organizasyonlar endpoint'ini kaldır veya yalnızca açıkça demo olarak işaretlenen kayıtlarla sınırla.
+- [ ] Misafir sayfasını sunucu tarafında veri alan yapı ile istemci etkileşimlerini ayıracak şekilde düzenle.
+- [ ] Tek parça API handler'ını davranışı değiştirmeden auth, partner, wedding, media, upload ve archive modüllerine aşamalı olarak ayır.
+- [ ] Her temizlik/refactor grubundan sonra ESLint, TypeScript, birim testleri ve production build çalıştır; veri kullanan entegrasyon testlerini ayrıca kontrollü ortamda çalıştır.
+
 - [ ] Kuruluş yılı/ayı, iş adresi ve mali müşavir teklifini belirle; genç girişimci uygunluğu ile 4/b indirimini doğrula.
 - [ ] Partnerin müşteriye satış fiyatını, fiyat belirleme yaklaşımını ve fatura/tahsilat akışını netleştir.
 - [ ] Partner ödemesinin rezervasyonda mı, etkinlikten önce mi, sonra mı alınacağını belirle.

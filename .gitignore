@@ -6,6 +6,7 @@ node_modules/
 .next-test/
 .next-design-test/
 .next-build-check/
+.next-build-review/
 .env*
 !.env.example
 *.tsbuildinfo

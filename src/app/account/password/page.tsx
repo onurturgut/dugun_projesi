@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Notice, PasswordField } from "@/components/admin/Fields";
 import { SecurityPanel } from "@/components/admin/SecurityPanel";
+import { AdminShell } from "@/components/admin/AdminShell";
 export default function Password() {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -37,14 +38,27 @@ export default function Password() {
     }
   }
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-5 px-5 py-10">
+    <AdminShell>
+      <div className="admin-heading">
+        <div>
+          <p className="admin-kicker">HESAP</p>
+          <h1>Hesap ayarları</h1>
+          <p className="admin-subtitle">Profil, görünüm ve güvenlik tercihlerinizi tek yerden yönetin.</p>
+        </div>
+      </div>
+      <div className="account-settings-grid">
       <form
         onSubmit={submit}
-        className="card-luxe w-full space-y-4 rounded-2xl p-6"
+        className="admin-panel account-password-card"
       >
-        <h1 className="text-2xl text-cream">Şifrenizi değiştirin</h1>
-        <p className="text-sm text-muted-foreground">
-          İlk girişte size verilen geçici şifreyi değiştirmeniz gerekir.
+        <div className="admin-section-heading">
+          <div>
+            <span>GÜVENLİK</span>
+            <h2>Parola değiştir</h2>
+          </div>
+        </div>
+        <p className="admin-hint">
+          Hesabınız için başka bir yerde kullanmadığınız, en az 12 karakterli bir parola belirleyin.
         </p>
         <PasswordField
           label="Mevcut / geçici şifre"
@@ -69,23 +83,12 @@ export default function Password() {
           required
         />
         {error && <Notice>{error}</Notice>}
-        <button disabled={busy} className="btn-primary w-full">
+        <button disabled={busy} className="admin-button primary account-save-button">
           {busy ? "Kaydediliyor…" : "Şifreyi değiştir"}
-        </button>
-        <button
-          type="button"
-          className="btn-secondary w-full"
-          onClick={async () => {
-            await api("/auth/logout", { method: "POST" });
-            qc.clear();
-            router.replace("/auth");
-            router.refresh();
-          }}
-        >
-          Çıkış yap
         </button>
       </form>
       <SecurityPanel />
-    </main>
+      </div>
+    </AdminShell>
   );
 }

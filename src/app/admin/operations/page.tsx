@@ -1,0 +1,31 @@
+"use client";
+import Link from "next/link";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Archive, Database, HardDrive, RefreshCw, WalletCards } from "lucide-react";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { Notice } from "@/components/admin/Fields";
+import { api, type Account } from "@/lib/api";
+import { formatBytes } from "@/lib/config";
+type FailedMedia = { id: string; wedding_id: string; original_name?: string; processing_error?: string; uploaded_at?: string };
+type FailedArchive = { id: string; wedding_id: string; error?: string; created_at?: string };
+type Due = { id: string; wedding_id: string; original_name?: string; purge_at: string };
+type Operations = { media: { count: number; bytes: number }; consistency: { checked: number; missing: number; r2_error: string; mode: string }; failures: { processing: number; archives: number }; retention: { due: number }; archives: { active: number }; details: { failed_media: FailedMedia[]; failed_archives: FailedArchive[]; retention_due: Due[] }; finance: { enabled: boolean; recognized_revenue: number; reason: string } };
+export default function OperationsPage() {
+  const qc = useQueryClient();
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<Account>("/auth/me") });
+  const report = useQuery({ queryKey: ["operations"], queryFn: () => api<Operations>("/admin/operations"), enabled: me.data?.role === "platform", refetchInterval: 60_000 });
+  async function retry(kind: "media" | "archive", id: string) { await api("/admin/operations/retry", { method: "POST", body: JSON.stringify({ kind, id }) }); await Promise.all([qc.invalidateQueries({ queryKey: ["operations"] }), qc.invalidateQueries({ queryKey: ["admin-notifications"] })]); }
+  return <AdminShell>
+    <div className="admin-heading"><div><p className="admin-kicker">PLATFORM OPERASYONU</p><h1>Medya ve saklama merkezi</h1><p className="admin-subtitle">R2, veritabanı, arşiv ve saklama işlerini izleyin ve yönetin.</p></div><button className="admin-button" onClick={() => void report.refetch()}><RefreshCw size={15} /> Yenile</button></div>
+    {me.data && me.data.role !== "platform" ? <Notice>Bu alan yalnızca platform yöneticisine açıktır.</Notice> : report.error ? <Notice>{report.error.message}</Notice> : !report.data ? <div className="admin-empty">Rapor hazırlanıyor…</div> : <>
+      <div className="operations-grid"><article><HardDrive/><span>Medya</span><strong>{report.data.media.count}</strong><small>{formatBytes(report.data.media.bytes)}</small></article><article><Database/><span>R2 / DB örneği</span><strong>{report.data.consistency.missing} eksik</strong><small>{report.data.consistency.checked} son kayıt kontrol edildi</small></article><article><AlertTriangle/><span>Başarısız işlemler</span><strong>{report.data.failures.processing + report.data.failures.archives}</strong><small>{report.data.failures.processing} medya · {report.data.failures.archives} arşiv</small></article><article><Archive/><span>Saklama</span><strong>{report.data.retention.due}</strong><small>Temizlenecek kayıt · {report.data.archives.active} aktif arşiv</small></article></div>
+      {report.data.consistency.r2_error ? <Notice>{report.data.consistency.r2_error}</Notice> : null}
+      <div className="operations-detail-grid">
+        <section className="admin-panel operation-list"><header><div><span>İŞLEM HATALARI</span><h2>Başarısız medya</h2></div><strong>{report.data.details.failed_media.length}</strong></header>{report.data.details.failed_media.map((item) => <article key={item.id}><div><strong>{item.original_name || item.id}</strong><small>{item.processing_error || "İşleme tamamlanamadı."}</small><Link href={`/admin/${item.wedding_id}`}>Organizasyona git</Link></div><button className="admin-button" onClick={() => void retry("media", item.id)}><RefreshCw size={14}/> Yeniden dene</button></article>)}{!report.data.details.failed_media.length ? <p className="operation-empty">Başarısız medya işlemi yok.</p> : null}</section>
+        <section className="admin-panel operation-list"><header><div><span>ARŞİV KUYRUĞU</span><h2>Başarısız arşivler</h2></div><strong>{report.data.details.failed_archives.length}</strong></header>{report.data.details.failed_archives.map((item) => <article key={item.id}><div><strong>{item.id}</strong><small>{item.error || "Arşiv oluşturulamadı."}</small><Link href={`/admin/${item.wedding_id}`}>Organizasyona git</Link></div><button className="admin-button" onClick={() => void retry("archive", item.id)}><RefreshCw size={14}/> Yeniden dene</button></article>)}{!report.data.details.failed_archives.length ? <p className="operation-empty">Başarısız arşiv işi yok.</p> : null}</section>
+      </div>
+      <section className="admin-panel operation-list retention-list"><header><div><span>SAKLAMA</span><h2>Temizleme tarihi gelen içerikler</h2></div><strong>{report.data.details.retention_due.length}</strong></header>{report.data.details.retention_due.map((item) => <article key={item.id}><div><strong>{item.original_name || item.id}</strong><small>{new Date(item.purge_at).toLocaleString("tr-TR")}</small></div><Link className="admin-button" href={`/admin/${item.wedding_id}`}>İncele</Link></article>)}{!report.data.details.retention_due.length ? <p className="operation-empty">Temizleme bekleyen içerik yok.</p> : null}</section>
+      <section className="admin-panel operations-finance"><WalletCards/><div><h2>Finans ve paket modülü beklemede</h2><p>{report.data.finance.reason}</p><strong>Tanınan gelir: {report.data.finance.recognized_revenue.toLocaleString("tr-TR")} TL</strong></div></section>
+    </>}
+  </AdminShell>;
+}

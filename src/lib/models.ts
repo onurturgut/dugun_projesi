@@ -12,7 +12,14 @@ export interface Account {
   partner_name?: string;
   partner_logo_url?: string;
   theme?: "light" | "dark" | "system";
+  media_permissions?: MediaPermissions;
 }
+export type MediaPermissions = {
+  view: boolean;
+  download: boolean;
+  manage: boolean;
+  archive: boolean;
+};
 export interface Partner {
   id: string;
   name: string;
@@ -22,12 +29,22 @@ export interface Partner {
 }
 export interface Wedding {
   design?: WeddingDesign;
+  design_revision?: number;
+  design_snapshot_id?: string;
   id: string;
   slug: string;
   partner_id: string;
   owner_id: string | null;
   title: string;
   event_type: string;
+  venue?: string;
+  description?: string;
+  lifecycle_status?: "draft" | "upcoming" | "active" | "completed" | "archived";
+  wizard_step?: number;
+  customer_name?: string;
+  customer_email?: string;
+  published_at?: string | null;
+  archived_at?: string | null;
   bride_name: string;
   groom_name: string;
   wedding_date: string | null;

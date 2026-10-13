@@ -11,6 +11,71 @@ export const themeIds = [
   "terracotta",
 ] as const;
 export type ThemeId = (typeof themeIds)[number];
+export type TemplateSurface = "wedding" | "loading" | "qr";
+export const qrCollectionIds = ["the-editorial", "velvet-flow", "botanical", "modern-arch", "aurora"] as const;
+export type QrCollectionId = (typeof qrCollectionIds)[number];
+export const qrCollectionReferences: ReadonlyArray<{ id: QrCollectionId; number: string; name: string; tagline: string; image: string }> = [
+  { id: "the-editorial", number: "01", name: "THE EDITORIAL", tagline: "Zamansız ve zarif", image: "/design-reference/01-the-editorial.png" },
+  { id: "velvet-flow", number: "02", name: "VELVET FLOW", tagline: "Modern lüks ve etkileyici", image: "/design-reference/02-velvet-flow.png" },
+  { id: "botanical", number: "03", name: "BOTANICAL", tagline: "Doğal ve modern", image: "/design-reference/03-botanical.png" },
+  { id: "modern-arch", number: "04", name: "MODERN ARCH", tagline: "Minimal ve çağdaş", image: "/design-reference/04-modern-arch.png" },
+  { id: "aurora", number: "05", name: "AURORA", tagline: "Sanatsal ve özgün", image: "/design-reference/05-aurora.png" },
+];
+export const editorialPresetIds = [
+  "editorial-cream",
+  "editorial-sage",
+  "editorial-terracotta",
+] as const;
+export type EditorialPresetId = (typeof editorialPresetIds)[number];
+export const editorialFontPairIds = [
+  "cormorant-manrope",
+  "prata-manrope",
+] as const;
+export const editorialPresets: Record<
+  EditorialPresetId,
+  {
+    name: string;
+    primary: `#${string}`;
+    secondary: `#${string}`;
+    accent: `#${string}`;
+    text: `#${string}`;
+    gradient: string;
+  }
+> = {
+  "editorial-cream": {
+    name: "Krem Taş",
+    primary: "#E9DDCC",
+    secondary: "#BBA48A",
+    accent: "#8A6B52",
+    text: "#30271F",
+    gradient: "linear-gradient(135deg,#F6F0E7 0%,#E9DDCC 52%,#C7B49D 100%)",
+  },
+  "editorial-sage": {
+    name: "Adaçayı Yeşili",
+    primary: "#525D47",
+    secondary: "#899178",
+    accent: "#D7C5A3",
+    text: "#FFFFFF",
+    gradient: "linear-gradient(145deg,#78816A 0%,#525D47 55%,#303D32 100%)",
+  },
+  "editorial-terracotta": {
+    name: "Terracotta",
+    primary: "#B87352",
+    secondary: "#E4B58F",
+    accent: "#F4E5D5",
+    text: "#FFFFFF",
+    gradient: "linear-gradient(135deg,#E4B58F 0%,#B87352 55%,#84422F 100%)",
+  },
+};
+export type TemplateMetadata = {
+  id: string;
+  name: string;
+  surface: TemplateSurface;
+  version: number;
+  available: boolean;
+  asset?: string;
+  description: string;
+};
 export const themes: Record<
   ThemeId,
   { name: string; base: string; light: string; accent: string; ink: string }
@@ -188,12 +253,21 @@ export const cardPresets = [
 export const pageTemplates = {
   filmstrip: "Hareketli film şeridi",
 } as const;
+export const templateCatalog: readonly TemplateMetadata[] = [
+  { id: "filmstrip", name: pageTemplates.filmstrip, surface: "wedding", version: 1, available: true, description: "Hareketli iki sıralı fotoğraf alanı" },
+  ...Object.entries(introTypes).filter(([id]) => id !== "video").map(([id, name]) => ({ id, name, surface: "loading" as const, version: 1, available: true, description: "Yerel, özelleştirilebilir açılış" })),
+  { id: "video", name: introTypes.video, surface: "loading", version: 1, available: true, asset: "/intro/shineqr-portrait-v2.mp4", description: "ShineQR bordo açılış filmi" },
+  ...cardPresets.map((preset) => ({ id: preset.id, name: preset.name, surface: "qr" as const, version: 1, available: true, asset: preset.image, description: `${cardTemplates[preset.template]} QR kartı` })),
+];
+export function availableTemplates(surface: TemplateSurface) {
+  return templateCatalog.filter((template) => template.surface === surface && template.available);
+}
 const hex = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Altı haneli bir renk kodu girin.");
 export const designSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     theme: z.enum(themeIds),
     intro: z.enum(["curtain", "monogram", "fade", "video"]),
     speed: z.number().min(0.75).max(2),
@@ -206,6 +280,13 @@ export const designSchema = z
     names: z.string().trim().max(100),
     monogram: z.string().trim().max(8),
     message: z.string().trim().max(240),
+    qrTemplateId: z.enum(qrCollectionIds).default("the-editorial"),
+    qrTemplateVersion: z.number().int().min(1).default(1),
+    qrPresetId: z.enum(editorialPresetIds).default("editorial-cream"),
+    qrFontPairId: z.enum(editorialFontPairIds).default("cormorant-manrope"),
+    qrHook: z.string().trim().min(1).max(72).default("Bu günün bir karesi de senden olsun."),
+    qrDescription: z.string().trim().min(1).max(110).default("Fotoğraf ve videolarını bizimle paylaş."),
+    qrCta: z.string().trim().min(1).max(48).default("QR kodu okut ve anılarını yükle."),
     pageTemplate: z.enum(["filmstrip"]).default("filmstrip"),
     brandTagline: z
       .string()
@@ -241,7 +322,7 @@ export const designSchema = z
   .strict();
 export type WeddingDesign = z.infer<typeof designSchema>;
 export const defaultDesign: WeddingDesign = {
-  version: 1,
+  version: 2,
   theme: "burgundy",
   intro: "video",
   speed: 1.5,
@@ -254,6 +335,13 @@ export const defaultDesign: WeddingDesign = {
   names: "",
   monogram: "",
   message: "Bu özel günümüzü bizimle paylaştığınız için teşekkür ederiz.",
+  qrTemplateId: "the-editorial",
+  qrTemplateVersion: 1,
+  qrPresetId: "editorial-cream",
+  qrFontPairId: "cormorant-manrope",
+  qrHook: "Bu günün bir karesi de senden olsun.",
+  qrDescription: "Fotoğraf ve videolarını bizimle paylaş.",
+  qrCta: "QR kodu okut ve anılarını yükle.",
   pageTemplate: "filmstrip",
   brandTagline: "Anılarınız her karede ışıldasın.",
   pageHeading: "Sıradaki kare sizden.",
@@ -261,8 +349,8 @@ export const defaultDesign: WeddingDesign = {
   uploadTitle: "Fotoğraf / Video Yükle",
   uploadPrompt: "Fotoğraf veya video seçin",
 };
-export function resolveDesign(value?: WeddingDesign): WeddingDesign {
-  const parsed = designSchema.safeParse(value);
+export function resolveDesign(value?: WeddingDesign | Record<string, unknown>): WeddingDesign {
+  const parsed = designSchema.safeParse({ ...defaultDesign, ...value, version: 2 });
   return parsed.success ? parsed.data : { ...defaultDesign };
 }
 export function designNames(design: WeddingDesign, title: string) {
