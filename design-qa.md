@@ -17,6 +17,55 @@ final result: blocked
 
 ---
 
+# Design QA — `/auth` premium giriş sayfası / 14 Ekim 2026
+
+- Source visual truth paths: `C:/Users/onurt/Downloads/exec-9e6565e6-f83e-4c80-b5a2-e8a9b3222f43.png` ve `C:/Users/onurt/Downloads/exec-0dc504b4-eadb-4ddb-8eb0-d857421590e6.png`
+- Source pixels: her iki tema görseli için 1122 × 1402 px
+- Implementation route: `/auth`
+- Implementation screenshot path: mevcut değil
+- Intended viewport: 1440 × 900 CSS px masaüstü, 900 × 900 CSS px tablet ve 390 × 844 CSS px mobil
+- Density normalization: browser-rendered implementation capture alınamadığı için uygulanamadı
+- State: giriş formu; gündüz ve gece temaları
+
+## Full-view comparison evidence
+
+- Sağlanan gündüz ve gece etkinlik fotoğrafları kırpılmadan ayrı Next.js Image varlıkları olarak kullanıldı ve aktif temayla 300 ms içinde değişiyor.
+- Ana kompozisyon 55/45 masaüstü, 45/55 tablet ve form öncelikli tek sütun mobil düzen olarak uygulandı.
+- Cormorant Garamond başlıklar, Inter arayüz metinleri, ivory/midnight renk değişkenleri ve 24 px dış çerçeve kod düzeyinde doğrulandı.
+- Browser yüzeyi bulunmadığından gerçek render kaynakla aynı karşılaştırma girdisine yerleştirilemedi.
+
+## Focused region comparison evidence
+
+- Logo mevcut `shineqr-lockup-transparent.png` varlığını kullanıyor; kaynak fotoğraflar veya logo CSS/SVG ile yeniden çizilmedi.
+- Form alanları 54 px, 10 px radius, gold focus ring, parola görünürlüğü, loading ve hata durumlarıyla uygulandı.
+- Canlı tarayıcı görüntüsü olmadığı için font optik ağırlığı, fotoğraf kırpması, form boşlukları ve responsive taşma piksel düzeyinde doğrulanamadı.
+
+## Findings
+
+- [P1] Browser-rendered görsel karşılaştırma eksik.
+  - Location: `/auth`, gündüz/gece masaüstü ve mobil durumları.
+  - Evidence: Computer Use envanterinde IAB, Chrome veya Edge yüzeyi bulunmadı (`browsers: []`).
+  - Impact: tipografi, kırpma, boşluk, tema geçişi ve mobil taşma görsel olarak onaylanamıyor.
+  - Fix: tarayıcı yüzeyi olan bir oturumda 1440 × 900 ve 390 × 844 ekran görüntüleri alıp kaynak görsellerle birleşik karşılaştırma yapmak.
+
+## Automated checks
+
+- TypeScript: geçti
+- ESLint: geçti
+- Otomatik testler: 17/17 geçti
+- Next.js production build: geçti
+- Primary interactions tested in browser: engellendi
+- Browser console errors checked: engellendi
+
+## Comparison history
+
+- İlk uygulama turunda tasarım, iki temalı fotoğraf varlıkları, responsive düzen ve etkileşim durumları tamamlandı.
+- Browser-rendered post-fix evidence alınamadığı için P1 kapatılamadı.
+
+final result: blocked
+
+---
+
 # Design QA — ZIP QR koleksiyonu / 14 Ekim 2026
 
 - Source visual truth path: `C:/Users/onurt/Downloads/ShineQR_5_QR_Tasarimi.zip`
