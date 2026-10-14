@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Download,
@@ -21,22 +21,18 @@ import {
 import { toast } from "sonner";
 import { api, type Wedding } from "@/lib/api";
 import {
-  cardTemplates,
   defaultDesign,
   designMonogram,
   designSchema,
-  editorialFontPairIds,
-  editorialPresets,
   qrCollectionReferences,
   resolveDesign,
-  themeIds,
   themes,
   type WeddingDesign,
 } from "@/lib/design";
-import { qrTemplateLibrary } from "@/lib/design-libraries/qr";
 import { weddingTemplateLibrary } from "@/lib/design-libraries/wedding";
 import { loadingTemplateLibrary } from "@/lib/design-libraries/loading";
 import { buildQrCards, svgDataUrl } from "@/lib/qr-card";
+import { qrTemplateLayouts, qrTemplates, resolveQrVariant } from "@/lib/qr-templates";
 import { defaultQrProduct, validateQrProduct, withPrintMarks } from "@/lib/qr-products";
 import { downloadPdf, downloadPng, downloadSvg } from "@/lib/qr-export";
 import { OpeningScene } from "@/components/wedding/OpeningScene";
@@ -44,6 +40,24 @@ import { WeddingPageTemplate } from "@/components/wedding/WeddingPageTemplate";
 import { ShareMemories } from "@/components/upload/ShareMemories";
 import { Field, TextField } from "./Fields";
 import styles from "./DesignPanel.module.css";
+
+const qrAssetDataUrlCache = new Map<string, Promise<string>>();
+function loadQrAssetDataUrl(path: string) {
+  const cached = qrAssetDataUrlCache.get(path);
+  if (cached) return cached;
+  const pending = fetch(path).then(async (response) => {
+    if (!response.ok) throw new Error("QR kartı varlığı yüklenemedi.");
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("QR kartı varlığı okunamadı."));
+      reader.readAsDataURL(blob);
+    });
+  });
+  qrAssetDataUrlCache.set(path, pending);
+  return pending;
+}
 
 export function DesignPanel({
   event,
@@ -67,6 +81,8 @@ export function DesignPanel({
     initialPreview,
   );
   const [face, setFace] = useState<"front" | "back">("front");
+  const [editingQrField, setEditingQrField] = useState<"qrHook" | "qrDescription" | "qrCta" | "names" | "message" | null>(null);
+  const suppressQrClick = useRef(false);
   const [mobilePanel, setMobilePanel] = useState<"controls" | "preview" | null>(
     null,
   );
@@ -146,22 +162,36 @@ export function DesignPanel({
     window.addEventListener("keydown", shortcuts);
     return () => window.removeEventListener("keydown", shortcuts);
   }, [redo, undo]);
-  const cards = useMemo(
-    () =>
-      url ? buildQrCards(design, event.title, event.wedding_date, url) : null,
-    [design, event.title, event.wedding_date, url],
-  );
-  const selectedQrPreset = useMemo(
-    () => qrTemplateLibrary.find((preset) => design.cardTemplate === preset.template && design.cardTheme === preset.theme && design.customColors && design.primary.toLowerCase() === preset.primary.toLowerCase() && design.accent.toLowerCase() === preset.accent.toLowerCase()),
-    [design],
-  );
-  const qrPresetPreviews = useMemo(
-    () => new Map(qrTemplateLibrary.map((preset) => {
-      const presetDesign: WeddingDesign = { ...design, cardTemplate: preset.template, linked: false, cardTheme: preset.theme, customColors: true, primary: preset.primary, accent: preset.accent };
-      return [preset.id, svgDataUrl(buildQrCards(presetDesign, event.title, event.wedding_date, url || "https://shineqr.example/q/preview").front)] as const;
-    })),
-    [design, event.title, event.wedding_date, url],
-  );
+  const [cards, setCards] = useState<ReturnType<typeof buildQrCards> | null>(null);
+  const selectedQrVariant = resolveQrVariant(design.qrTemplateId, design.qrColorVariant);
+  const selectedQrLayout = qrTemplateLayouts[design.qrTemplateId];
+  const selectedQrTemplate = qrTemplates[design.qrTemplateId];
+  const selectedQrSize = Math.min(design.qrLayout.qr.width, design.qrLayout.qr.height) * (selectedQrLayout.qr.size / 196);
+  const selectedQrX = selectedQrLayout.qr.x + design.qrLayout.qr.x + (selectedQrLayout.qr.size - selectedQrSize) / 2;
+  const selectedQrY = selectedQrLayout.qr.y + design.qrLayout.qr.y + (selectedQrLayout.qr.size - selectedQrSize) / 2;
+  const usesFlatBackground = design.qrColorVariant === selectedQrTemplate.defaultVariant;
+  const selectedFrontBackground = usesFlatBackground ? selectedQrTemplate.flatBackground : selectedQrVariant.front;
+  const selectedBackBackground = usesFlatBackground ? selectedQrTemplate.flatBackground : selectedQrVariant.back;
+  useEffect(() => {
+    if (!url) return;
+    let active = true;
+    Promise.all([
+      loadQrAssetDataUrl(selectedFrontBackground),
+      loadQrAssetDataUrl(selectedBackBackground),
+      loadQrAssetDataUrl("/fonts/qr/cormorant-garamond-500.ttf"),
+      loadQrAssetDataUrl("/fonts/qr/cormorant-garamond-500-italic.ttf"),
+      loadQrAssetDataUrl("/fonts/qr/cinzel-600.ttf"),
+      loadQrAssetDataUrl("/fonts/qr/allura-400.ttf"),
+      loadQrAssetDataUrl("/fonts/qr/manrope-400.ttf"),
+    ])
+      .then(([front, back, cormorant, cormorantItalic, cinzel, allura, manrope]) => {
+        if (active) setCards(buildQrCards(design, event.title, event.wedding_date, url, { front, back, fonts: { cormorant, cormorantItalic, cinzel, allura, manrope } }));
+      })
+      .catch((reason: Error) => {
+        if (active) setError(reason.message);
+      });
+    return () => { active = false; };
+  }, [design, event.title, event.wedding_date, selectedBackBackground, selectedFrontBackground, url]);
   const printCards = useMemo(() => cards ? {
     front: withPrintMarks(cards.front, defaultQrProduct),
     back: withPrintMarks(cards.back, defaultQrProduct),
@@ -176,6 +206,43 @@ export function DesignPanel({
   ) {
     setDesign((current) => ({ ...current, [key]: value }));
     setError("");
+  }
+  function beginQrTransform(event: ReactPointerEvent<HTMLElement>, key: keyof WeddingDesign["qrLayout"], mode: "move" | "resize") {
+    event.preventDefault();
+    event.stopPropagation();
+    const canvas = event.currentTarget.closest<HTMLElement>("[data-qr-canvas]");
+    if (!canvas) return;
+    const bounds = canvas.getBoundingClientRect();
+    const startX = event.clientX, startY = event.clientY;
+    const initial = design.qrLayout[key];
+    let moved = false;
+    past.current = [...past.current.slice(-49), design];
+    future.current = [];
+    const move = (pointer: PointerEvent) => {
+      const dx = (pointer.clientX - startX) * (780 / bounds.width);
+      const dy = (pointer.clientY - startY) * (1040 / bounds.height);
+      if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+      rawSetDesign((current) => {
+        const currentElement = current.qrLayout[key];
+        const nextElement = mode === "move"
+          ? { ...currentElement, x: Math.max(-300, Math.min(300, initial.x + dx)), y: Math.max(-400, Math.min(400, initial.y + dy)) }
+          : { ...currentElement, width: Math.max(80, Math.min(600, initial.width + dx * 2)), height: Math.max(40, Math.min(500, initial.height + dy * 2)) };
+        if (key === "qr" && mode === "resize") {
+          const size = Math.max(100, Math.min(340, Math.min(nextElement.width, nextElement.height)));
+          nextElement.width = size;
+          nextElement.height = size;
+        }
+        return { ...current, qrLayout: { ...current.qrLayout, [key]: nextElement } };
+      });
+    };
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      suppressQrClick.current = moved;
+      window.setTimeout(() => { suppressQrClick.current = false; }, 0);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end, { once: true });
   }
   async function save() {
     const result = designSchema.safeParse(design);
@@ -370,48 +437,10 @@ export function DesignPanel({
             </>
           )}
           <div className={styles.divider} />
-          <div className={styles.step}>
-            <span>02</span>
-            <div>
-              <h3>Renk hikâyeniz</h3>
-              <p>Açılış ve misafir sayfanızın temasını seçin.</p>
-            </div>
-          </div>
-          <div className={styles.themes} aria-label="Renk teması">
-            {themeIds.map((id) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={design.theme === id}
-                onClick={() => {
-                  setDesign((current) => ({
-                    ...current,
-                    theme: id,
-                    ...(id !== "burgundy" && current.intro === "video"
-                      ? { intro: "curtain" as const }
-                      : {}),
-                  }));
-                  setReplay((n) => n + 1);
-                }}
-                className={styles.theme}
-              >
-                <span
-                  style={{
-                    background: `linear-gradient(135deg, ${themes[id].light}, ${themes[id].base})`,
-                    color: themes[id].ink,
-                  }}
-                >
-                  {design.theme === id ? <Check size={18} /> : <span>✦</span>}
-                </span>
-                {themes[id].name}
-              </button>
-            ))}
-          </div>
-          <div className={styles.divider} />
           {(surface === "all" || surface === "opening") && (
             <>
               <div className={styles.step}>
-                <span>03</span>
+                <span>02</span>
                 <div>
                   <h3>İlk karşılaşma</h3>
                   <p>Davetinizin nasıl başlayacağını belirleyin.</p>
@@ -472,15 +501,15 @@ export function DesignPanel({
           {(surface === "all" || surface === "card") && (
             <>
               <div className={styles.step}>
-                <span>04</span>
+                <span>03</span>
                 <div>
                   <h3>Masanızdaki küçük hatıra</h3>
                   <p>QR kartınızın stilini ve renklerini seçin.</p>
                 </div>
               </div>
-              <div className={styles.referenceGallery} aria-label="ZIP dosyasındaki QR tasarımları">
+              <div className={styles.referenceGallery} aria-label="QR kartı tasarımları">
                 {qrCollectionReferences.map((item) => (
-                  <button type="button" key={item.id} aria-pressed={design.qrTemplateId === item.id} onClick={() => { update("qrTemplateId", item.id); setPreview("card"); setFace("front"); }}>
+                  <button type="button" key={item.id} aria-pressed={design.qrTemplateId === item.id} onClick={() => { setDesign((current) => ({ ...current, qrTemplateId: item.id, qrColorVariant: qrTemplates[item.id].defaultVariant })); setPreview("card"); setFace("front"); }}>
                     <img src={item.image} alt={`${item.name} ürün mockup'ı`} width={768} height={768} />
                     <span><b>{item.number}</b><strong>{item.name}</strong><small>{item.tagline}</small></span>
                     {design.qrTemplateId === item.id && <i><Check size={14} /> Seçildi</i>}
@@ -488,163 +517,24 @@ export function DesignPanel({
                 ))}
               </div>
               <div className={styles.collectionCard}>
-                <div><span>01</span><strong>THE EDITORIAL</strong><small>Yayınlanmış · Sürüm 1</small></div>
-                <p>Zamansız editoryal tipografi, dokulu kâğıt yüzey ve özgün mimari katmanlar.</p>
+                <div><span>RENK</span><strong>{qrTemplates[design.qrTemplateId].name}</strong><small>5 hazır varyasyon</small></div>
+                <p>Tasarımın renk varyasyonunu seçin. Yazılarınız seçtiğiniz zemine göre otomatik olarak okunaklı kalır.</p>
               </div>
-              <div className={styles.presetChoices} aria-label="The Editorial renk presetleri">
-                {Object.entries(editorialPresets).map(([id, preset]) => (
-                  <button type="button" key={id} aria-pressed={design.qrPresetId === id} onClick={() => { update("qrPresetId", id as WeddingDesign["qrPresetId"]); setPreview("card"); }}>
-                    <span style={{ background: preset.gradient }} />
-                    <strong>{preset.name}</strong><small>{preset.primary}</small>
+              <div className={styles.presetChoices} aria-label={`${qrTemplates[design.qrTemplateId].name} renk seçenekleri`}>
+                {qrTemplates[design.qrTemplateId].variants.map((variant) => (
+                  <button type="button" key={variant.id} aria-pressed={design.qrColorVariant === variant.id} onClick={() => { update("qrColorVariant", variant.id); setPreview("card"); }}>
+                    <span style={{ background: variant.swatch }} />
+                    <strong>{variant.name}</strong>
+                    {design.qrColorVariant === variant.id ? <small>Seçildi</small> : null}
                   </button>
                 ))}
               </div>
-              <label className="form-field">
-                <span>Onaylı font eşleşmesi</span>
-                <select value={design.qrFontPairId} onChange={(event) => update("qrFontPairId", event.target.value as WeddingDesign["qrFontPairId"])}>
-                  {editorialFontPairIds.map((id) => <option key={id} value={id}>{id === "cormorant-manrope" ? "Cormorant Garamond + Manrope" : "Prata + Manrope"}</option>)}
-                </select>
-              </label>
               <Field label="Hook" value={design.qrHook} maxLength={72} onChange={(event) => update("qrHook", event.target.value)} />
               <TextField label="Açıklama" value={design.qrDescription} maxLength={110} onChange={(event) => update("qrDescription", event.target.value)} />
               <Field label="CTA" value={design.qrCta} maxLength={48} onChange={(event) => update("qrCta", event.target.value)} />
-              <p className={styles.presetHint}>Aşağıdaki eski presetler geriye dönük organizasyon uyumluluğu için geçici olarak görünür kalır; yeni baskı motoru The Editorial kompozisyonunu kullanır.</p>
-              <div className={styles.legacyQrControls}>
-              <div
-                className={styles.presetGrid}
-                aria-label="Hazır QR kartı tasarımları"
-              >
-                {qrTemplateLibrary.map((preset) => {
-                  const selected = selectedQrPreset?.id === preset.id;
-                  return (
-                    <button
-                      type="button"
-                      key={preset.id}
-                      aria-pressed={selected}
-                      onClick={() => {
-                        setDesign((current) => ({
-                          ...current,
-                          cardTemplate: preset.template,
-                          linked: false,
-                          cardTheme: preset.theme,
-                          customColors: true,
-                          primary: preset.primary,
-                          accent: preset.accent,
-                        }));
-                        setPreview("card");
-                      }}
-                    >
-                      <img
-                        src={qrPresetPreviews.get(preset.id)}
-                        alt={`${preset.name} QR kartı gerçek baskı önizlemesi`}
-                        width={630}
-                        height={888}
-                      />
-                      <span>{preset.name}</span>
-                      {selected && (
-                        <span className={styles.presetCheck} aria-hidden="true">
-                          <Check size={14} />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className={styles.presetHint}>
-                Hazır tasarım; kart stilini, temasını ve renklerini birlikte
-                uygular. Aşağıdaki kontrollerle son dokunuşları yapabilirsiniz.
-              </p>
-              <div className={styles.templates}>
-                {Object.entries(cardTemplates).map(([id, name]) => (
-                  <button
-                    type="button"
-                    key={id}
-                    aria-pressed={design.cardTemplate === id}
-                    onClick={() => {
-                      update(
-                        "cardTemplate",
-                        id as WeddingDesign["cardTemplate"],
-                      );
-                      setPreview("card");
-                    }}
-                  >
-                    <span>
-                      {
-                        {
-                          floral: "❀",
-                          ribbon: "⋈",
-                          couple: "♡",
-                          minimal: "—",
-                          night: "☾",
-                        }[id]
-                      }
-                    </span>
-                    {name}
-                  </button>
-                ))}
-              </div>
-              <label className={styles.check}>
-                <input
-                  type="checkbox"
-                  checked={design.linked}
-                  onChange={(e) => update("linked", e.target.checked)}
-                />{" "}
-                Açılış ve QR kartında aynı temayı kullan
-              </label>
-              {!design.linked && (
-                <label className="form-field">
-                  <span>QR kartı teması</span>
-                  <select
-                    value={design.cardTheme}
-                    onChange={(e) =>
-                      update(
-                        "cardTheme",
-                        e.target.value as WeddingDesign["cardTheme"],
-                      )
-                    }
-                  >
-                    {themeIds.map((id) => (
-                      <option key={id} value={id}>
-                        {themes[id].name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className={styles.check}>
-                <input
-                  type="checkbox"
-                  checked={design.customColors}
-                  onChange={(e) => update("customColors", e.target.checked)}
-                />{" "}
-                QR kartında kendi renklerimi kullan
-              </label>
-              {design.customColors && (
-                <div className={styles.colors}>
-                  <label>
-                    Ana renk
-                    <input
-                      type="color"
-                      value={design.primary}
-                      onChange={(e) => update("primary", e.target.value)}
-                    />
-                    <span>{design.primary}</span>
-                  </label>
-                  <label>
-                    Süsleme rengi
-                    <input
-                      type="color"
-                      value={design.accent}
-                      onChange={(e) => update("accent", e.target.value)}
-                    />
-                    <span>{design.accent}</span>
-                  </label>
-                </div>
-              )}
-              </div>
               <div className={styles.divider} />
               <div className={styles.step}>
-                <span>05</span>
+                <span>04</span>
                 <div>
                   <h3>Size ait kelimeler</h3>
                   <p>
@@ -776,16 +666,48 @@ export function DesignPanel({
                 </div>
               </div>
             ) : cards ? (
-              face === "front" ? (
-                <figure className={styles.referencePreview}>
-                  <img src={qrCollectionReferences.find((item) => item.id === design.qrTemplateId)?.image} alt={`${qrCollectionReferences.find((item) => item.id === design.qrTemplateId)?.name} birebir ürün mockup'ı`} width={768} height={768} />
-                  <figcaption><span>ZIP REFERANSI</span><strong>{qrCollectionReferences.find((item) => item.id === design.qrTemplateId)?.name}</strong></figcaption>
-                </figure>
-              ) : <div className={styles.cardScene}>
-                <div className={`${styles.card3d} ${face === "back" ? styles.cardFlipped : ""}`}>
-                  <img className={`${styles.card} ${styles.cardFront}`} src={svgDataUrl(cards.front)} width={630} height={888} alt="QR kartı ön yüz önizlemesi" />
-                  <img className={`${styles.card} ${styles.cardBack}`} src={svgDataUrl(cards.back)} width={630} height={888} alt="QR kartı arka yüz önizlemesi" />
+              <div className={styles.cardEditor}>
+                <div className={styles.cardCanvas} data-qr-canvas>
+                  <img className={styles.card} src={svgDataUrl(cards[face])} width={630} height={888} alt={face === "front" ? "QR kartı ön yüz önizlemesi" : "QR kartı arka yüz önizlemesi"} />
+                  {(face === "front" ? [
+                    ["qrHook", "Ana başlığı düzenle", selectedQrLayout.title.y - 52, selectedQrLayout.title.size * selectedQrLayout.title.maxLines],
+                    ["qrDescription", "Açıklamayı düzenle", selectedQrLayout.description.y - 30, selectedQrLayout.description.size * selectedQrLayout.description.maxLines + 20],
+                    ["qrCta", "QR yönlendirme metnini düzenle", selectedQrLayout.ctaY - 28, 55],
+                    ["names", "İsimleri düzenle", selectedQrLayout.namesY - 32, 70],
+                  ] : [
+                    ["message", "Teşekkür metnini düzenle", 245, 260],
+                    ["names", "İsimleri düzenle", 775, 90],
+                  ]).map(([field, label, top]) => {
+                    const layoutKey = field as keyof WeddingDesign["qrLayout"];
+                    const box = design.qrLayout[layoutKey];
+                    return <button key={`${face}-${field}`} type="button" className={styles.editHotspot} style={{ left: `${((selectedQrLayout.contentX + box.x - box.width / 2) / 780) * 100}%`, top: `${((Number(top) + box.y) / 1040) * 100}%`, width: `${(box.width / 780) * 100}%`, height: `${(box.height / 1040) * 100}%` }} aria-label={String(label)} aria-pressed={editingQrField === field} onPointerDown={(event) => beginQrTransform(event, layoutKey, "move")} onClick={() => { if (!suppressQrClick.current) setEditingQrField(field as typeof editingQrField); }}>
+                      <span>{label} · Sürükleyerek taşıyın</span>
+                      <i aria-label="Alanı kırp" title="Alanı kırp / yeniden boyutlandır" onPointerDown={(event) => beginQrTransform(event, layoutKey, "resize")} />
+                    </button>;
+                  })}
+                  {face === "front" ? <button type="button" className={`${styles.editHotspot} ${styles.qrHotspot}`} style={{ left: `${(selectedQrX / 780) * 100}%`, top: `${(selectedQrY / 1040) * 100}%`, width: `${(selectedQrSize / 780) * 100}%`, height: `${(selectedQrSize / 1040) * 100}%` }} aria-label="Organizasyon QR kodunu taşı" onPointerDown={(event) => beginQrTransform(event, "qr", "move")}>
+                    <span>Organizasyon QR kodu · Sürükleyerek taşıyın</span>
+                    <i aria-label="QR kodunu boyutlandır" title="QR kodunu boyutlandır" onPointerDown={(event) => beginQrTransform(event, "qr", "resize")} />
+                  </button> : null}
+                  {face === "front" ? ([
+                    ["icons", "İkon grubunu taşı ve boyutlandır", selectedQrLayout.iconsY],
+                    ["divider", "Ayırıcı çizgiyi taşı ve boyutlandır", selectedQrLayout.dividerY],
+                  ] as const).map(([layoutKey, label, baseY]) => {
+                    const box = design.qrLayout[layoutKey];
+                    return <button key={layoutKey} type="button" className={`${styles.editHotspot} ${styles.graphicHotspot}`} style={{ left: `${((selectedQrLayout.contentX + box.x - box.width / 2) / 780) * 100}%`, top: `${((baseY + box.y - box.height / 2) / 1040) * 100}%`, width: `${(box.width / 780) * 100}%`, height: `${(box.height / 1040) * 100}%` }} aria-label={label} onPointerDown={(event) => beginQrTransform(event, layoutKey, "move")}>
+                      <span>{label}</span>
+                      <i aria-label={`${label}: yeniden boyutlandır`} title="Yeniden boyutlandır" onPointerDown={(event) => beginQrTransform(event, layoutKey, "resize")} />
+                    </button>;
+                  }) : null}
                 </div>
+                {editingQrField ? (
+                  <label className={styles.inlineEditor}>
+                    <span>{({ qrHook: "Ana başlık", qrDescription: "Açıklama", qrCta: "QR yönlendirme metni", names: "İsimler", message: "Teşekkür metni" } as const)[editingQrField]}</span>
+                    <textarea autoFocus rows={editingQrField === "message" || editingQrField === "qrDescription" ? 3 : 2} maxLength={({ qrHook: 72, qrDescription: 110, qrCta: 48, names: 100, message: 240 } as const)[editingQrField]} value={design[editingQrField]} onChange={(event) => update(editingQrField, event.target.value)} onBlur={() => setEditingQrField(null)} onKeyDown={(event) => { if (event.key === "Escape") setEditingQrField(null); }} />
+                    <small>Kartın dışına tıklayarak veya Esc tuşuyla tamamlayın.</small>
+                  </label>
+                ) : <p className={styles.editHint}>Düzenlemek istediğiniz yazının üzerine tıklayın.</p>}
+                {face === "front" ? <button type="button" className={styles.nextFace} onClick={() => { setFace("back"); setEditingQrField(null); }}>Ön yüzü tamamla ve arka yüze geç →</button> : <button type="button" className={styles.nextFace} onClick={() => { setFace("front"); setEditingQrField(null); }}>← Ön yüze dön</button>}
               </div>
             ) : (
               <p role="status">Kart hazırlanıyor…</p>
@@ -804,16 +726,16 @@ export function DesignPanel({
               <button
                 type="button"
                 aria-pressed={face === "front"}
-                onClick={() => setFace("front")}
+                onClick={() => { setFace("front"); setEditingQrField(null); }}
               >
                 Ön yüz
               </button>
               <button
                 type="button"
                 aria-pressed={face === "back"}
-                onClick={() => setFace("back")}
+                onClick={() => { setFace("back"); setEditingQrField(null); }}
               >
-                Arka yüz · QR
+                Arka yüz
               </button>
             </div>
           ) : null}
@@ -826,7 +748,7 @@ export function DesignPanel({
             <div className={styles.exportGrid}>
               {(["front", "back"] as const).map((side) => (
                 <div key={side}>
-                  <strong>{side === "front" ? "Ön yüz" : "Arka yüz · QR"}</strong>
+                  <strong>{side === "front" ? "Ön yüz · QR" : "Arka yüz"}</strong>
                   <button type="button" disabled={!printCards || !productValidation.passed} onClick={() => void exportCard("svg", side)}><Download size={14} /> SVG</button>
                   <button type="button" disabled={!printCards || !productValidation.passed} onClick={() => void exportCard("png", side)}><FileImage size={14} /> PNG</button>
                   <button type="button" disabled={!printCards || !productValidation.passed} onClick={() => void exportCard("pdf", side)}><FileText size={14} /> PDF</button>

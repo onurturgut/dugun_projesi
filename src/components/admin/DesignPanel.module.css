@@ -78,38 +78,6 @@
   font-size: 11px;
   line-height: 1.6;
 }
-.themes {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px 10px;
-}
-.theme {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  font-size: 10px;
-  color: #c4bfb1;
-  padding: 6px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-}
-.theme > span {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  box-shadow:
-    inset 0 0 0 1px #ffffff22,
-    0 5px 12px #0004;
-  font-size: 20px;
-}
-.theme[aria-pressed="true"] {
-  border-color: #d8bb8066;
-  background: #d8bb8008;
-  color: #eed8b0;
-}
 .divider {
   height: 1px;
   background: #ffffff0c;
@@ -532,15 +500,98 @@
 }
 .card {
   display: block;
-  width: min(100%, 300px);
+  width: 100%;
   height: auto;
   box-shadow: 0 20px 45px #0007;
 }
-.cardScene { width: min(100%, 300px); aspect-ratio: 3 / 4; perspective: 1100px; }
-.card3d { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transform: rotateY(-8deg) rotateX(2deg); transition: transform 650ms cubic-bezier(.2,.7,.2,1); filter: drop-shadow(18px 24px 26px #0008); }
-.card3d.cardFlipped { transform: rotateY(172deg) rotateX(2deg); }
-.card3d .card { position: absolute; inset: 0; width: 100%; backface-visibility: hidden; box-shadow: none; }
-.cardBack { transform: rotateY(180deg); }
+.cardEditor { display: grid; justify-items: center; gap: 14px; width: min(100%, 360px); }
+.cardCanvas { position: relative; width: min(100%, 330px); aspect-ratio: 3 / 4; overflow: hidden; background: #fff; box-shadow: 0 22px 50px #0008; }
+.editHotspot { position: absolute; border: 1px dashed transparent; border-radius: 6px; background: transparent; cursor: move; touch-action: none; transition: border-color 160ms ease, background 160ms ease; }
+.editHotspot:hover,
+.editHotspot[aria-pressed="true"] { border-color: #d8bb80; background: rgb(216 187 128 / 10%); box-shadow: 0 0 0 2px rgb(20 20 18 / 24%); }
+.editHotspot span { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); display: none; width: max-content; max-width: 190px; padding: 4px 7px; border-radius: 5px; color: #171713; background: #e6c98c; font-size: 8px; font-weight: 700; letter-spacing: .04em; pointer-events: none; }
+.editHotspot:hover span,
+.editHotspot[aria-pressed="true"] span { display: block; }
+.editHotspot i { position: absolute; right: -6px; bottom: -6px; display: none; width: 14px; height: 14px; border: 2px solid #171713; border-radius: 50%; background: #e6c98c; box-shadow: 0 0 0 1px #e6c98c; cursor: nwse-resize; }
+.editHotspot:hover i,
+.editHotspot[aria-pressed="true"] i { display: block; }
+.qrHotspot { border-radius: 4px; }
+.graphicHotspot { min-width: 1px; min-height: 1px; border-radius: 3px; }
+.inlineEditor { display: grid; gap: 6px; width: 100%; padding: 12px; border: 1px solid #d8bb8040; border-radius: 10px; background: #181914; }
+.inlineEditor > span { color: #dfca9e; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.inlineEditor textarea { width: 100%; min-height: 46px; resize: vertical; border: 1px solid #ffffff20; border-radius: 7px; padding: 9px 10px; color: #f2ecdf; background: #10110e; font: 13px/1.45 Manrope, Arial, sans-serif; outline: none; }
+.inlineEditor textarea:focus { border-color: #d8bb80; box-shadow: 0 0 0 2px #d8bb8020; }
+.inlineEditor small,
+.editHint { color: #979287; font-size: 9px; line-height: 1.5; text-align: center; }
+.nextFace { width: 100%; min-height: 42px; padding: 9px 14px; border: 1px solid #d8bb8060; border-radius: 8px; color: #dfca9e; background: #d8bb800c; font-size: 10px; font-weight: 700; letter-spacing: .05em; }
+.nextFace:hover { border-color: #d8bb80; background: #d8bb8018; }
+
+/* Yönetim panelinin gündüz temasında QR stüdyosunu açık yüzeye taşır. */
+:global([data-admin-theme="light"]) .studio {
+  border-color: var(--admin-border);
+  color: var(--admin-text);
+  background: var(--admin-surface);
+}
+:global([data-admin-theme="light"]) .header {
+  border-bottom-color: var(--admin-border);
+  background: radial-gradient(ellipse at 85% 0, rgb(184 138 72 / 14%), transparent 60%);
+}
+:global([data-admin-theme="light"]) .header h2,
+:global([data-admin-theme="light"]) .step h3,
+:global([data-admin-theme="light"]) .referenceGallery strong,
+:global([data-admin-theme="light"]) .collectionCard strong,
+:global([data-admin-theme="light"]) .pageTemplates button strong {
+  color: var(--admin-text);
+}
+:global([data-admin-theme="light"]) .header p:not(.kicker),
+:global([data-admin-theme="light"]) .step p,
+:global([data-admin-theme="light"]) .referenceGallery small,
+:global([data-admin-theme="light"]) .collectionCard small,
+:global([data-admin-theme="light"]) .collectionCard p,
+:global([data-admin-theme="light"]) .presetHint,
+:global([data-admin-theme="light"]) .previewTop span,
+:global([data-admin-theme="light"]) .editHint {
+  color: var(--admin-muted);
+}
+:global([data-admin-theme="light"]) .divider,
+:global([data-admin-theme="light"]) .previewColumn {
+  border-color: var(--admin-border);
+}
+:global([data-admin-theme="light"]) .divider { background: var(--admin-border); }
+:global([data-admin-theme="light"]) .previewColumn { background: var(--admin-raised); }
+:global([data-admin-theme="light"]) .referenceGallery button,
+:global([data-admin-theme="light"]) .presetGrid button,
+:global([data-admin-theme="light"]) .inlineEditor {
+  border-color: var(--admin-border);
+  color: var(--admin-text);
+  background: var(--admin-surface);
+}
+:global([data-admin-theme="light"]) .presetGrid img { background: var(--admin-raised); border-color: var(--admin-border); }
+:global([data-admin-theme="light"]) .presetChoices button,
+:global([data-admin-theme="light"]) .previewTabs,
+:global([data-admin-theme="light"]) .headerActions button,
+:global([data-admin-theme="light"]) .pageTemplates button,
+:global([data-admin-theme="light"]) .options button,
+:global([data-admin-theme="light"]) .templates button {
+  border-color: var(--admin-border);
+  color: var(--admin-muted);
+}
+:global([data-admin-theme="light"]) .previewTabs button { color: var(--admin-muted); }
+:global([data-admin-theme="light"]) .previewTabs button[aria-pressed="true"] {
+  color: #6d4a18;
+  background: rgb(184 138 72 / 12%);
+}
+:global([data-admin-theme="light"]) .inlineEditor > span { color: #7c5925; }
+:global([data-admin-theme="light"]) .inlineEditor textarea {
+  border-color: var(--admin-border);
+  color: var(--admin-text);
+  background: var(--admin-raised);
+}
+:global([data-admin-theme="light"]) .nextFace {
+  border-color: rgb(184 138 72 / 42%);
+  color: #6d4a18;
+  background: rgb(184 138 72 / 8%);
+}
 .presetPreviewScene {
   position: relative;
   width: min(100%, 520px);

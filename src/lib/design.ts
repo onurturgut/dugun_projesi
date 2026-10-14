@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { qrColorVariantIds } from "./qr-templates";
 
 export const themeIds = [
   "burgundy",
@@ -18,7 +19,7 @@ export const qrCollectionReferences: ReadonlyArray<{ id: QrCollectionId; number:
   { id: "the-editorial", number: "01", name: "THE EDITORIAL", tagline: "Zamansız ve zarif", image: "/design-reference/01-the-editorial.png" },
   { id: "velvet-flow", number: "02", name: "VELVET FLOW", tagline: "Modern lüks ve etkileyici", image: "/design-reference/02-velvet-flow.png" },
   { id: "botanical", number: "03", name: "BOTANICAL", tagline: "Doğal ve modern", image: "/design-reference/03-botanical.png" },
-  { id: "modern-arch", number: "04", name: "MODERN ARCH", tagline: "Minimal ve çağdaş", image: "/design-reference/04-modern-arch.png" },
+  { id: "modern-arch", number: "04", name: "MINIMAL", tagline: "Sade ve çağdaş", image: "/qr-templates/modern-arch/01_Krem_On_Yuz.webp" },
   { id: "aurora", number: "05", name: "AURORA", tagline: "Sanatsal ve özgün", image: "/design-reference/05-aurora.png" },
 ];
 export const editorialPresetIds = [
@@ -265,6 +266,22 @@ export function availableTemplates(surface: TemplateSurface) {
 const hex = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Altı haneli bir renk kodu girin.");
+const qrElementLayoutSchema = z.object({
+  x: z.number().min(-300).max(300),
+  y: z.number().min(-400).max(400),
+  width: z.number().min(80).max(600),
+  height: z.number().min(40).max(500),
+});
+export const defaultQrLayout = {
+  qrHook: { x: 0, y: 0, width: 340, height: 190 },
+  qrDescription: { x: 0, y: 0, width: 340, height: 100 },
+  qrCta: { x: 0, y: 0, width: 340, height: 55 },
+  names: { x: 0, y: 0, width: 340, height: 60 },
+  message: { x: 0, y: 0, width: 400, height: 280 },
+  qr: { x: 0, y: 0, width: 196, height: 196 },
+  icons: { x: 0, y: 0, width: 154, height: 40 },
+  divider: { x: 0, y: 0, width: 210, height: 40 },
+} as const;
 export const designSchema = z
   .object({
     version: z.literal(2),
@@ -281,12 +298,23 @@ export const designSchema = z
     monogram: z.string().trim().max(8),
     message: z.string().trim().max(240),
     qrTemplateId: z.enum(qrCollectionIds).default("the-editorial"),
+    qrColorVariant: z.enum(qrColorVariantIds).default("cream"),
     qrTemplateVersion: z.number().int().min(1).default(1),
     qrPresetId: z.enum(editorialPresetIds).default("editorial-cream"),
     qrFontPairId: z.enum(editorialFontPairIds).default("cormorant-manrope"),
     qrHook: z.string().trim().min(1).max(72).default("Bu günün bir karesi de senden olsun."),
     qrDescription: z.string().trim().min(1).max(110).default("Fotoğraf ve videolarını bizimle paylaş."),
     qrCta: z.string().trim().min(1).max(48).default("QR kodu okut ve anılarını yükle."),
+    qrLayout: z.object({
+      qrHook: qrElementLayoutSchema,
+      qrDescription: qrElementLayoutSchema,
+      qrCta: qrElementLayoutSchema,
+      names: qrElementLayoutSchema,
+      message: qrElementLayoutSchema,
+      qr: qrElementLayoutSchema,
+      icons: qrElementLayoutSchema.default(defaultQrLayout.icons),
+      divider: qrElementLayoutSchema.default(defaultQrLayout.divider),
+    }).default(defaultQrLayout),
     pageTemplate: z.enum(["filmstrip"]).default("filmstrip"),
     brandTagline: z
       .string()
@@ -336,12 +364,14 @@ export const defaultDesign: WeddingDesign = {
   monogram: "",
   message: "Bu özel günümüzü bizimle paylaştığınız için teşekkür ederiz.",
   qrTemplateId: "the-editorial",
+  qrColorVariant: "cream",
   qrTemplateVersion: 1,
   qrPresetId: "editorial-cream",
   qrFontPairId: "cormorant-manrope",
   qrHook: "Bu günün bir karesi de senden olsun.",
   qrDescription: "Fotoğraf ve videolarını bizimle paylaş.",
   qrCta: "QR kodu okut ve anılarını yükle.",
+  qrLayout: defaultQrLayout,
   pageTemplate: "filmstrip",
   brandTagline: "Anılarınız her karede ışıldasın.",
   pageHeading: "Sıradaki kare sizden.",

@@ -131,6 +131,9 @@ test("The Editorial renders 15 × 20 cm cards with a high contrast QR and escape
         "https://example.com/wedding/test",
       );
       assert.match(cards.front, /width="150mm" height="200mm"/);
+      assert.match(cards.front, /01_Krem_On_Yuz\.webp/);
+      assert.match(cards.front, /preserveAspectRatio="xMidYMid slice"/);
+      assert.doesNotMatch(cards.front + cards.back, /fill-opacity="\.78"|xMidYMid meet/);
       assert.doesNotMatch(cards.front + cards.back, /<script>|<img>/);
       assert.match(cards.back, /A &amp; B &lt;img&gt;/);
       assert.match(cards.front, /shape-rendering="crispEdges"/);
@@ -138,7 +141,7 @@ test("The Editorial renders 15 × 20 cm cards with a high contrast QR and escape
       assert.match(cards.front, /fill="#111"/);
     }
 });
-test("QR pattern changes with the real invitation target without changing the reverse face", () => {
+test("QR pattern changes with the real invitation target without changing the back face", () => {
   const a = buildQrCards(
     defaultDesign,
     "A & B",
@@ -153,6 +156,29 @@ test("QR pattern changes with the real invitation target without changing the re
   );
   assert.notEqual(a.front, b.front);
   assert.equal(a.back, b.back);
+});
+test("QR text crop boxes and organization QR placement are persisted in the SVG", () => {
+  const cards = buildQrCards(
+    {
+      ...defaultDesign,
+      qrLayout: {
+        ...defaultDesign.qrLayout,
+        qrHook: { x: 24, y: 18, width: 220, height: 74 },
+        qr: { x: 30, y: -12, width: 150, height: 150 },
+        icons: { x: 12, y: 8, width: 200, height: 50 },
+        divider: { x: -10, y: 6, width: 180, height: 80 },
+      },
+    },
+    "A & B",
+    null,
+    "https://example.com/q/67e55044-10b1-426f-9247-bb680e5fe0c8",
+  );
+  assert.match(cards.front, /id="clip-hook"/);
+  assert.match(cards.front, /width="220" height="74"/);
+  assert.match(cards.front, /shape-rendering="crispEdges"/);
+  assert.match(cards.front, /x="[0-9.]+" y="[0-9.]+" width="150" height="150"/);
+  assert.match(cards.front, /scale\(1\.2987012987012987 1\.25\)/);
+  assert.match(cards.front, /stroke-width="2" stroke-opacity="\.65"/);
 });
 test("QR physical product enforces compatibility, bleed and safe area", () => {
   const target = "https://example.com/q/67e55044-10b1-426f-9247-bb680e5fe0c8";
