@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -37,10 +37,17 @@ export default function AuthPage() {
   const [capsLock, setCapsLock] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
 
-  useEffect(() => {
-    const activeTheme = document.documentElement.dataset.authTheme;
-    if (activeTheme === "light" || activeTheme === "dark")
-      setTheme(activeTheme);
+  useLayoutEffect(() => {
+    const savedTheme = window.localStorage.getItem(themeKey);
+    const activeTheme =
+      savedTheme === "light" || savedTheme === "dark"
+        ? savedTheme
+        : window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+
+    document.documentElement.dataset.authTheme = activeTheme;
+    setTheme(activeTheme);
   }, []);
 
   const toggleTheme = () => {

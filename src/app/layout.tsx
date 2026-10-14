@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr">
+    <html lang="tr" data-auth-theme="light" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
         <Analytics />

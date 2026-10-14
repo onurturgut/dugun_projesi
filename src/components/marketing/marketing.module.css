@@ -448,8 +448,7 @@
   transform: scale(1.025);
 }
 .productSceneAlbum img {
-  object-fit: contain;
-  padding: 18px;
+  object-fit: cover;
 }
 .sceneNumber {
   position: absolute;

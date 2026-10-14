@@ -48,19 +48,19 @@ export function HomePage() {
     {
       title: "QR kodunu okut",
       text: "Misafiriniz masa kartındaki kodu telefon kamerasıyla saniyeler içinde okutur.",
-      image: "/marketing/qr-table-card.png",
+      image: "/marketing/qr-scan-wedding-cards.png",
       className: styles.productSceneQr,
     },
     {
       title: "Anını yükle",
       text: "Uygulama veya üyelik olmadan fotoğrafını, videosunu ve mesajını paylaşır.",
-      image: "/marketing/guest-camera.webp",
+      image: "/marketing/upload-memory-couple.webp",
       className: styles.productSceneUpload,
     },
     {
       title: "Albümde biriktir",
       text: "Her an, yalnızca size ait dijital albümde güvenle bir araya gelir.",
-      image: "/marketing/seher-muhammed-wedding-composition-v2.png",
+      image: "/marketing/album-gallery-card.webp",
       className: styles.productSceneAlbum,
     },
   ];
@@ -216,7 +216,7 @@ export function HowPage() {
     [
       "QR kodunu paylaş",
       "Oluşturulan QR kod, seçtiğiniz masa kartı tasarımıyla basılır veya dijital davetlerde paylaşılır.",
-      "/marketing/qr-table-card.png",
+      "/marketing/qr-scan-wedding-cards.png",
     ],
     [
       "Fotoğraf ve videoları yükleyin",
@@ -230,7 +230,7 @@ export function HowPage() {
         eyebrow="SADECE ÜÇ ADIM"
         title="Nasıl çalışır?"
         description="QR koddan özel albüme uzanan zahmetsiz ve güvenli bir anı akışı."
-        image="/marketing/qr-table-card.png"
+        image="/marketing/qr-scan-wedding-cards.png"
       />
       <section className={styles.section}>
         <div className={styles.editorialSteps}>
