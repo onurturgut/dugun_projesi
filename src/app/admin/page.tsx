@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useDeferredValue, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, ArrowUpRight, ShieldCheck, BookmarkPlus, Archive } from "lucide-react";
+import { Plus, Search, ArrowUpRight, ShieldCheck, BookmarkPlus, Archive, RotateCcw, XCircle, ReceiptText } from "lucide-react";
 import { api, type Wedding, type Account } from "@/lib/api";
 import { uploadsOpen, expired } from "@/lib/policy";
 import { formatBytes } from "@/lib/config";
@@ -13,11 +13,17 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { EventWizard } from "@/components/admin/EventWizard";
 import { Notice } from "@/components/admin/Fields";
 const stateOf = (w: Wedding) =>
+  w.lifecycle_status === "draft" && w.approval_status === "submitted" ? "submitted" :
+  w.lifecycle_status === "draft" && w.approval_status === "changes_requested" ? "changes_requested" :
+  w.lifecycle_status === "draft" && w.approval_status === "rejected" ? "rejected" :
   w.lifecycle_status === "draft" || w.lifecycle_status === "archived" || w.lifecycle_status === "upcoming"
     ? w.lifecycle_status
     : expired(w) ? "expired" : uploadsOpen(w) ? "open" : "closed";
 const labels: Record<string, string> = {
   draft: "Taslak",
+  submitted: "Onay bekliyor",
+  changes_requested: "Düzeltme istendi",
+  rejected: "Reddedildi",
   upcoming: "Yaklaşan",
   archived: "Arşivlendi",
   open: "Yükleme açık",
@@ -67,6 +73,25 @@ export default function Events() {
   useEffect(() => { try { setSavedViews(JSON.parse(localStorage.getItem("shineqr-admin-views") || "[]")); } catch { setSavedViews([]); } }, []);
   function saveView() { const name = window.prompt("Bu filtre görünümünün adı"); if (!name?.trim()) return; const next = [...savedViews.filter((view) => view.name !== name.trim()), { name: name.trim(), search, status: statusFilter, date }]; setSavedViews(next); localStorage.setItem("shineqr-admin-views", JSON.stringify(next)); }
   async function bulkArchive() { if (!selected.length || !window.confirm(`${selected.length} organizasyon arşivlensin mi?`)) return; await api("/admin/weddings/bulk", { method: "POST", body: JSON.stringify({ ids: selected, action: "archive" }) }); setSelected([]); await qc.invalidateQueries({ queryKey: ["admin-weddings"] }); }
+  async function approve(id: string) {
+    await api(`/admin/weddings/${id}/approve`, { method: "POST" });
+    await qc.invalidateQueries({ queryKey: ["admin-weddings"] });
+  }
+  async function decide(id: string, decision: "changes_requested" | "rejected") {
+    const message = decision === "changes_requested" ? "İstenen düzeltmeyi açıklayın" : "Ret nedenini açıklayın";
+    const reason = window.prompt(message);
+    if (!reason?.trim()) return;
+    await api(`/admin/weddings/${id}/approval-decision`, {
+      method: "POST",
+      body: JSON.stringify({ decision, reason: reason.trim() }),
+    });
+    await qc.invalidateQueries({ queryKey: ["admin-weddings"] });
+  }
+  async function recordSale(id: string) {
+    if (!window.confirm("Bu organizasyon için tahsil edilmiş satış kaydı oluşturulsun mu?")) return;
+    await api("/admin/sales", { method: "POST", body: JSON.stringify({ wedding_id: id, idempotency_key: `manual-${id}` , vat_rate_bps: 2000 }) });
+    await qc.invalidateQueries({ queryKey: ["sales"] });
+  }
   return (
     <AdminShell>
       <div className="admin-heading">
@@ -202,7 +227,7 @@ export default function Events() {
       ) : (
         <div className="admin-event-grid">
           {rows.map((w) => (
-            <div className="admin-event-selectable" key={w.id}>
+            <div className={`admin-event-selectable ${w.approval_status === "submitted" ? "approval-pending" : ""}`} key={w.id}>
             {me.data?.role !== "owner" ? <label className="admin-event-selector"><input type="checkbox" checked={selected.includes(w.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, w.id] : current.filter((id) => id !== w.id))}/><span className="sr-only">{w.title} seç</span></label> : null}
             <Link
               href={w.lifecycle_status === "draft" ? "#taslak" : `/admin/${w.id}`}
@@ -210,6 +235,7 @@ export default function Events() {
               onClick={(event) => {
                 if (w.lifecycle_status !== "draft") return;
                 event.preventDefault();
+                if (w.approval_status === "submitted") return;
                 setSelectedDraft(w);
                 setOpen(true);
               }}
@@ -260,8 +286,27 @@ export default function Events() {
                     {w.trashed} içerik çöp kutusunda
                   </p>
                 )}
+                {w.rejection_reason && (w.approval_status === "changes_requested" || w.approval_status === "rejected") ? (
+                  <p className="admin-event-review-note">{w.rejection_reason}</p>
+                ) : null}
               </div>
             </Link>
+            {me.data?.role === "platform" && w.approval_status === "submitted" ? (
+              <div className="admin-event-approval-actions">
+                <button className="admin-button primary" onClick={() => void approve(w.id)}>
+                  <ShieldCheck size={15} /> Onayla
+                </button>
+                <button className="admin-button" onClick={() => void decide(w.id, "changes_requested")}>
+                  <RotateCcw size={15} /> Düzeltme iste
+                </button>
+                <button className="admin-button danger" onClick={() => void decide(w.id, "rejected")}>
+                  <XCircle size={15} /> Reddet
+                </button>
+              </div>
+            ) : null}
+            {me.data?.role === "platform" && w.approval_status === "approved" ? (
+              <button className="admin-button admin-event-approve" onClick={() => void recordSale(w.id)}><ReceiptText size={15} /> Tahsil edilmiş satış kaydet</button>
+            ) : null}
             </div>
           ))}
         </div>

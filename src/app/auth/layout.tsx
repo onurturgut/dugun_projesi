@@ -11,8 +11,6 @@ const inter = Inter({
   variable: "--font-inter",
   display: "swap",
 });
-const themeScript = `try { const key = "shineqr-auth-theme"; const saved = localStorage.getItem(key); const theme = saved === "light" || saved === "dark" ? saved : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); document.documentElement.dataset.authTheme = theme; } catch (_) { document.documentElement.dataset.authTheme = "light"; }`;
-
 export default function AuthLayout({
   children,
 }: {
@@ -20,7 +18,6 @@ export default function AuthLayout({
 }) {
   return (
     <div className={`${cormorant.variable} ${inter.variable}`}>
-      <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       {children}
     </div>
   );

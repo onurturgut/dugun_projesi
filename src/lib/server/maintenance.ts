@@ -1,5 +1,5 @@
 import "server-only";
-import { db } from "./db";
+import { db, mongoClient } from "./db";
 import { deleteObject } from "./r2";
 import { cleanupCovers } from "./covers";
 import { processMediaPreviews } from "./media-processing";
@@ -102,9 +102,22 @@ export async function cleanup(now = new Date()) {
         .collection("media")
         .findOne({ storage_path: ticket.storage_path });
       if (!registered) await deleteObject(ticket.storage_path);
-      await database
-        .collection("upload_tickets")
-        .deleteOne({ _id: ticket._id });
+      const transaction = (await mongoClient()).startSession();
+      try {
+        await transaction.withTransaction(async () => {
+          const removed = await database
+            .collection("upload_tickets")
+            .findOneAndDelete({ _id: ticket._id }, { session: transaction });
+          if (removed && !removed.reservation_released && removed.reserved_bytes)
+            await database.collection("weddings").updateOne(
+              { id: removed.weddingId },
+              { $inc: { reserved_upload_bytes: -removed.reserved_bytes } },
+              { session: transaction },
+            );
+        });
+      } finally {
+        await transaction.endSession();
+      }
       tickets++;
     } catch {
       errors.push(`ticket:${ticket._id}`);

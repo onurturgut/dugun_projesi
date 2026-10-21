@@ -30,6 +30,7 @@ export default function AuthPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [totp, setTotp] = useState("");
   const [view, setView] = useState<View>("login");
   const [busy, setBusy] = useState(false);
@@ -75,6 +76,7 @@ export default function AuthPage() {
           body: JSON.stringify({
             email: username,
             password,
+            remember,
             ...(view === "mfa" ? { totp } : {}),
           }),
         },
@@ -256,16 +258,12 @@ export default function AuthPage() {
                       <div className={styles.field}>
                         <div className={styles.fieldHeader}>
                           <label htmlFor="auth-password">Parola</label>
-                          <button
-                            type="button"
+                          <Link
+                            href="/auth/reset-password"
                             className={styles.helpButton}
-                            onClick={() => {
-                              setView("support");
-                              setError("");
-                            }}
                           >
                             Parolamı unuttum
-                          </button>
+                          </Link>
                         </div>
                         <div className={styles.passwordWrap}>
                           <input
@@ -318,6 +316,15 @@ export default function AuthPage() {
                           </span>
                         ) : null}
                       </div>
+                      <label className={styles.rememberChoice}>
+                        <input
+                          type="checkbox"
+                          checked={remember}
+                          onChange={(event) => setRemember(event.target.checked)}
+                          disabled={busy}
+                        />
+                        <span>Bu cihazda beni hatırla</span>
+                      </label>
                     </>
                   ) : (
                     <label className={styles.field}>

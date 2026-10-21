@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, LoaderCircle, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Account, Partner, Wedding } from "@/lib/models";
+import type { Account, AddOnProduct, Partner, Wedding } from "@/lib/models";
 import { CoverUpload } from "./CoverUpload";
 import { Field, Notice, TextField } from "./Fields";
 import { SelectField } from "./SelectField";
+import { PACKAGE_CATALOG, type AddOnSelection, type PackageCode } from "@/lib/commercial-policy";
 
 const steps = [
   "Organizasyon",
@@ -35,6 +36,8 @@ type DraftState = {
   customer_email: string;
   upload_days: number;
   trash_days: number;
+  package_code: PackageCode;
+  add_on_selections: AddOnSelection[];
 };
 
 function slugify(value: string) {
@@ -70,6 +73,8 @@ function initialState(event?: Wedding): DraftState {
     customer_email: event?.customer_email || "",
     upload_days: event?.upload_days || 7,
     trash_days: event?.trash_days || 7,
+    package_code: event?.package_code || "plan-1",
+    add_on_selections: event?.add_on_selections || [],
   };
 }
 
@@ -99,11 +104,36 @@ export function EventWizard({
     queryFn: () => api<Partner[]>("/admin/partners"),
     enabled: user.role === "platform",
   });
+  const addOns = useQuery({
+    queryKey: ["add-ons"],
+    queryFn: () => api<AddOnProduct[]>("/admin/add-ons"),
+    enabled: user.role === "platform" || user.role === "partner",
+  });
+  const activeAddOns = addOns.data?.filter((item) => item.active) || [];
+  const selectedAddOns = data.add_on_selections.flatMap((selection) => {
+    const product = activeAddOns.find((item) => item.id === selection.product_id);
+    return product ? [{ ...selection, product }] : [];
+  });
+  const totalGrossCents = PACKAGE_CATALOG[data.package_code].grossPriceCents + selectedAddOns.reduce(
+    (sum, item) => sum + item.product.gross_price_cents * item.quantity,
+    0,
+  );
+  const money = (cents: number) => new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(cents / 100);
   const selectedPartner = partners.data?.find((item) => item.id === partnerId);
   const set = <K extends keyof DraftState>(key: K, value: DraftState[K]) => {
     setData((current) => ({ ...current, [key]: value }));
     setError("");
   };
+  function toggleAddOn(productId: string, checked: boolean) {
+    set("add_on_selections", checked
+      ? [...data.add_on_selections, { product_id: productId, quantity: 1 }]
+      : data.add_on_selections.filter((item) => item.product_id !== productId));
+  }
+  function setAddOnQuantity(productId: string, quantity: number) {
+    set("add_on_selections", data.add_on_selections.map((item) => item.product_id === productId
+      ? { ...item, quantity: Math.min(100, Math.max(1, quantity || 1)) }
+      : item));
+  }
   useEffect(() => {
     const listener = (keyboardEvent: KeyboardEvent) => {
       if (keyboardEvent.key === "Escape" && !busy && !coverBusy) onClose();
@@ -204,18 +234,18 @@ export function EventWizard({
         </ol>
         <div className="event-wizard-body">
           <div className="event-wizard-step-copy"><span>ADIM {step} / 7</span><h3>{steps[step - 1]}</h3></div>
-          {step === 1 && <div className="event-wizard-fields"><Field label="Organizasyon başlığı" value={data.title} onChange={(e) => { set("title", e.target.value); if (!data.slug) set("slug", slugify(e.target.value)); }} placeholder="Hilal & Oğuz" maxLength={160} autoFocus /><label className="form-field"><span>Organizasyon türü</span><SelectField value={data.event_type} onValueChange={(value) => set("event_type", value)}>{["Düğün", "Nişan", "Doğum günü", "Kurumsal etkinlik", "Diğer"].map((type) => <option key={type}>{type}</option>)}</SelectField></label>{user.role === "platform" && !event ? <label className="form-field"><span>İşletme</span><SelectField value={partnerId} onValueChange={setPartnerId}>{partners.data?.filter((partner) => partner.active).map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}</SelectField></label> : null}</div>}
+          {step === 1 && <div className="event-wizard-fields"><Field label="Organizasyon başlığı" value={data.title} onChange={(e) => { set("title", e.target.value); if (!data.slug) set("slug", slugify(e.target.value)); }} placeholder="Hilal & Oğuz" maxLength={160} autoFocus /><label className="form-field"><span>Organizasyon türü</span><SelectField value={data.event_type} onValueChange={(value) => set("event_type", value)}>{["Düğün", "Nişan", "Doğum günü", "Kurumsal etkinlik", "Diğer"].map((type) => <option key={type}>{type}</option>)}</SelectField></label><label className="form-field"><span>Paket</span><SelectField value={data.package_code} onValueChange={(value) => set("package_code", value as PackageCode)}><option value="plan-1">Plan 1 · Başlangıç · 2.500 TL</option><option value="plan-2">Plan 2 · Davet · 4.000 TL</option><option value="plan-3">Plan 3 · Premium Hikâye · 10.000 TL</option></SelectField></label>{user.role === "platform" && !event ? <label className="form-field"><span>İşletme</span><SelectField value={partnerId} onValueChange={setPartnerId}>{partners.data?.filter((partner) => partner.active).map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}</SelectField></label> : null}<div className="event-wizard-add-ons"><div className="event-wizard-add-on-heading"><div><strong>Ek ürünler</strong><small>Fiyatlar KDV dahildir. Seçim anındaki tutar organizasyona kaydedilir.</small></div><strong>{money(totalGrossCents)}</strong></div>{addOns.isLoading ? <p>Ek ürünler yükleniyor…</p> : null}{!addOns.isLoading && !activeAddOns.length ? <p className="admin-hint">Satışa açık ek ürün bulunmuyor.</p> : null}{activeAddOns.map((product) => { const selection = data.add_on_selections.find((item) => item.product_id === product.id); return <label className="event-wizard-add-on" key={product.id}><input type="checkbox" checked={!!selection} onChange={(e) => toggleAddOn(product.id, e.target.checked)} /><span><strong>{product.name}</strong><small>{product.description || (product.commissionable ? "Partner komisyonuna dahil" : "Partner komisyonuna dahil değil")}</small></span><b>{money(product.gross_price_cents)}</b>{selection ? <input aria-label={`${product.name} adedi`} type="number" min="1" max="100" value={selection.quantity} onChange={(e) => setAddOnQuantity(product.id, Number(e.target.value))} /> : null}</label>; })}</div></div>}
           {step === 2 && <div className="event-wizard-fields"><Field label="Organizasyon tarihi" type="date" value={data.wedding_date} onChange={(e) => set("wedding_date", e.target.value)} /><Field label="Mekân" value={data.venue} onChange={(e) => set("venue", e.target.value)} placeholder="Mekân adı, ilçe" maxLength={200} /><TextField label="Kısa açıklama" value={data.description} onChange={(e) => set("description", e.target.value)} maxLength={1200} /></div>}
           {step === 3 && <div className="event-wizard-fields"><Field label="Gelin adı" value={data.bride_name} onChange={(e) => set("bride_name", e.target.value)} /><Field label="Damat adı" value={data.groom_name} onChange={(e) => set("groom_name", e.target.value)} /><TextField label="Karşılama mesajı" value={data.hero_message} onChange={(e) => set("hero_message", e.target.value)} maxLength={1000} /><TextField label="Teşekkür mesajı" value={data.thank_you_message} onChange={(e) => set("thank_you_message", e.target.value)} maxLength={2000} /></div>}
           {step === 4 && <CoverUpload value={covers} onChange={setCovers} eventId={event?.id} partnerId={partnerId} disabled={busy} onBusyChange={setCoverBusy} />}
           {step === 5 && <div className="event-wizard-fields"><Field label="Sayfa adresi" value={data.slug} onChange={(e) => set("slug", slugify(e.target.value))} placeholder="hilal-oguz" pattern="[a-z0-9]+(-[a-z0-9]+)*" /><Field label="Logo adresi (isteğe bağlı)" value={data.logo_url} onChange={(e) => set("logo_url", e.target.value)} /><p className="event-wizard-url">shineqr.com/wedding/<strong>{data.slug || "sayfa-adresi"}</strong></p></div>}
           {step === 6 && <div className="event-wizard-fields"><Field label="Müşteri adı soyadı" value={data.customer_name} onChange={(e) => set("customer_name", e.target.value)} maxLength={100} /><Field label="Müşteri e-posta adresi" type="email" value={data.customer_email} onChange={(e) => set("customer_email", e.target.value)} maxLength={254} /><div className="event-wizard-security"><strong>Parola taslağa kaydedilmez.</strong><p>Sayfayı yenilediğinizde bu güvenli profil alanları korunur. Geçici parolayı yayınlama adımında yeniden gireceksiniz.</p></div></div>}
-          {step === 7 && <div className="event-wizard-review"><dl><div><dt>Organizasyon</dt><dd>{data.title}</dd></div><div><dt>Tarih ve mekân</dt><dd>{data.wedding_date} {data.venue ? `· ${data.venue}` : ""}</dd></div><div><dt>Sayfa</dt><dd>/wedding/{data.slug}</dd></div><div><dt>Müşteri</dt><dd>{data.customer_name} · {data.customer_email}</dd></div><div><dt>İşletme</dt><dd>{selectedPartner?.name || user.partner_name || "ShineQR Platform"}</dd></div></dl><div className="event-wizard-fields"><Field label="Geçici parola" type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={12} maxLength={256} autoComplete="new-password" /><Field label="Geçici parolayı tekrar girin" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} minLength={12} maxLength={256} autoComplete="new-password" /><p className="admin-hint">Parola yalnızca şimdi gönderilir, hashlenerek hesapta saklanır ve ilk girişte değiştirilmesi istenir.</p></div></div>}
+          {step === 7 && <div className="event-wizard-review"><dl><div><dt>Organizasyon</dt><dd>{data.title}</dd></div><div><dt>Tarih ve mekân</dt><dd>{data.wedding_date} {data.venue ? `· ${data.venue}` : ""}</dd></div><div><dt>Sayfa</dt><dd>/wedding/{data.slug}</dd></div><div><dt>Müşteri</dt><dd>{data.customer_name} · {data.customer_email}</dd></div><div><dt>İşletme</dt><dd>{selectedPartner?.name || user.partner_name || "ShineQR Platform"}</dd></div><div><dt>Paket ve ek ürünler</dt><dd>{PACKAGE_CATALOG[data.package_code].name}{selectedAddOns.length ? ` · ${selectedAddOns.map((item) => `${item.product.name} × ${item.quantity}`).join(", ")}` : " · Ek ürün yok"}<br />KDV dahil toplam: {money(totalGrossCents)}</dd></div></dl><div className="event-wizard-fields"><Field label="Geçici parola" type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={12} maxLength={256} autoComplete="new-password" /><Field label="Geçici parolayı tekrar girin" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} minLength={12} maxLength={256} autoComplete="new-password" /><p className="admin-hint">Parola yalnızca şimdi gönderilir, hashlenerek hesapta saklanır ve ilk girişte değiştirilmesi istenir.</p></div></div>}
           {error && <Notice>{error}</Notice>}
         </div>
         <footer className="event-wizard-footer">
           <button type="button" className="admin-button" onClick={saveAndClose} disabled={busy || coverBusy}>{busy ? "Kaydediliyor…" : "Taslak olarak kaydet"}</button>
-          <div><button type="button" className="admin-button" onClick={() => setStep((value) => Math.max(1, value - 1))} disabled={step === 1 || busy}><ArrowLeft size={15} /> Geri</button>{step < 7 ? <button type="button" className="admin-button primary" onClick={next} disabled={busy || coverBusy || partners.isLoading}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : null} Kaydet ve devam et <ArrowRight size={15} /></button> : <button type="button" className="admin-button primary" onClick={publish} disabled={busy}>{busy ? "Yayınlanıyor…" : "Organizasyonu yayınla"}</button>}</div>
+          <div><button type="button" className="admin-button" onClick={() => setStep((value) => Math.max(1, value - 1))} disabled={step === 1 || busy}><ArrowLeft size={15} /> Geri</button>{step < 7 ? <button type="button" className="admin-button primary" onClick={next} disabled={busy || coverBusy || partners.isLoading}>{busy ? <LoaderCircle size={16} className="animate-spin" /> : null} Kaydet ve devam et <ArrowRight size={15} /></button> : <button type="button" className="admin-button primary" onClick={publish} disabled={busy}>{busy ? (user.role === "platform" ? "Yayınlanıyor…" : "Onaya gönderiliyor…") : (user.role === "platform" ? "Organizasyonu yayınla" : "Süper admin onayına gönder")}</button>}</div>
         </footer>
       </section>
     </div>

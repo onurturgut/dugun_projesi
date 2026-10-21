@@ -22,19 +22,46 @@ export function invalidateSessionCache(token?: string) {
 }
 
 export async function session() {
-  const token = (await cookies()).get("wm_session")?.value;
+  const jar = await cookies();
+  const token = jar.get("wm_session")?.value;
   if (!token) return null;
+  const previewToken = jar.get("wm_preview")?.value;
   const tokenHash = hash(token);
-  const cached = sessionCache.get(tokenHash);
+  const cacheKey = previewToken ? `${tokenHash}:${hash(previewToken)}` : tokenHash;
+  const cached = sessionCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.account;
-  if (cached) sessionCache.delete(tokenHash);
+  if (cached) sessionCache.delete(cacheKey);
   const database = await db();
   const current = await database
     .collection("sessions")
-    .findOne({ token: tokenHash, expiresAt: { $gt: new Date() } });
+    .findOne({
+      token: tokenHash,
+      expiresAt: { $gt: new Date() },
+      $or: [
+        { idleExpiresAt: { $gt: new Date() } },
+        { idleExpiresAt: { $exists: false } },
+      ],
+    });
   if (!current) return null;
+  const now = new Date();
+  const idleExpiresAt = new Date(now.getTime() + 30 * 60_000);
+  if (!current.lastSeenAt || now.getTime() - new Date(current.lastSeenAt).getTime() >= 5 * 60_000) {
+    await database.collection("sessions").updateOne(
+      { _id: current._id, expiresAt: { $gt: now } },
+      { $set: { lastSeenAt: now, idleExpiresAt } },
+    );
+  }
+  const preview = previewToken
+    ? await database.collection("sessions").findOne({
+        token: hash(previewToken),
+        preview: true,
+        actorUserId: current.userId,
+        expiresAt: { $gt: new Date() },
+      })
+    : null;
+  const effectiveUserId = preview?.targetUserId || current.userId;
   const user = await database.collection<Account>("users").findOne(
-    { id: current.userId, disabled: { $ne: true } },
+    { id: effectiveUserId, disabled: { $ne: true } },
     {
       projection: {
         _id: 0,
@@ -48,6 +75,9 @@ export async function session() {
         mfa_enabled: 1,
         theme: 1,
         media_permissions: 1,
+        staff_role: 1,
+        permission_overrides: 1,
+        assigned_event_ids: 1,
       },
     },
   );
@@ -63,6 +93,15 @@ export async function session() {
     partner_name: partner?.name || "ShineQR Platform",
     partner_logo_url: partner?.logo_url || "",
     theme: user.theme || "light",
+    ...(preview
+      ? {
+          preview_read_only: true,
+          impersonated_by: {
+            id: current.userId,
+            display_name: String(preview.actorDisplayName || "Platform yöneticisi"),
+          },
+        }
+      : {}),
   };
   if (sessionCache.size >= SESSION_CACHE_MAX_ENTRIES) {
     const now = Date.now();
@@ -71,11 +110,12 @@ export async function session() {
     }
     if (sessionCache.size >= SESSION_CACHE_MAX_ENTRIES) sessionCache.clear();
   }
-  sessionCache.set(tokenHash, {
+  sessionCache.set(cacheKey, {
     account,
     expiresAt: Math.min(
       Date.now() + SESSION_CACHE_TTL_MS,
       new Date(current.expiresAt).getTime(),
+      new Date(current.idleExpiresAt || idleExpiresAt).getTime(),
     ),
   });
   return account;

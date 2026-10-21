@@ -548,7 +548,7 @@
 .themeProductImage {
   position: relative;
   display: block;
-  aspect-ratio: 4/5;
+  aspect-ratio: 287/447;
   overflow: hidden;
   border: 8px solid #fffdf9;
   border-radius: 7px;
@@ -556,7 +556,7 @@
   box-shadow: inset -5px 0 0 #ddd1c2;
 }
 .themeProductImage img {
-  object-fit: cover;
+  object-fit: contain;
 }
 .themeProductMeta {
   display: block;
@@ -576,14 +576,14 @@
 }
 .themePhone {
   position: relative;
-  aspect-ratio: 9/18;
+  aspect-ratio: 247/511;
   width: min(100%, 280px);
   justify-self: center;
-  padding: 10px;
-  border: 2px solid #a88b65;
-  border-radius: 42px;
-  background: #171411;
-  box-shadow: 0 30px 65px rgb(30 20 20/0.2), inset 0 0 0 2px #3d3834;
+  padding: 0;
+  border: 0;
+  border-radius: 38px;
+  background: transparent;
+  box-shadow: 0 30px 65px rgb(30 20 20/0.2);
   transform: perspective(1000px) rotateY(-6deg) translateY(8px);
   transition: transform 0.45s ease;
 }
@@ -591,25 +591,18 @@
   transform: perspective(1000px) rotateY(0) translateY(-8px);
 }
 .phoneSpeaker {
-  position: absolute;
-  z-index: 2;
-  top: 18px;
-  left: 50%;
-  width: 30%;
-  height: 21px;
-  border-radius: 999px;
-  background: #080706;
-  transform: translateX(-50%);
+  display: none;
 }
 .themePhoneScreen {
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  border-radius: 32px;
+  border-radius: 38px;
+  background: transparent !important;
 }
 .themePhoneScreen img {
-  object-fit: cover;
+  object-fit: contain;
 }
 .themeStageCopy h3 {
   margin: 13px 0 16px;
@@ -1286,6 +1279,125 @@
   color: var(--ink);
   font: inherit;
 }
+.contactForm select {
+  background-color: rgb(255 255 255 / 0.78);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  backdrop-filter: blur(14px) saturate(125%);
+}
+.contactForm select option {
+  background: #fffaf4;
+  color: #2d221d;
+}
+:global(html[data-marketing-theme="dark"]) .contactForm select {
+  border-color: rgb(255 255 255 / 0.16);
+  background-color: rgb(24 22 21 / 0.78);
+  color: #f5eee8;
+}
+:global(html[data-marketing-theme="dark"]) .contactForm select option {
+  background: #1d1a19;
+  color: #f5eee8;
+}
+
+/* Fluid media and narrow-screen safeguards shared by marketing pages. */
+.site,
+.site main,
+.site section,
+.site article,
+.site div {
+  min-width: 0;
+}
+.site img,
+.site video,
+.site canvas {
+  max-width: 100%;
+}
+
+@media (min-width: 761px) and (max-width: 1050px) {
+  .contactLayout {
+    grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr);
+  }
+  .contactForm {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 760px) {
+  .contactLayout,
+  .contactForm {
+    grid-template-columns: 1fr;
+  }
+  .contactForm,
+  .contactAside {
+    padding: 22px;
+  }
+  .contactForm select,
+  .contactForm input,
+  .contactForm textarea {
+    min-height: 48px;
+    font-size: 16px;
+  }
+  .fullField {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 420px) {
+  .contactForm,
+  .contactAside {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .header {
+    gap: 12px;
+    padding-inline: 14px;
+  }
+  .logo img {
+    width: 92px;
+  }
+  .headerCta {
+    display: none;
+  }
+  .themeToggle {
+    width: 54px;
+  }
+  .premiumHero .heroCopy,
+  .heroCopy {
+    width: 100%;
+    max-width: 100%;
+    padding-inline: 20px;
+  }
+  .premiumHero h1,
+  .hero h1 {
+    max-width: 100%;
+    font-size: clamp(50px, 15.4vw, 64px);
+    line-height: .94;
+    letter-spacing: -.055em;
+    overflow-wrap: normal;
+  }
+  .heroActions {
+    gap: 10px;
+  }
+  .heroActions .primary,
+  .heroActions .ghost {
+    flex: 1 1 145px;
+    padding-inline: 13px;
+  }
+  .perks {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+  }
+  .perks span {
+    min-width: 0;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+  .perks span:last-child {
+    grid-column: 1 / -1;
+  }
+}
 .contactForm textarea {
   resize: vertical;
 }
@@ -1766,5 +1878,73 @@
     scroll-behavior: auto !important;
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/* Final narrow viewport constraints: keep intrinsic hero text from widening the page. */
+@media (max-width: 520px) {
+  .site {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+  .header {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 10px;
+    width: 100%;
+    padding-inline: 14px;
+  }
+  .nav,
+  .headerCta {
+    display: none;
+  }
+  .mobileNav {
+    grid-column: 3;
+  }
+  .themeToggle {
+    grid-column: 4;
+    width: 54px;
+  }
+  .premiumHero,
+  .hero,
+  .premiumHero .heroCopy,
+  .heroCopy {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .premiumHero .heroCopy,
+  .heroCopy {
+    padding-inline: 20px;
+    overflow: hidden;
+  }
+  .premiumHero h1,
+  .hero h1 {
+    width: 100%;
+    max-width: 100%;
+    font-size: clamp(48px, 13.8vw, 56px);
+    line-height: .96;
+    letter-spacing: -.05em;
+  }
+  .heroActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .heroActions .primary,
+  .heroActions .ghost {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 8px;
+    white-space: nowrap;
+  }
+  .perks {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .perks span:last-child {
+    grid-column: 1 / -1;
   }
 }

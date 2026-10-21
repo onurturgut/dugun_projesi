@@ -10,3 +10,7 @@ node_modules/
 .env*
 !.env.example
 *.tsbuildinfo
+
+# Local browser profiles and responsive screenshots
+tmp/chrome-profile-*/
+tmp/responsive/

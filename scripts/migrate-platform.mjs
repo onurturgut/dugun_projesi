@@ -1,3 +1,4 @@
+import "./configure-dns.mjs";
 import { MongoClient } from "mongodb";
 import { rebuildMediaCounters } from "./media-counters.mjs";
 const { MONGODB_URI, ADMIN_EMAIL } = process.env;
@@ -26,6 +27,7 @@ try {
     {
       $set: {
         role: "platform",
+        staff_role: "platform_admin",
         partner_id: null,
         disabled: false,
         must_change_password: false,
@@ -35,6 +37,20 @@ try {
   );
   if (!admin.matchedCount)
     throw new Error("Önce npm run setup ile yönetici hesabını oluşturun.");
+  await Promise.all([
+    db.collection("users").updateMany(
+      { role: "platform", staff_role: { $exists: false } },
+      { $set: { staff_role: "platform_admin" } },
+    ),
+    db.collection("users").updateMany(
+      { role: "partner", staff_role: { $exists: false } },
+      { $set: { staff_role: "partner_owner" } },
+    ),
+    db.collection("users").updateMany(
+      { role: "owner", staff_role: { $exists: false } },
+      { $set: { staff_role: "organization_owner" } },
+    ),
+  ]);
   for (const w of await db
     .collection("weddings")
     .find({ partner_id: { $exists: false } })
@@ -86,6 +102,10 @@ try {
       },
     },
   );
+  await db.collection("weddings").updateMany(
+    { reserved_upload_bytes: { $exists: false } },
+    { $set: { reserved_upload_bytes: 0 } },
+  );
   // Tickets must remain until orphaned R2 objects are cleaned. TTL alone would lose their keys.
   for (const index of await db
     .collection("upload_tickets")
@@ -101,6 +121,21 @@ try {
     db.collection("weddings").createIndex({ expires_at: 1 }),
     db.collection("design_snapshots").createIndex({ id: 1 }, { unique: true }),
     db.collection("design_snapshots").createIndex({ wedding_id: 1, revision: -1 }, { unique: true }),
+    db.collection("organization_approval_requests").createIndex({ wedding_id: 1 }, { unique: true }),
+    db.collection("organization_approval_requests").createIndex({ partner_id: 1, submitted_at: -1 }),
+    db.collection("sales").createIndex({ id: 1 }, { unique: true }),
+    db.collection("sales").createIndex({ idempotency_key: 1 }, { unique: true }),
+    db.collection("sales").createIndex({ partner_id: 1, period: 1, occurred_at: -1 }),
+    db.collection("monthly_sales_counters").createIndex({ partner_id: 1, period: 1 }, { unique: true }),
+    db.collection("upload_tickets").createIndex({ weddingId: 1, reservation_released: 1, expiresAt: 1 }),
+    db.collection("commission_ledger").createIndex({ id: 1 }, { unique: true }),
+    db.collection("commission_ledger").createIndex({ partner_id: 1, period: 1, created_at: -1 }),
+    db.collection("add_on_products").createIndex({ id: 1 }, { unique: true }),
+    db.collection("add_on_products").createIndex({ active: 1, name: 1 }),
+    db.collection("agent_reports").createIndex({ id: 1 }, { unique: true }),
+    db.collection("agent_reports").createIndex({ run_id: 1, agent_name: 1 }, { unique: true }),
+    db.collection("agent_reports").createIndex({ created_at: -1 }),
+    db.collection("agent_reports").createIndex({ review_status: 1, status: 1, created_at: -1 }),
     db.collection("media").createIndex({ purge_at: 1 }),
     db.collection("media").createIndex({ id: 1 }, { unique: true }),
     db

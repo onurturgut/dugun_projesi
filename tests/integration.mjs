@@ -1,12 +1,26 @@
+import "../scripts/configure-dns.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { randomUUID, randomBytes, scryptSync } from "node:crypto";
 import { MongoClient } from "mongodb";
 import { once } from "node:events";
+import dns from "node:dns";
+async function directMongoUri(uri) {
+  if (!uri.startsWith("mongodb+srv://")) return uri;
+  const parsed = new URL(uri);
+  const records = await dns.promises.resolveSrv(`_mongodb._tcp.${parsed.hostname}`);
+  const txt = (await dns.promises.resolveTxt(parsed.hostname)).flat().join("");
+  const options = new URLSearchParams(txt);
+  for (const [key, value] of parsed.searchParams) options.set(key, value);
+  options.set("tls", "true");
+  const auth = `${parsed.username}${parsed.password ? `:${parsed.password}` : ""}@`;
+  return `mongodb://${auth}${records.map((record) => `${record.name}:${record.port}`).join(",")}${parsed.pathname}?${options}`;
+}
 const dbName = `test_platform_${Date.now()}`;
+const mongoUri = await directMongoUri(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017");
 const mongo = new MongoClient(
-  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017",
+  mongoUri,
 );
 const port = Number(process.env.TEST_PORT || 3100),
   base = `http://localhost:${port}`;
@@ -142,6 +156,7 @@ try {
       env: {
         ...process.env,
         NODE_ENV: "development",
+        MONGODB_URI: mongoUri,
         MONGODB_DB: dbName,
         NEXT_DIST_DIR: ".next-test",
         R2_ACCOUNT_ID: "test",
@@ -230,9 +245,49 @@ try {
     logoUrl,
   );
   assert.equal((await fetch(base + logoUrl)).status, 200);
+  const temporaryPartner = await db.collection("users").findOne({ email: "partner-a" });
+  const temporaryCookie = await login("partner-a");
+  await call("/auth/preferences", "PATCH", { theme: "dark" }, temporaryCookie);
+  await call("/admin/weddings", "GET", undefined, temporaryCookie, 403);
+  const previewCookie = (await call(`/admin/accounts/${temporaryPartner.id}/preview`, "POST", undefined, platform)).cookie;
+  const previewSession = `${platform}; ${previewCookie}`;
+  assert.equal((await call("/auth/me", "GET", undefined, previewSession)).data.must_change_password, true);
+  await call("/admin/weddings", "GET", undefined, previewSession);
+  await call("/auth/preferences", "PATCH", { theme: "dark" }, previewSession, 403);
+  await call("/auth/preview-stop", "POST", undefined, previewSession);
+  const previewStopAudit = await db.collection("audit_logs").findOne({ action: "account.preview_stopped" });
+  assert.equal(previewStopAudit.actor_role, "platform");
+  assert.equal(previewStopAudit.target.target_user_id, temporaryPartner.id);
   const a = await activate("partner-a"),
     b = await activate("partner-b");
   await call("/admin/partners", "GET", undefined, a, 403);
+  const agentRunId = randomUUID();
+  const agentReportInput = {
+    run_id: agentRunId,
+    agent_name: "code-reviewer",
+    task_title: "Entegrasyon raporu",
+    status: "needs-review",
+    scope: ["tests/integration.mjs"],
+    findings: [{ severity: "info", title: "Kontrol tamamlandı", evidence: "API sözleşmesi doğrulandı." }],
+    verification: [{ check: "integration", result: "passed", evidence: "Test ortamı" }],
+    risks: ["İnsan incelemesi gerekli."],
+    recommendation: "approve",
+    handoff: { role: "human-owner", action: "Raporu inceleyin." },
+    change_ref: "stage-12",
+  };
+  await call("/admin/agent-reports", "POST", agentReportInput, a, 403);
+  const agentReport = (await call("/admin/agent-reports", "POST", agentReportInput, platform, 201)).data;
+  assert.equal(agentReport.review_status, "pending");
+  assert.equal((await call("/admin/agent-reports", "POST", { ...agentReportInput, task_title: "Tekrarlanan istek" }, platform)).data.id, agentReport.id);
+  assert.equal(await db.collection("agent_reports").countDocuments({ run_id: agentRunId, agent_name: "code-reviewer" }), 1);
+  const reportListing = (await call(`/admin/agent-reports?agent_name=code-reviewer&search=stage-12`, "GET", undefined, platform)).data;
+  assert.equal(reportListing.total, 1);
+  assert.equal(reportListing.summary.pending, 1);
+  await call(`/admin/agent-reports/${agentReport.id}`, "GET", undefined, a, 403);
+  const reviewedReport = (await call(`/admin/agent-reports/${agentReport.id}/review`, "POST", { decision: "approved", note: "İnsan incelemesi tamamlandı." }, platform)).data;
+  assert.equal(reviewedReport.review_status, "approved");
+  assert.equal(reviewedReport.reviews.length, 1);
+  assert.equal((await db.collection("agent_reports").findOne({ id: agentReport.id })).task_title, "Entegrasyon raporu");
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Istanbul",
     year: "numeric",
@@ -250,26 +305,46 @@ try {
     hero_message: "Hoş geldiniz",
     thank_you_message: "Teşekkürler",
   });
-  const eventA = (
-    await call(
-      "/admin/weddings",
-      "POST",
-      { ...input("event-a"), partner_id: partnerB },
-      a,
-      201,
-    )
-  ).data;
+  async function approvedEvent(slug, partnerCookie, ownerEmail, packageCode = "plan-2") {
+    const draft = (await call("/admin/weddings/draft", "POST", {
+      ...input(slug), wizard_step: 7, customer_name: `${slug} müşterisi`,
+      customer_email: ownerEmail, package_code: packageCode,
+    }, partnerCookie, 201)).data;
+    await call(`/admin/weddings/${draft.id}/publish`, "POST", { password: initial }, partnerCookie, 202);
+    assert.equal((await db.collection("weddings").findOne({ id: draft.id })).approval_status, "submitted");
+    await call("/admin/weddings/draft", "POST", { id: draft.id, title: "Onay beklerken değişmez" }, partnerCookie, 409);
+    await call(`/admin/weddings/${draft.id}/approve`, "POST", undefined, platform);
+    return (await call(`/admin/weddings/${draft.id}`, "GET", undefined, platform)).data;
+  }
+  await call("/admin/weddings", "POST", { ...input("legacy-bypass"), partner_id: partnerB }, a, 403);
+  const eventA = await approvedEvent("event-a", a, "owner-a");
   assert.equal(
     eventA.partner_id,
     partnerA,
     "Partner must not choose another tenant",
   );
-  const eventB = (
-    await call("/admin/weddings", "POST", input("event-b"), b, 201)
-  ).data;
-  const eventA2 = (
-    await call("/admin/weddings", "POST", input("event-a-2"), a, 201)
-  ).data;
+  const eventB = await approvedEvent("event-b", b, "owner-b");
+  const eventA2 = await approvedEvent("event-a-2", a, "owner-a2", "plan-1");
+  const recordedSale = (await call("/admin/sales", "POST", {
+    wedding_id: eventA.id, idempotency_key: `integration-${eventA.id}`, vat_rate_bps: 2000,
+  }, platform, 201)).data;
+  assert.equal(recordedSale.net_cents, 333_333);
+  assert.equal(recordedSale.gross_cents, 400_000);
+  assert.equal(recordedSale.commission_cents, 100_000);
+  assert.equal(recordedSale.qualifying_ordinal, 1);
+  assert.equal((await call("/admin/sales", "POST", {
+    wedding_id: eventA.id, idempotency_key: `integration-${eventA.id}`, vat_rate_bps: 2000,
+  }, platform)).data.id, recordedSale.id, "idempotent sale must return the original record");
+  assert.equal((await call("/admin/sales", "GET", undefined, a)).data.items.length, 1);
+  await call(`/admin/weddings/${eventA.id}/storage-limit`, "PATCH", { additional_gib: 5 }, a, 403);
+  const capacity = (await call(`/admin/weddings/${eventA.id}/storage-limit`, "PATCH", { additional_gib: 5 }, platform)).data;
+  assert.equal(capacity.effective_limit_bytes, 105 * 1024 ** 3);
+  assert.equal((await db.collection("weddings").findOne({ id: eventA.id })).storage_limit_override_bytes, 105 * 1024 ** 3);
+  await call(`/admin/weddings/${eventA.id}/storage-limit`, "PATCH", { additional_gib: 0 }, platform);
+  assert.equal((await db.collection("weddings").findOne({ id: eventA.id })).storage_limit_override_bytes, undefined);
+  await call("/admin/sales", "POST", {
+    wedding_id: eventA.id, idempotency_key: `partner-cannot-${eventA.id}`, vat_rate_bps: 2000,
+  }, a, 403);
   const draft = (
     await call("/admin/weddings/draft", "POST", {
       title: "Güvenli taslak",
@@ -302,15 +377,8 @@ try {
   await call(
     `/admin/weddings/${eventA.id}/owner`,
     "POST",
-    { username: "owner-a", display_name: "Çift A", password: initial },
-    a,
-    201,
-  );
-  await call(
-    `/admin/weddings/${eventA.id}/owner`,
-    "POST",
     { username: "owner-a2", display_name: "Duplicate", password: initial },
-    a,
+    platform,
     409,
   );
   let owner = await activate("owner-a");
@@ -381,6 +449,21 @@ try {
     (await call("/weddings/slug/event-a")).data.design.theme,
     "navy",
   );
+  await call(`/admin/weddings/${eventA.id}/design/approve`, "POST", undefined, owner);
+  await call(`/admin/weddings/${eventA.id}/design`, "PUT", { ...design, theme: "emerald" }, owner, 409);
+  let revision = (await call(`/admin/weddings/${eventA.id}/design/request-revision`, "POST", { reason: "Renk paleti değiştirilsin." }, owner)).data;
+  assert.equal(revision.design_revisions_used, 1);
+  assert.equal(revision.design_revision_limit, 2);
+  await call(`/admin/weddings/${eventA.id}/design`, "PUT", { ...design, theme: "emerald" }, owner);
+  await call(`/admin/weddings/${eventA.id}/design/approve`, "POST", undefined, owner);
+  revision = (await call(`/admin/weddings/${eventA.id}/design/request-revision`, "POST", { reason: "Son tipografi düzenlemesi yapılsın." }, owner)).data;
+  assert.equal(revision.design_revisions_used, 2);
+  await call(`/admin/weddings/${eventA.id}/design`, "PUT", { ...design, theme: "burgundy" }, owner);
+  await call(`/admin/weddings/${eventA.id}/design/approve`, "POST", undefined, owner);
+  await call(`/admin/weddings/${eventA.id}/design/request-revision`, "POST", { reason: "Paket sınırını aşan talep." }, owner, 409);
+  const revisionEvent = (await call(`/admin/weddings/${eventA.id}`, "GET", undefined, owner)).data;
+  assert.equal(revisionEvent.design_status, "approved_for_print");
+  assert.equal(revisionEvent.design_revisions_used, 2);
   const stableQr = await fetch(`${base}/q/${eventA.id}`, { redirect: "manual" });
   assert.equal(stableQr.status, 307);
   assert.equal(new URL(stableQr.headers.get("location")).pathname, "/wedding/event-a");
@@ -404,9 +487,9 @@ try {
   await call(
     `/admin/weddings/${eventA.id}`,
     "PATCH",
-    { title: "Forbidden" },
+    { title: "Müşteri tarafından güncellendi" },
     owner,
-    403,
+    200,
   );
   const publicData = (await call("/weddings/slug/event-a")).data;
   assert.equal(publicData.can_upload, true);
@@ -428,7 +511,26 @@ try {
     guest_name: "Misafir",
     guest_message: "Mutluluklar!",
   };
+  await call("/uploads/sign", "POST", { ...upload, size_bytes: 25 * 1024 ** 2 + 1 }, undefined, 413);
+  await call("/uploads/sign", "POST", {
+    ...upload,
+    file_name: "test.mp4",
+    mime_type: "video/mp4",
+  }, undefined, 400);
+  await db.collection("weddings").updateOne(
+    { id: eventA2.id },
+    { $set: { media_bytes: 3 * 1024 ** 3 - 10, trashed_bytes: 0, reserved_upload_bytes: 0 } },
+  );
+  await call("/uploads/sign", "POST", { ...upload, weddingId: eventA2.id }, undefined, 413);
+  await db.collection("weddings").updateOne(
+    { id: eventA2.id },
+    { $set: { media_bytes: 0 } },
+  );
   const ticket = (await call("/uploads/sign", "POST", upload)).data;
+  assert.equal(
+    (await db.collection("weddings").findOne({ id: eventA.id })).reserved_upload_bytes,
+    payload.length,
+  );
   assert.equal(
     (
       await fetch(ticket.url, {
@@ -441,6 +543,10 @@ try {
   );
   await call("/uploads/complete", "POST", { ticket: ticket.ticket });
   await call("/uploads/complete", "POST", { ticket: ticket.ticket });
+  assert.equal(
+    (await db.collection("weddings").findOne({ id: eventA.id })).reserved_upload_bytes,
+    0,
+  );
   const previewRun = await fetch(base + "/api/maintenance", {
     method: "POST",
     headers: { authorization: `Bearer ${secret}` },
@@ -620,6 +726,10 @@ try {
     { ticket: wrong.ticket },
     undefined,
     400,
+  );
+  assert.equal(
+    (await db.collection("weddings").findOne({ id: eventA.id })).reserved_upload_bytes,
+    0,
   );
   await call(
     `/admin/weddings/${eventA.id}/media`,

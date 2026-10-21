@@ -52,21 +52,51 @@ export const features = [
   ],
 ] as const;
 
+const weddingThemeImages = [
+  "/wedding-designs/01_Ivory_Editorial.png",
+  "/wedding-designs/02_Velvet_Flow.png",
+  "/wedding-designs/03_Botanical.png",
+  "/wedding-designs/04_Modern_Arch.png",
+  "/wedding-designs/05_Aurora.png",
+  "/wedding-designs/06_Champagne.png",
+  "/wedding-designs/07_Retro_Romance.png",
+  "/wedding-designs/08_Mediterranean.png",
+  "/wedding-designs/09_Cinematic.png",
+  "/wedding-designs/10_Timeless.png",
+] as const;
+
+const qrThemeImages = [
+  "/qr-templates/the-editorial/01_Krem_On_Yuz.webp",
+  "/qr-templates/velvet-flow/01_Bordo_On_Yuz.webp",
+  "/qr-templates/botanical/Botanical_Krem_On_Yuz.webp",
+  "/qr-templates/modern-arch/01_Krem_On_Yuz.webp",
+  "/qr-templates/aurora/Aurora_01_Rose_On_Yuz.webp",
+  "/qr-templates/the-editorial/01_Krem_On_Yuz.webp",
+  "/qr-templates/aurora/Aurora_01_Rose_On_Yuz.webp",
+  "/qr-templates/aurora/Aurora_02_Mavi_On_Yuz.webp",
+  "/qr-templates/modern-arch/05_Siyah_On_Yuz.webp",
+  "/qr-templates/the-editorial/01_Krem_On_Yuz.webp",
+] as const;
+
+const collectionNames = [
+  "Ivory Editorial",
+  "Velvet Flow",
+  "Botanical",
+  "Modern Arch",
+  "Aurora",
+  "Champagne",
+  "Retro Romance",
+  "Mediterranean",
+  "Cinematic",
+  "Timeless",
+] as const;
+
 export const themes = cardPresets.map((preset, index) => ({
   ...preset,
+  image: qrThemeImages[index],
+  weddingImage: weddingThemeImages[index],
   category: ["Düğün", "Nişan", "Kurumsal", "Mezuniyet"][index % 4],
-  displayName: [
-    "Burgundy Elegance",
-    "Floral Champagne",
-    "Golden Memories",
-    "Modern Botanical",
-    "Midnight Luxury",
-    "Romantic Ivory",
-    "Blush Garden",
-    "Minimal Sepia",
-    "Burgundy Glow",
-    "Ivory Floral",
-  ][index],
+  displayName: collectionNames[index],
 }));
 
 export const useCases = [

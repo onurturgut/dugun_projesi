@@ -6,6 +6,7 @@ import {
   uploadsOpen,
   trashDeadline,
   expired,
+  weddingScope,
 } from "../src/lib/policy";
 import type { Account, Wedding } from "../src/lib/models";
 import { eventDraftInput, eventPublishInput } from "../src/lib/server/validation";
@@ -28,6 +29,11 @@ test("calendar-month retention clamps month end and uses Istanbul midnight", () 
   );
   assert.throws(() => deadlines("2026-02-30"));
 });
+test("Plan 1 can close at event-day midnight and retain for one month", () => {
+  const result = deadlines("2026-10-19", 1, 1);
+  assert.equal(result.uploads_close_at, "2026-10-19T21:00:00.000Z");
+  assert.equal(result.expires_at, "2026-11-18T21:00:00.000Z");
+});
 test("tenant and owner isolation", () => {
   const user = (role: Account["role"], partner_id: string, id = "x") =>
     ({ role, partner_id, id, disabled: false }) as Account;
@@ -36,6 +42,19 @@ test("tenant and owner isolation", () => {
   assert.equal(canAccess(user("owner", "a", "owner-a"), event), true);
   assert.equal(canAccess(user("owner", "a", "other"), event), false);
   assert.equal(canAccess(user("platform", ""), event), true);
+});
+test("partner staff can access only explicitly assigned events", () => {
+  const staff = {
+    id: "sales-a",
+    role: "partner",
+    staff_role: "partner_sales",
+    partner_id: "a",
+    assigned_event_ids: ["one"],
+    disabled: false,
+  } as Account;
+  assert.equal(canAccess(staff, event), true);
+  assert.equal(canAccess({ ...staff, assigned_event_ids: [] }, event), false);
+  assert.deepEqual(weddingScope(staff), { partner_id: "a", id: { $in: ["one"] } });
 });
 test("upload closing is enforced at exact deadline", () => {
   const end = Date.parse(event.uploads_close_at!);

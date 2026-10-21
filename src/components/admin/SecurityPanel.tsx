@@ -77,13 +77,19 @@ export function SecurityPanel() {
               <button
                 key={theme}
                 type="button"
+                disabled={me.data?.preview_read_only}
                 aria-pressed={(me.data?.theme || "dark") === theme}
                 onClick={async () => {
-                  await api("/auth/preferences", {
-                    method: "PATCH",
-                    body: JSON.stringify({ theme }),
-                  });
-                  await qc.invalidateQueries({ queryKey: ["me"] });
+                  try {
+                    setError("");
+                    await api("/auth/preferences", {
+                      method: "PATCH",
+                      body: JSON.stringify({ theme }),
+                    });
+                    await qc.invalidateQueries({ queryKey: ["me"] });
+                  } catch (cause) {
+                    setError((cause as Error).message);
+                  }
                 }}
               >
                 {theme === "light"
@@ -107,6 +113,7 @@ export function SecurityPanel() {
           {!me.data.mfa_enabled && !secret ? (
             <button
               className="btn-secondary mt-3"
+              disabled={me.data?.preview_read_only}
               onClick={async () => {
                 try {
                   setError("");
@@ -140,10 +147,11 @@ export function SecurityPanel() {
                 placeholder="6 haneli kod"
                 aria-label="Doğrulama kodu"
                 className="min-h-12 w-full rounded-xl border border-border bg-surface px-4"
+                disabled={me.data?.preview_read_only}
               />
               <button
                 className="btn-secondary"
-                disabled={code.length !== 6}
+                disabled={code.length !== 6 || me.data?.preview_read_only}
                 onClick={async () => {
                   try {
                     setError("");
@@ -185,11 +193,17 @@ export function SecurityPanel() {
               ) : (
                 <button
                   className="btn-secondary mt-2"
+                  disabled={me.data?.preview_read_only}
                   onClick={async () => {
-                    await api(`/auth/sessions/${session.id}`, {
-                      method: "DELETE",
-                    });
-                    await qc.invalidateQueries({ queryKey: ["sessions"] });
+                    try {
+                      setError("");
+                      await api(`/auth/sessions/${session.id}`, {
+                        method: "DELETE",
+                      });
+                      await qc.invalidateQueries({ queryKey: ["sessions"] });
+                    } catch (cause) {
+                      setError((cause as Error).message);
+                    }
                   }}
                 >
                   Oturumu kapat

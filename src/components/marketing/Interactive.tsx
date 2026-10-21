@@ -7,12 +7,16 @@ import { faqs, themes } from "./data";
 import styles from "./marketing.module.css";
 
 const homeCategories = [
-  "Düğün",
-  "Nişan",
-  "Mezuniyet",
-  "Doğum Günü",
-  "Kurumsal",
-  "Özel Tasarım",
+  "Ivory Editorial",
+  "Velvet Flow",
+  "Botanical",
+  "Modern Arch",
+  "Aurora",
+  "Champagne",
+  "Retro Romance",
+  "Mediterranean",
+  "Cinematic",
+  "Timeless",
 ] as const;
 
 export function HomeThemeShowcase() {
@@ -54,7 +58,12 @@ export function HomeThemeShowcase() {
         <div className={styles.themePhone} aria-label={`${theme.displayName} mobil görünümü`}>
           <span className={styles.phoneSpeaker} aria-hidden="true" />
           <div className={styles.themePhoneScreen} style={{ backgroundColor: theme.primary }}>
-            <Image src={theme.image} alt="" fill sizes="300px" />
+            <Image
+              src={theme.weddingImage}
+              alt={`${theme.displayName} Wedding tasarımı`}
+              fill
+              sizes="300px"
+            />
           </div>
         </div>
         <div className={styles.themeStageCopy}>

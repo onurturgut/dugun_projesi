@@ -36,7 +36,8 @@ test("all QR reference designs are available as valid presets", () => {
   assert.equal(cardPresets.length, 10);
   assert.equal(new Set(cardPresets.map((preset) => preset.id)).size, 10);
   for (const preset of cardPresets) {
-    assert.ok(preset.image.startsWith("/qrtasarım/"));
+    assert.ok(preset.image.startsWith("/qr-templates/"));
+    assert.ok(preset.image.endsWith("_On_Yuz.webp"));
     assert.ok(preset.template in cardTemplates);
     assert.ok(themeIds.includes(preset.theme));
     assert.match(preset.primary, /^#[0-9A-F]{6}$/i);

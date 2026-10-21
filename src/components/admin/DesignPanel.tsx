@@ -75,6 +75,11 @@ export function DesignPanel({
   const future = useRef<WeddingDesign[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [workflow, setWorkflow] = useState({
+    status: event.design_status || "draft",
+    used: event.design_revisions_used || 0,
+    limit: event.package_snapshot?.revisionLimit || 1,
+  });
   const [url, setUrl] = useState("");
   const [replay, setReplay] = useState(0);
   const [preview, setPreview] = useState<"page" | "opening" | "card">(
@@ -253,7 +258,7 @@ export function DesignPanel({
     setBusy(true);
     setError("");
     try {
-      const response = await api<{ design: WeddingDesign; snapshot_id: string; revision: number }>(
+      const response = await api<{ design: WeddingDesign; snapshot_id: string; revision: number; design_status: typeof workflow.status; design_revisions_used: number }>(
         `/admin/weddings/${event.id}/design`,
         { method: "PUT", body: JSON.stringify(result.data) },
       );
@@ -261,8 +266,9 @@ export function DesignPanel({
       rawSetDesign(response.design);
       past.current = [];
       future.current = [];
+      setWorkflow((current) => ({ ...current, status: response.design_status, used: response.design_revisions_used }));
       qc.setQueryData<Wedding>(["admin-wedding", event.id], (current) =>
-        current ? { ...current, design: response.design } : current,
+        current ? { ...current, design: response.design, design_status: response.design_status, design_revisions_used: response.design_revisions_used } : current,
       );
       await qc.invalidateQueries({ queryKey: ["wedding", event.slug] });
       toast.success(`Tasarım kaydedildi · sürüm ${response.revision}`);
@@ -271,6 +277,27 @@ export function DesignPanel({
     } finally {
       setBusy(false);
     }
+  }
+  async function approveForPrint() {
+    if (dirty) return setError("Baskı onayından önce değişiklikleri kaydedin.");
+    setBusy(true); setError("");
+    try {
+      const response = await api<{ design_status: typeof workflow.status; design_revisions_used: number }>(`/admin/weddings/${event.id}/design/approve`, { method: "POST" });
+      setWorkflow((current) => ({ ...current, status: response.design_status, used: response.design_revisions_used }));
+      qc.setQueryData<Wedding>(["admin-wedding", event.id], (current) => current ? { ...current, design_status: response.design_status, design_revisions_used: response.design_revisions_used } : current);
+      toast.success("Tasarım baskı için onaylandı ve kilitlendi.");
+    } catch (reason) { setError((reason as Error).message); } finally { setBusy(false); }
+  }
+  async function requestRevision() {
+    const reason = window.prompt("Revizyon nedenini yazın (en az 5 karakter):")?.trim();
+    if (!reason) return;
+    setBusy(true); setError("");
+    try {
+      const response = await api<{ design_status: typeof workflow.status; design_revisions_used: number; design_revision_limit: number }>(`/admin/weddings/${event.id}/design/request-revision`, { method: "POST", body: JSON.stringify({ reason }) });
+      setWorkflow({ status: response.design_status, used: response.design_revisions_used, limit: response.design_revision_limit });
+      qc.setQueryData<Wedding>(["admin-wedding", event.id], (current) => current ? { ...current, design_status: response.design_status, design_revisions_used: response.design_revisions_used, design_revision_reason: reason } : current);
+      toast.success(`Revizyon açıldı · ${response.design_revisions_used}/${response.design_revision_limit} hak kullanıldı.`);
+    } catch (requestError) { setError((requestError as Error).message); } finally { setBusy(false); }
   }
   async function exportCard(format: "svg" | "png" | "pdf", side: "front" | "back") {
     if (!printCards || !productValidation.passed) return;
@@ -358,7 +385,7 @@ export function DesignPanel({
       <div className={styles.layout}>
         <fieldset
           className={`${styles.controls} ${mobilePanel === "controls" ? styles.mobileOpen : ""}`}
-          disabled={busy}
+          disabled={busy || workflow.status === "approved_for_print"}
         >
           {(surface === "all" || surface === "page") && (
             <>
@@ -777,12 +804,13 @@ export function DesignPanel({
               {error}
             </p>
           )}
+          <div className={styles.revisionStatus} data-status={workflow.status}><ShieldCheck size={14} /><span>{workflow.status === "approved_for_print" ? "Baskı onaylı · tasarım kilitli" : workflow.status === "revision_requested" ? "Revizyon düzenlemeye açık" : "İlk tasarım hazırlanıyor"} · Revizyon hakkı {workflow.used}/{workflow.limit}</span></div>
         </div>
         <div className={styles.saveActions}>
           <button
             type="button"
             className="admin-button"
-            disabled={busy}
+            disabled={busy || workflow.status === "approved_for_print"}
             onClick={() => {
               setDesign({ ...defaultDesign, intro: "curtain" });
               setReplay((n) => n + 1);
@@ -793,11 +821,12 @@ export function DesignPanel({
           <button
             type="button"
             className="admin-button primary"
-            disabled={busy || !dirty}
+            disabled={busy || !dirty || workflow.status === "approved_for_print"}
             onClick={save}
           >
             <Save size={16} /> {busy ? "Kaydediliyor…" : "Tasarımı kaydet"}
           </button>
+          {workflow.status === "approved_for_print" ? <button type="button" className="admin-button primary" disabled={busy || workflow.used >= workflow.limit} onClick={requestRevision}><RotateCcw size={15} /> Revizyon iste</button> : <button type="button" className="admin-button" disabled={busy || dirty || !event.design} onClick={approveForPrint}><ShieldCheck size={15} /> Baskı için onayla</button>}
         </div>
       </footer>
     </section>

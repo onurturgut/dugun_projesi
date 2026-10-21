@@ -43,6 +43,7 @@ import { VideoPreview } from "@/components/admin/VideoPreview";
 import { Notice } from "@/components/admin/Fields";
 import { formatBytes } from "@/lib/config";
 import { uploadsOpen } from "@/lib/policy";
+import { GIB, packageStorageLimit, storageBytesInUse } from "@/lib/commercial-policy";
 
 const dateText = (s: string | null, time = false) =>
   s
@@ -72,6 +73,7 @@ export default function EventDetail() {
     [view, setView] = useState<Media | null>(null),
     [pending, setPending] = useState<string[]>([]),
     [pendingAction, setPendingAction] = useState<"trash" | "purge">("trash");
+  const [additionalGb, setAdditionalGb] = useState("0");
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const deleteReturnFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -93,6 +95,16 @@ export default function EventDetail() {
     expired =
       !!w?.purged_at ||
       !!(w?.expires_at && Date.parse(w.expires_at) <= Date.now());
+  const baseStorageLimit = w?.package_snapshot ? packageStorageLimit(w.package_snapshot) || 0 : 0;
+  const effectiveStorageLimit = Math.max(baseStorageLimit, w?.storage_limit_override_bytes || 0);
+  const storageUsed = w ? storageBytesInUse(w) : 0;
+  const storagePercent = effectiveStorageLimit
+    ? Math.min(100, Math.round((storageUsed / effectiveStorageLimit) * 1000) / 10)
+    : 0;
+  useEffect(() => {
+    if (!w) return;
+    setAdditionalGb(String(Math.max(0, Math.round(((w.storage_limit_override_bytes || baseStorageLimit) - baseStorageLimit) / GIB))));
+  }, [w, baseStorageLimit]);
   const media = useInfiniteQuery({
     queryKey: ["admin-media", id, trash, kind, debouncedSearch, sort],
     queryFn: ({ pageParam }) => {
@@ -126,6 +138,26 @@ export default function EventDetail() {
   const archive = `/api/admin/weddings/${id}/archive`;
   function resetSelection() {
     setSelected([]);
+  }
+  async function saveStorageLimit() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/admin/weddings/${id}/storage-limit`, {
+        method: "PATCH",
+        body: JSON.stringify({ additional_gib: Number(additionalGb) }),
+      });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin-wedding", id] }),
+        qc.invalidateQueries({ queryKey: ["operations"] }),
+        qc.invalidateQueries({ queryKey: ["admin-notifications"] }),
+      ]);
+      toast.success("Depolama kapasitesi güncellendi.");
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
   function requestDelete(ids: string[], permanent = false) {
     setError("");
@@ -221,6 +253,15 @@ export default function EventDetail() {
                 <strong>{formatBytes(summary.totalBytes)}</strong>
                 {trash ? "çöp kutusunda" : "toplam"}
               </span>
+              <span>
+                <strong>{w.design_revisions_used || 0}/{w.package_snapshot?.revisionLimit || 1}</strong>
+                {w.design_status === "approved_for_print" ? "baskı onaylı" : w.design_status === "revision_requested" ? "revizyon açık" : "revizyon hakkı"}
+              </span>
+            </div>
+            <div className="quota-usage" aria-label={`Depolama kullanımı yüzde ${storagePercent}`}>
+              <div><span>Depolama</span><strong>{formatBytes(storageUsed)} / {formatBytes(effectiveStorageLimit)}</strong></div>
+              <progress max="100" value={storagePercent} />
+              <small>{storagePercent}% kullanılıyor · çöp kutusu ve bekleyen yüklemeler dahil</small>
             </div>
             <details className="admin-dates">
               <summary>
@@ -279,6 +320,22 @@ export default function EventDetail() {
           )}
           {section === "settings" && me.data && me.data.role !== "owner" && (
             <div className="space-y-6">
+              {me.data.role === "platform" && (
+                <div className="admin-panel storage-limit-panel">
+                  <div>
+                    <p className="admin-kicker">KOTA ONAYI</p>
+                    <h2>Ek depolama kapasitesi</h2>
+                    <p className="admin-hint">Paket sınırına eklenecek kapasiteyi belirleyin. 0 GB seçilirse paket sınırına geri dönülür.</p>
+                  </div>
+                  <label>
+                    Ek kapasite (GB)
+                    <input type="number" min="0" max="350" step="1" value={additionalGb} onChange={(e) => setAdditionalGb(e.target.value)} />
+                  </label>
+                  <button className="admin-button" disabled={busy || !/^\d+$/.test(additionalGb) || Number(additionalGb) > 350} onClick={() => void saveStorageLimit()}>
+                    {busy ? "Kaydediliyor…" : "Kapasiteyi onayla"}
+                  </button>
+                </div>
+              )}
               <div className="admin-panel">
                 <h2>Organizasyon bilgileri</h2>
                 <EventForm

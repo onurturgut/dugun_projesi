@@ -6,11 +6,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
-import { db } from "./db";
-import { storage } from "./r2";
+import { db, mongoClient } from "./db";
+import { deleteObject, storage } from "./r2";
 import type { Media } from "@/lib/models";
+import { FAIR_USE_POLICY } from "@/lib/commercial-policy";
 
 const MAX_ATTEMPTS = 3;
+
+class VideoDurationLimitError extends Error {}
 
 async function sourceBuffer(path: string) {
   const { client, bucket } = storage();
@@ -38,6 +41,22 @@ async function videoPreview(row: Media) {
   const output = join(directory, "poster.webp");
   try {
     await writeFile(input, await sourceBuffer(row.storage_path));
+    const duration = await new Promise<number>((resolve, reject) => {
+      const child = spawn(executable, ["-hide_banner", "-i", input], {
+        windowsHide: true,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+      let metadata = "";
+      child.stderr.on("data", (chunk: Buffer) => (metadata += chunk.toString()));
+      child.once("error", reject);
+      child.once("close", () => {
+        const match = metadata.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+        if (!match) return reject(new Error("Video süresi okunamadı."));
+        resolve(Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]));
+      });
+    });
+    if (duration > FAIR_USE_POLICY.maxVideoDurationSeconds)
+      throw new VideoDurationLimitError("Video 15 dakikalık sınırı aşıyor.");
     await new Promise<void>((resolve, reject) => {
       const child = spawn(
         executable,
@@ -141,6 +160,32 @@ export async function processMediaPreviews(limit = 8) {
       processed++;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Bilinmeyen hata";
+      if (error instanceof VideoDurationLimitError) {
+        try {
+          await deleteObject(row.storage_path);
+          const transaction = (await mongoClient()).startSession();
+          try {
+            await transaction.withTransaction(async () => {
+              const removed = await collection.deleteOne(
+                { id: row.id, processing_status: "processing" },
+                { session: transaction },
+              );
+              if (removed.deletedCount)
+                await database.collection("weddings").updateOne(
+                  { id: row.wedding_id },
+                  { $inc: { video_count: -1, media_bytes: -row.size_bytes } },
+                  { session: transaction },
+                );
+            });
+          } finally {
+            await transaction.endSession();
+          }
+          errors.push(`video-duration:${row.id}`);
+          continue;
+        } catch {
+          // Keep the record in failed state so the cleanup can be retried safely.
+        }
+      }
       await collection.updateOne(
         { id: row.id, processing_status: "processing" },
         {

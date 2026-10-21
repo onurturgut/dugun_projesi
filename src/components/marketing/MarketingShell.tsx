@@ -60,6 +60,8 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
           <Link href="/temalar">Tema galerisi</Link>
           <Link href="/sss">Sık sorulan sorular</Link>
           <Link href="/iletisim">İletişim</Link>
+          <Link href="/hukuki/kvkk-aydinlatma">KVKK</Link>
+          <Link href="/hukuki/cerez-politikasi">Çerezler</Link>
         </div>
         <div className={styles.social}>
           <Mail size={18} />

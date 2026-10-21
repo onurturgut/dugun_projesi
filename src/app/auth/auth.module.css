@@ -471,6 +471,19 @@
 .supportNotice p {
   margin: 0;
 }
+.rememberChoice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.rememberChoice input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--gold);
+}
 .primaryAction {
   width: 100%;
   letter-spacing: 0.14em;

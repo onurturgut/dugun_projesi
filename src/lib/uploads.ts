@@ -79,6 +79,27 @@ export interface UploadOneResult {
   ok: boolean;
   error?: string;
 }
+
+async function videoDuration(file: File) {
+  return await new Promise<number>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    const done = () => URL.revokeObjectURL(url);
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      const duration = video.duration;
+      done();
+      if (Number.isFinite(duration) && duration > 0) resolve(duration);
+      else reject(new Error("Video süresi doğrulanamadı."));
+    };
+    video.onerror = () => {
+      done();
+      reject(new Error("Video süresi doğrulanamadı."));
+    };
+    video.src = url;
+  });
+}
+
 export async function uploadItem(
   weddingId: string,
   item: SelectedItem,
@@ -106,6 +127,9 @@ export async function uploadItem(
     const mime =
       types[item.file.name.split(".").pop()?.toLowerCase() || ""] ||
       item.file.type;
+    const durationSeconds = item.kind === "video" ? await videoDuration(item.file) : undefined;
+    if (durationSeconds && durationSeconds > UPLOAD_CONFIG.maxVideoDurationSeconds)
+      throw new Error("Videolar en fazla 15 dakika olabilir.");
     const signed = await api<{ url: string; ticket: string }>("/uploads/sign", {
       method: "POST",
       body: JSON.stringify({
@@ -113,6 +137,7 @@ export async function uploadItem(
         file_name: item.file.name.slice(0, 180),
         mime_type: mime,
         size_bytes: item.file.size,
+        duration_seconds: durationSeconds,
         uploader_session_id: getSessionId(),
         ...guest,
       }),

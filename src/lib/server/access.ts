@@ -1,8 +1,9 @@
 import "server-only";
-import type { Account, Wedding } from "@/lib/models";
+import type { Account, Permission, Wedding } from "@/lib/models";
 import { session } from "./auth";
 import { db } from "./db";
 import { weddingScope } from "@/lib/policy";
+import { accountHasPermission } from "@/lib/access-control";
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -16,7 +17,7 @@ export async function requireAccount(
 ): Promise<Account> {
   const user = await session();
   if (!user) throw new HttpError(401, "Giriş yapmanız gerekiyor.");
-  if (user.must_change_password && !allowPasswordChange)
+  if (user.must_change_password && !allowPasswordChange && !user.preview_read_only)
     throw new HttpError(403, "Devam etmek için geçici şifrenizi değiştirin.");
   return user;
 }
@@ -30,6 +31,10 @@ export function requirePlatform(user: Account) {
       403,
       "Bu işlem için platform yöneticisi yetkisi gerekli.",
     );
+}
+export function requirePermission(user: Account, permission: Permission) {
+  if (!accountHasPermission(user, permission))
+    throw new HttpError(403, "Bu işlem için hesabınıza yetki verilmemiş.");
 }
 export function requireMediaPermission(
   user: Account,

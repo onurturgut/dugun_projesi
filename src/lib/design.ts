@@ -155,7 +155,7 @@ export const cardPresets = [
   {
     id: "campus-burgundy",
     name: "Etkinlik Bordo",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_32_35.png",
+    image: "/qr-templates/velvet-flow/01_Bordo_On_Yuz.webp",
     template: "minimal",
     theme: "burgundy",
     primary: "#74151B",
@@ -164,7 +164,7 @@ export const cardPresets = [
   {
     id: "satin-babys-breath",
     name: "Saten & Cipso",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_32_51.png",
+    image: "/qr-templates/the-editorial/01_Krem_On_Yuz.webp",
     template: "ribbon",
     theme: "ivory",
     primary: "#F1E5D4",
@@ -173,7 +173,7 @@ export const cardPresets = [
   {
     id: "mediterranean-terracotta",
     name: "Akdeniz Terrakota",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_32_58.png",
+    image: "/qr-templates/modern-arch/02_Pudra_On_Yuz.webp",
     template: "couple",
     theme: "terracotta",
     primary: "#C77B50",
@@ -182,7 +182,7 @@ export const cardPresets = [
   {
     id: "botanical-olive",
     name: "Botanik Zeytin",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_33_28.png",
+    image: "/qr-templates/botanical/Botanical_Adacayi_On_Yuz.webp",
     template: "floral",
     theme: "olive",
     primary: "#66654A",
@@ -191,7 +191,7 @@ export const cardPresets = [
   {
     id: "moonlight-navy",
     name: "Ay Işığı",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_33_38.png",
+    image: "/qr-templates/velvet-flow/02_Lacivert_On_Yuz.webp",
     template: "night",
     theme: "navy",
     primary: "#101827",
@@ -200,7 +200,7 @@ export const cardPresets = [
   {
     id: "black-ribbon",
     name: "Siyah Kurdele",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_33_51.png",
+    image: "/qr-templates/velvet-flow/03_Siyah_On_Yuz.webp",
     template: "ribbon",
     theme: "ivory",
     primary: "#E9DAC7",
@@ -209,7 +209,7 @@ export const cardPresets = [
   {
     id: "organic-blush",
     name: "Pudra Organik",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_33_58.png",
+    image: "/qr-templates/botanical/Botanical_Pudra_On_Yuz.webp",
     template: "floral",
     theme: "blush",
     primary: "#EBC5B5",
@@ -218,7 +218,7 @@ export const cardPresets = [
   {
     id: "elegant-sepia",
     name: "Zarif Sepya",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_34_11.png",
+    image: "/qr-templates/aurora/Aurora_03_Krem_On_Yuz.webp",
     template: "couple",
     theme: "ivory",
     primary: "#E7D4BC",
@@ -227,7 +227,7 @@ export const cardPresets = [
   {
     id: "burgundy-glow",
     name: "Bordo Işıltı",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_34_35.png",
+    image: "/qr-templates/aurora/Aurora_01_Rose_On_Yuz.webp",
     template: "couple",
     theme: "burgundy",
     primary: "#651016",
@@ -236,7 +236,7 @@ export const cardPresets = [
   {
     id: "ivory-floral",
     name: "Fildişi Çiçek",
-    image: "/qrtasarım/ChatGPT Görseli 3 Eki 2026 20_34_45.png",
+    image: "/qr-templates/modern-arch/01_Krem_On_Yuz.webp",
     template: "floral",
     theme: "ivory",
     primary: "#EEE0CB",

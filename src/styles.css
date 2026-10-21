@@ -4,6 +4,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+select {
+  color-scheme: light dark;
+}
+
 /*
  * Dark Luxury Wedding design system.
  * All colors are oklch tokens. The app is dark-only by design.
@@ -523,3 +533,15 @@
   .btn-secondary { border:1px solid var(--border); color:var(--cream); }
   .btn-primary:disabled, .btn-secondary:disabled { opacity:0.5; cursor:wait; }
 }
+
+.consent-panel { position:fixed; z-index:1000; right:20px; bottom:20px; left:20px; display:flex; align-items:center; justify-content:space-between; gap:24px; max-width:1100px; margin:auto; padding:20px 22px; border:1px solid color-mix(in srgb, #b98a3d 45%, transparent); border-radius:18px; background:#171510f2; color:#f8f1e4; box-shadow:0 24px 70px #0008; backdrop-filter:blur(18px); }
+.consent-panel strong { display:block; margin-bottom:5px; font-size:1rem; }
+.consent-panel p { max-width:720px; margin:0; color:#d7cbb8; font-size:.82rem; line-height:1.55; }
+.consent-panel a { color:#eac37d; }
+.consent-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+.consent-actions button,.consent-reopen { min-height:40px; border:1px solid #8b7049; border-radius:10px; background:#221e18; padding:8px 13px; color:#f8f1e4; cursor:pointer; }
+.consent-actions .primary { background:#c99a4b; color:#17120b; }
+.consent-options { display:flex; gap:18px; margin-top:12px; font-size:.78rem; }
+.consent-options label { display:flex; align-items:center; gap:6px; }
+.consent-reopen { position:fixed; z-index:900; bottom:12px; left:12px; min-height:34px; font-size:.7rem; opacity:.82; }
+@media (max-width:720px) { .consent-panel { align-items:stretch; flex-direction:column; } .consent-actions { justify-content:stretch; } .consent-actions button { flex:1 1 130px; } }

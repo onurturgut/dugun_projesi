@@ -16,6 +16,14 @@ const actionLabels: Record<string, string> = {
   "account.password_reset": "Hesap parolası sıfırlandı", "operation.retried": "Operasyon yeniden denendi",
   "wedding.bulk_archive": "Organizasyonlar toplu arşivlendi", "wedding.bulk_restore": "Organizasyonlar arşivden çıkarıldı",
   "wedding.updated": "Organizasyon güncellendi", "wedding.published": "Organizasyon yayınlandı", "wedding.design_saved": "Tasarım kaydedildi",
+  "wedding.design_revision_requested": "Tasarım revizyonu istendi", "wedding.design_approved_for_print": "Tasarım baskı için onaylandı",
+  "wedding.submitted": "Organizasyon onaya gönderildi", "wedding.approved": "Organizasyon onaylandı",
+  "wedding.changes_requested": "Organizasyon için düzeltme istendi", "wedding.rejected": "Organizasyon reddedildi",
+  "sale.recorded": "Tahsil edilmiş satış kaydedildi", "sale.refunded": "Satış iade edildi",
+  "add_on.created": "Ek ürün oluşturuldu", "add_on.updated": "Ek ürün güncellendi",
+  "agent_report.created": "Agent raporu oluşturuldu", "agent_report.reviewed": "Agent raporu incelendi",
+  "account.preview_started": "Salt okunur hesap görünümü başlatıldı",
+  "account.preview_stopped": "Salt okunur hesap görünümü sonlandırıldı",
 };
 function readableTarget(target: Record<string, unknown>) {
   const parts = ["partner_id", "wedding_id", "user_id", "snapshot_id"].filter((key) => target[key]).map((key) => `${key.replace("_id", "")}: ${String(target[key])}`);

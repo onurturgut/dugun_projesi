@@ -1,6 +1,9 @@
+import { FAIR_USE_POLICY } from "./commercial-policy";
+
 export const UPLOAD_CONFIG = {
-  maxPhotoBytes: 15 * 1024 * 1024, // 15 MB
-  maxVideoBytes: 200 * 1024 * 1024, // 200 MB
+  maxPhotoBytes: FAIR_USE_POLICY.maxPhotoBytes,
+  maxVideoBytes: FAIR_USE_POLICY.maxVideoBytes,
+  maxVideoDurationSeconds: FAIR_USE_POLICY.maxVideoDurationSeconds,
   maxFilesPerBatch: 20,
   photoMimePrefixes: ["image/"],
   videoMimePrefixes: ["video/"],
@@ -26,5 +29,6 @@ export const UPLOAD_CONFIG = {
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

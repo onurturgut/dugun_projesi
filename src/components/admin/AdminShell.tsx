@@ -21,7 +21,9 @@ import {
   X,
   Users,
   Activity,
+  WalletCards,
   Palette,
+  Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Account } from "@/lib/api";
@@ -52,12 +54,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }, [theme]);
   useEffect(() => setMobileOpen(false), [pathname]);
   const toggleTheme = async () => {
-    const next = theme === "dark" ? "light" : "dark";
-    await api("/auth/preferences", {
-      method: "PATCH",
-      body: JSON.stringify({ theme: next }),
-    });
-    await qc.invalidateQueries({ queryKey: ["me"] });
+    try {
+      const next = theme === "dark" ? "light" : "dark";
+      await api("/auth/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ theme: next }),
+      });
+      await qc.invalidateQueries({ queryKey: ["me"] });
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Tema değiştirilemedi.");
+    }
   };
   const navigation =
     me.data?.role === "platform"
@@ -67,11 +73,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           { href: "/admin/partners", label: "İşletmeler", icon: Building2 },
           { href: "/admin/accounts", label: "Yetkili hesaplar", icon: Users },
           { href: "/admin/operations", label: "Medya merkezi", icon: Activity },
+          { href: "/admin/finance", label: "Satış ve komisyon", icon: WalletCards },
           { href: "/admin/audit", label: "İşlem kayıtları", icon: FileClock },
+          ...(!me.data?.staff_role || me.data.staff_role === "platform_admin" ? [{ href: "/admin/development-operations", label: "Geliştirme operasyonları", icon: Workflow }] : []),
         ]
       : me.data?.role === "owner"
         ? [{ href: "/admin", label: "Etkinliğim", icon: Images }]
-        : [{ href: "/admin", label: "Organizasyonlarım", icon: LayoutDashboard }, { href: "/admin/accounts", label: "Yetkili hesaplar", icon: Users }];
+        : [{ href: "/admin", label: "Organizasyonlarım", icon: LayoutDashboard }, ...(!me.data?.staff_role || me.data.staff_role === "partner_owner" ? [{ href: "/admin/finance", label: "Satış ve komisyon", icon: WalletCards }] : []), { href: "/admin/accounts", label: "Yetkili hesaplar", icon: Users }];
   const current = navigation.find((item) =>
     item.href === "/admin"
       ? pathname === "/admin" || /^\/admin\/[^/]+/.test(pathname)
@@ -133,6 +141,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </>
       )}
       <div className="dashboard-page">
+        {me.data?.preview_read_only ? (
+          <div className="admin-preview-banner">
+            <span><strong>Salt okunur hesap görünümü:</strong> {me.data.display_name}</span>
+            <button className="admin-button" onClick={async () => { try { await api("/auth/preview-stop", { method: "POST" }); qc.clear(); window.location.assign("/admin/accounts"); } catch (reason) { toast.error(reason instanceof Error ? reason.message : "Platform hesabına dönülemedi."); } }}>Platform hesabına dön</button>
+          </div>
+        ) : null}
         <header className="dashboard-topbar">
           <button type="button" className="dashboard-menu-button" onClick={() => setMobileOpen(true)} aria-label="Menüyü aç" aria-expanded={mobileOpen}><Menu size={20} /></button>
           <div className="dashboard-breadcrumb" aria-label="Sayfa yolu">
@@ -143,6 +157,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <button
             className="admin-theme-toggle"
             onClick={toggleTheme}
+            disabled={me.data?.preview_read_only}
             aria-label={
               theme === "dark" ? "Gündüz moduna geç" : "Gece moduna geç"
             }
