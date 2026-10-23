@@ -198,6 +198,14 @@ export function packageSnapshot(code: PackageCode): PackagePolicy {
   return structuredClone(PACKAGE_CATALOG[code]);
 }
 
+export function resolvePackageSnapshot(
+  snapshot?: PackagePolicy,
+  code?: PackageCode,
+): PackagePolicy {
+  if (snapshot) return snapshot;
+  return packageSnapshot(code === "plan-2" || code === "plan-3" ? code : "plan-1");
+}
+
 export function istanbulCalendarMonth(instant: Date | string) {
   const date = typeof instant === "string" ? new Date(instant) : instant;
   if (Number.isNaN(date.getTime())) throw new Error("Geçersiz satış tarihi.");

@@ -44,6 +44,7 @@ import {
 } from "@/lib/policy";
 import type { Wedding, Media, Account, SaleRecord, AddOnProduct, AgentReport } from "@/lib/models";
 import { designSchema } from "@/lib/design";
+import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
 import { audit } from "./audit";
 import {
   commissionSnapshot,
@@ -853,10 +854,12 @@ export async function handle(
       return json({ items: [...grouped.values()], relationship_model: "one-owner-per-event", usage_rights: { enforcement: "not-configured", reason: "Paket ve kota iş kuralları doğrulanmadı." } });
     }
     if (route === "admin/add-ons" && user) {
-      requireManager(user);
       const products = database.collection<AddOnProduct>("add_on_products");
-      if (method === "GET")
+      if (method === "GET") {
+        if (user.role !== "platform") requirePermission(user, "design.select");
         return json(await products.find(user.role === "platform" ? {} : { active: true }, { projection: { _id: 0 } }).sort({ active: -1, name: 1 }).toArray());
+      }
+      requireManager(user);
       if (method === "POST") {
         requirePlatform(user);
         const input = z.object({
@@ -1708,7 +1711,35 @@ export async function handle(
           throw new HttpError(409, "Onay bekleyen organizasyonun tasarımı değiştirilemez.");
         if (event.design_status === "approved_for_print")
           throw new HttpError(409, "Baskı için onaylanan tasarım kilitlidir. Önce revizyon talebi oluşturun.");
-        const design = designSchema.parse(await req.json());
+        const body: unknown = await req.json();
+        const designEnvelope = z.object({
+          design: z.unknown(),
+          add_on_selections: z.array(z.object({
+            product_id: z.string().uuid(),
+            quantity: z.number().int().min(1).max(100),
+          })).max(20).optional(),
+        }).strict().safeParse(body);
+        const design = designSchema.parse(designEnvelope.success ? designEnvelope.data.design : body);
+        if (!weddingImageBelongsToEvent(design.weddingImage, event.cover_images || []))
+          throw new HttpError(400, "Seçilen Wedding fotoğrafı bu organizasyona ait değil.");
+        const addOnSelections = designEnvelope.success ? designEnvelope.data.add_on_selections : undefined;
+        let pricing = event.price_snapshot;
+        if (addOnSelections) {
+          requirePermission(user, "organization.update");
+          const uniqueProductIds = new Set(addOnSelections.map((selection) => selection.product_id));
+          if (uniqueProductIds.size !== addOnSelections.length)
+            throw new HttpError(400, "Aynı ek ürün birden fazla kez seçilemez.");
+          const addOnProducts = await database.collection<AddOnProduct>("add_on_products").find({
+            id: { $in: [...uniqueProductIds] },
+            active: true,
+          }).toArray();
+          const knownCode: PackageCode = event.package_code === "plan-2" || event.package_code === "plan-3" ? event.package_code : "plan-1";
+          try {
+            pricing = priceSnapshot(knownCode, addOnSelections, addOnProducts);
+          } catch (reason) {
+            throw new HttpError(400, reason instanceof Error ? reason.message : "Ek ürün seçimi doğrulanamadı.");
+          }
+        }
         const snapshotId = randomUUID();
         const savedAt = new Date().toISOString();
         const revision = (event.design_revision || 0) + 1;
@@ -1723,6 +1754,11 @@ export async function handle(
           revision_round: event.design_revisions_used || 0,
           configuration: {
             design,
+            commercial: {
+              package_snapshot: event.package_snapshot,
+              add_on_selections: addOnSelections ?? event.add_on_selections ?? [],
+              price_snapshot: pricing,
+            },
             event: {
               slug: event.slug,
               title: event.title,
@@ -1739,7 +1775,14 @@ export async function handle(
             await database.collection("design_snapshots").insertOne(snapshot, { session: transaction });
             const result = await weddings.updateOne(
               { id, ...weddingScope(user), ...(event.design_revision === undefined ? { design_revision: { $exists: false } } : { design_revision: event.design_revision }) },
-              { $set: { design, design_revision: revision, design_snapshot_id: snapshotId, design_status: event.design_status || "draft", design_revisions_used: event.design_revisions_used || 0 } },
+              { $set: {
+                design,
+                design_revision: revision,
+                design_snapshot_id: snapshotId,
+                design_status: event.design_status || "draft",
+                design_revisions_used: event.design_revisions_used || 0,
+                ...(addOnSelections ? { add_on_selections: addOnSelections, price_snapshot: pricing } : {}),
+              } },
               { session: transaction },
             );
             if (!result.matchedCount)
@@ -1748,8 +1791,8 @@ export async function handle(
         } finally {
           await transaction.endSession();
         }
-        await audit(req, "wedding.design_saved", user, { wedding_id: id, snapshot_id: snapshotId, revision });
-        return json({ design, snapshot_id: snapshotId, revision, design_status: event.design_status || "draft", design_revisions_used: event.design_revisions_used || 0 });
+        await audit(req, "wedding.design_saved", user, { wedding_id: id, snapshot_id: snapshotId, revision, add_on_selection_count: addOnSelections?.length });
+        return json({ design, snapshot_id: snapshotId, revision, design_status: event.design_status || "draft", design_revisions_used: event.design_revisions_used || 0, add_on_selections: addOnSelections ?? event.add_on_selections ?? [], price_snapshot: pricing });
       }
       if (path.length === 3) {
         if (method === "GET") return json(event);

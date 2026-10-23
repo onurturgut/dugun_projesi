@@ -1,0 +1,108 @@
+.workspace { --wedding-editor-accent: #86162a; overflow: hidden; border: 1px solid #ddd8d0; border-radius: 17px; background: #fffdfa; box-shadow: 0 22px 55px rgb(65 45 25 / 8%); }
+.toolbar { min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 22px; border-bottom: 1px solid #ddd8d0; background: #fffdfa; }
+.toolbar > div > span, .inspectorHeading > span { color: #977145; font-size: 9px; font-weight: 800; letter-spacing: .14em; }
+.toolbar h1 { margin-top: 4px; font: 600 20px/1.2 var(--font-display), Georgia, serif; }
+.saveState { display: inline-flex; align-items: center; gap: 7px; color: #3d805d; font-size: 11px; }
+.saveState[data-dirty="true"] { color: #8c6b3f; }
+
+.editorGrid { display: grid; grid-template-columns: 190px minmax(430px, 1fr) 340px; min-height: 760px; }
+.stepRail { padding: 20px 0; border-right: 1px solid #ddd8d0; background: #fffdfa; }
+.stepRail button { position: relative; width: 100%; min-height: 88px; display: grid; grid-template-columns: 30px 22px 1fr; grid-template-rows: auto auto; align-items: center; gap: 3px 8px; padding: 13px 15px 13px 18px; color: #696661; text-align: left; }
+.stepRail button::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: transparent; }
+.stepRail button::after { content: ""; position: absolute; left: 32px; top: 0; width: 1px; height: 14px; background: #ddd8d0; }
+.stepRail button:first-child::after { display: none; }
+.stepRail button > span { grid-row: 1 / 3; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid #cfc9c0; border-radius: 50%; font-size: 10px; font-weight: 800; }
+.stepRail button > svg { grid-row: 1 / 3; color: #7c7974; }
+.stepRail button strong { align-self: end; color: #363330; font-size: 11px; }
+.stepRail button small { align-self: start; color: #98938b; font-size: 8px; }
+.stepRail button[data-active="true"] { background: #f6efed; }
+.stepRail button[data-active="true"]::before { background: var(--wedding-editor-accent); }
+.stepRail button[data-active="true"] > span, .stepRail button[data-complete="true"] > span { border-color: var(--wedding-editor-accent); color: white; background: var(--wedding-editor-accent); }
+.stepRail button[data-active="true"] > svg, .stepRail button[data-active="true"] strong { color: var(--wedding-editor-accent); }
+.stepRail button:disabled { opacity: .48; cursor: not-allowed; }
+
+.previewArea { min-width: 0; display: grid; grid-template-rows: auto 1fr auto; background: #292a28; }
+.previewToolbar, .previewMeta { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; color: #dedbd5; background: #30312f; }
+.previewToolbar { border-bottom: 1px solid #ffffff18; }
+.previewToolbar > span { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; }
+.dragHint { color: #d9bd87; }
+.previewStage { min-height: 640px; display: grid; place-items: center; overflow: hidden; padding: 28px; background: #232422; }
+.phone { position: relative; width: min(300px, 82%); aspect-ratio: 9 / 19.5; padding: 9px; border: 1px solid #77766f; border-radius: 37px; background: #090a09; box-shadow: 0 34px 80px rgb(0 0 0 / 60%), inset 0 0 0 1px #ffffff12; }
+.phoneSpeaker { position: absolute; z-index: 20; top: 15px; left: 50%; width: 54px; height: 5px; border-radius: 99px; background: #0b0b0b; transform: translateX(-50%); }
+.phoneScreen { width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; border-radius: 29px; background: #42090f; scrollbar-width: thin; }
+.phoneScreen > main { min-height: 100%; }
+.previewMeta { min-height: 54px; border-top: 1px solid #ffffff14; font-size: 10px; }
+.previewMeta span { color: #a9a69f; }
+.previewMeta strong { color: #e7e0d4; font-weight: 600; }
+
+.guestPreviewCard { display: grid; justify-items: center; gap: 7px; margin: 0 12px 34px; padding: 22px 13px 13px; border: 1px solid color-mix(in srgb, var(--wedding-accent), transparent 48%); border-radius: 22px; color: var(--wedding-ink); background: color-mix(in srgb, var(--wedding-light), transparent 8%); text-align: center; }
+.guestPreviewCard strong { font: 600 10px/1.3 var(--font-display), Georgia, serif; letter-spacing: .08em; text-transform: uppercase; }
+.guestPreviewCard span { font-size: 8px; opacity: .72; }
+.guestPreviewCard i { width: 100%; height: 34px; border: 1px solid color-mix(in srgb, var(--wedding-accent), transparent 62%); border-radius: 9px; }
+.guestPreviewCard button { width: 100%; min-height: 34px; border-radius: 9px; color: var(--wedding-accent-ink); background: var(--wedding-accent); font-size: 9px; font-weight: 750; }
+
+.inspector { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 18px; padding: 24px 22px 92px; overflow-y: auto; border-left: 1px solid #ddd8d0; background: #fffdfa; }
+.inspectorHeading h2 { margin: 6px 0 7px; font: 600 23px/1.2 var(--font-display), Georgia, serif; }
+.inspectorHeading p { color: #77726b; font-size: 11px; line-height: 1.55; }
+.templateGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.templateGrid > button { position: relative; min-width: 0; overflow: hidden; border: 1px solid #dfdad2; border-radius: 10px; color: #393530; background: #fff; text-align: left; }
+.templateGrid > button:hover { border-color: #ad8460; }
+.templateGrid > button[aria-pressed="true"] { border-color: var(--wedding-editor-accent); box-shadow: 0 0 0 1px rgb(134 22 42 / 13%); }
+.templateImage { position: relative; display: block; width: 100%; aspect-ratio: 247 / 180; overflow: hidden; background: #eee8dd; }
+.templateImage img { object-fit: cover; object-position: top; }
+.templateGrid > button > span:nth-child(2) { display: block; min-height: 73px; padding: 8px; }
+.templateGrid b, .templateGrid strong, .templateGrid small { display: block; }
+.templateGrid b { color: #9b7548; font-size: 8px; }
+.templateGrid strong { margin-top: 2px; font: 600 10px/1.25 var(--font-display), Georgia, serif; }
+.templateGrid small { margin-top: 3px; color: #8c857c; font-size: 8px; line-height: 1.3; }
+.templateGrid i { position: absolute; top: 7px; right: 7px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: white; background: var(--wedding-editor-accent); }
+
+.photoGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.photoGrid button { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border: 2px solid transparent; border-radius: 10px; background: #eee8dd; }
+.photoGrid button[aria-pressed="true"] { border-color: var(--wedding-editor-accent); }
+.photoGrid img { object-fit: cover; }
+.photoGrid span { position: absolute; inset: auto 6px 6px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 25px; border-radius: 7px; color: white; background: rgb(85 12 25 / 88%); font-size: 8px; font-weight: 750; }
+.emptyState { display: grid; justify-items: center; gap: 10px; padding: 24px 16px; border: 1px dashed #cfc6ba; border-radius: 12px; color: #777067; text-align: center; }
+.emptyState strong { color: #403b35; font-size: 11px; }
+.emptyState p { font-size: 9px; line-height: 1.5; }
+.emptyState a { min-height: 36px; display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 8px; color: white; background: var(--wedding-editor-accent); font-size: 9px; font-weight: 700; }
+.instruction { display: flex; align-items: flex-start; gap: 10px; padding: 13px; border-radius: 10px; color: #705737; background: #f4f0e9; }
+.instruction svg { flex: none; }
+.instruction p { font-size: 10px; line-height: 1.55; }
+.cropValues, .summary { display: grid; margin: 0; border-top: 1px solid #e1dcd4; }
+.cropValues > div, .summary > div { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid #e1dcd4; font-size: 10px; }
+.cropValues dt, .summary dt { color: #847f77; }
+.cropValues dd, .summary dd { margin: 0; color: #373430; font-weight: 700; text-align: right; }
+.rangeField { display: grid; grid-template-columns: 1fr auto; gap: 8px; color: #3d3935; font-size: 10px; font-weight: 700; }
+.rangeField strong { color: #77726b; font-size: 9px; }
+.rangeField input { grid-column: 1 / -1; width: 100%; accent-color: var(--wedding-editor-accent); }
+.resetButton { min-height: 39px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #d6d0c7; border-radius: 8px; color: #6f6961; background: #fff; font-size: 9px; font-weight: 700; }
+.resetButton:disabled { opacity: .45; }
+.checkList { display: grid; gap: 8px; }
+.checkList p { display: flex; align-items: center; gap: 7px; padding: 10px; border-radius: 8px; color: #9c4b4b; background: #f6efed; font-size: 9px; }
+.checkList p[data-pass="true"] { color: #367658; background: #edf5f0; }
+.error { padding: 10px; border: 1px solid #d99b9b; border-radius: 8px; color: #a03e3e; background: #fff5f5; font-size: 10px; line-height: 1.45; }
+.inspectorFooter { position: absolute; inset: auto 0 0; min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 13px 20px; border-top: 1px solid #ddd8d0; background: #fffdfa; }
+.primary, .secondary, .bottomBar > button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 14px; border-radius: 8px; font-size: 10px; font-weight: 750; }
+.primary { color: white; background: var(--wedding-editor-accent); }
+.primary:hover:not(:disabled) { background: #6f1021; }
+.secondary { border: 1px solid #d6d0c7; color: #6f6961; background: #fff; }
+.primary:disabled, .secondary:disabled { opacity: .45; }
+.bottomBar { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 22px; border-top: 1px solid #ddd8d0; background: #fffdfa; }
+.bottomBar > div { display: flex; align-items: center; gap: 10px; }
+.bottomBar > div > svg { color: #8f693c; }
+.bottomBar strong, .bottomBar small { display: block; }
+.bottomBar strong { font-size: 11px; }
+.bottomBar small { margin-top: 3px; color: #817c75; font-size: 9px; }
+.bottomBar > button { border: 1px solid var(--wedding-editor-accent); color: var(--wedding-editor-accent); background: white; }
+.bottomBar > button:disabled { opacity: .4; }
+.spinner { animation: spin 900ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+:global([data-admin-theme="dark"]) .workspace, :global([data-admin-theme="dark"]) .toolbar, :global([data-admin-theme="dark"]) .stepRail, :global([data-admin-theme="dark"]) .inspector, :global([data-admin-theme="dark"]) .inspectorFooter, :global([data-admin-theme="dark"]) .bottomBar { border-color: #ffffff18; color: #eeeae2; background: #1e1f1c; }
+:global([data-admin-theme="dark"]) .templateGrid > button, :global([data-admin-theme="dark"]) .resetButton, :global([data-admin-theme="dark"]) .secondary { border-color: #ffffff1c; color: #eeeae2; background: #292a27; }
+:global([data-admin-theme="dark"]) .stepRail button strong, :global([data-admin-theme="dark"]) .cropValues dd, :global([data-admin-theme="dark"]) .summary dd { color: #eeeae2; }
+
+@media (max-width: 1180px) { .editorGrid { grid-template-columns: 150px minmax(360px, 1fr) 310px; } .stepRail button { grid-template-columns: 28px 1fr; } .stepRail button > svg { display: none; } }
+@media (max-width: 920px) { .editorGrid { grid-template-columns: 116px minmax(0, 1fr); } .inspector { grid-column: 1 / -1; min-height: 600px; border-top: 1px solid #ddd8d0; border-left: 0; } .stepRail button { grid-template-columns: 28px 1fr; padding-inline: 12px; } .stepRail button small { display: none; } }
+@media (max-width: 640px) { .workspace { border-radius: 12px; } .toolbar { align-items: flex-start; flex-direction: column; } .editorGrid { display: block; } .stepRail { display: flex; overflow-x: auto; padding: 0; border-right: 0; border-bottom: 1px solid #ddd8d0; } .stepRail button { min-width: 112px; min-height: 72px; padding: 10px; } .stepRail button::after { display: none; } .previewToolbar { align-items: flex-start; flex-direction: column; } .previewStage { min-height: 560px; padding: 24px 10px; } .phone { width: min(284px, 86%); } .inspector { min-height: 650px; padding: 22px 17px 88px; } .bottomBar { align-items: stretch; flex-direction: column; } .bottomBar > button { width: 100%; } }

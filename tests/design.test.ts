@@ -12,7 +12,10 @@ import {
   availableTemplates,
 } from "../src/lib/design";
 import { buildQrCards } from "../src/lib/qr-card";
-import { defaultQrProduct, validateQrProduct, withPrintMarks } from "../src/lib/qr-products";
+import { defaultQrProduct, qrProductEntitlement, qrProducts, validateQrProduct, withPrintMarks } from "../src/lib/qr-products";
+import { packageSnapshot } from "../src/lib/commercial-policy";
+import { resolvePhysicalQrBackground } from "../src/lib/qr-templates";
+import { weddingImageBelongsToEvent, weddingTemplates } from "../src/lib/wedding-templates";
 
 test("existing invitations keep their original video and speed", () => {
   assert.equal(resolveDesign().intro, "video");
@@ -196,4 +199,97 @@ test("print exports include bleed canvas and crop marks without changing QR targ
   assert.match(printable, /width="156mm" height="206mm"/);
   assert.match(printable, /viewBox="0 0 811\.2 1071\.2"/);
   assert.match(printable, /shape-rendering="crispEdges"/);
+});
+
+test("Velvet Flow exposes every approved physical format and color base", () => {
+  assert.deepEqual(qrProducts.map((product) => [product.trimWidthMm, product.trimHeightMm]), [[75, 100], [100, 75], [150, 200], [500, 700]]);
+  for (const variant of ["burgundy", "navy", "black", "cream", "emerald"] as const) {
+    for (const face of ["front", "back"] as const) {
+      assert.match(resolvePhysicalQrBackground("velvet-flow", variant, face) ?? "", /^\/design-center\/templates\/velvet-flow\//);
+    }
+  }
+});
+
+test("every physical format exports exact trim plus bleed dimensions", () => {
+  const cards = buildQrCards(defaultDesign, "A & B", null, "https://example.com/q/67e55044-10b1-426f-9247-bb680e5fe0c8");
+  for (const product of qrProducts) {
+    const printable = withPrintMarks(cards.front, product);
+    assert.match(printable, new RegExp(`width="${product.trimWidthMm + 6}mm" height="${product.trimHeightMm + 6}mm"`));
+  }
+});
+
+test("legacy designs receive safe sequential workflow defaults", () => {
+  const resolved = resolveDesign({ ...defaultDesign, qrProductId: undefined, qrCompleted: undefined, loadingCompleted: undefined, weddingCompleted: undefined, weddingImage: undefined } as unknown as Record<string, unknown>);
+  assert.equal(resolved.qrProductId, "portrait-mini-75x100-duplex");
+  assert.equal(resolved.qrCompleted, false);
+  assert.equal(resolved.loadingCompleted, false);
+  assert.equal(resolved.weddingCompleted, false);
+  assert.equal(resolved.weddingImage, "");
+});
+
+test("Loading cannot be completed before the QR stage", () => {
+  const invalid = designSchema.safeParse({
+    ...defaultDesign,
+    qrCompleted: false,
+    loadingCompleted: true,
+  });
+  assert.equal(invalid.success, false);
+  assert.equal(
+    invalid.error?.issues[0].message,
+    "Loading aşaması QR aşaması tamamlanmadan tamamlanamaz.",
+  );
+  assert.equal(
+    designSchema.safeParse({
+      ...defaultDesign,
+      qrCompleted: true,
+      loadingCompleted: true,
+    }).success,
+    true,
+  );
+});
+
+test("Wedding completion requires Loading and an organization photo", () => {
+  assert.equal(designSchema.safeParse({
+    ...defaultDesign,
+    qrCompleted: true,
+    loadingCompleted: false,
+    weddingImage: "/covers/couple-1.jpg",
+    weddingCompleted: true,
+  }).success, false);
+  assert.equal(designSchema.safeParse({
+    ...defaultDesign,
+    qrCompleted: true,
+    loadingCompleted: true,
+    weddingImage: "",
+    weddingCompleted: true,
+  }).success, false);
+  assert.equal(designSchema.safeParse({
+    ...defaultDesign,
+    qrCompleted: true,
+    loadingCompleted: true,
+    pageTemplate: "velvet-flow",
+    weddingImage: "/covers/couple-1.jpg",
+    weddingCompleted: true,
+  }).success, true);
+});
+
+test("Wedding templates use the approved references and photo ownership is exact", () => {
+  assert.equal(weddingTemplates.length, 10);
+  assert.equal(new Set(weddingTemplates.map((template) => template.id)).size, 10);
+  for (const template of weddingTemplates)
+    assert.match(template.reference, /^\/wedding-designs\/\d{2}_.+\.png$/);
+  assert.equal(weddingImageBelongsToEvent("/covers/a.jpg", ["/covers/a.jpg"]), true);
+  assert.equal(weddingImageBelongsToEvent("/covers/b.jpg", ["/covers/a.jpg"]), false);
+});
+
+test("QR product access uses the frozen package snapshot and artwork readiness", () => {
+  const plan1 = packageSnapshot("plan-1");
+  const plan2 = packageSnapshot("plan-2");
+  const portrait = qrProducts.find((product) => product.id === "portrait-mini-75x100-duplex")!;
+  const table = qrProducts.find((product) => product.id === "table-card-150x200-duplex")!;
+  const welcome = qrProducts.find((product) => product.id === "welcome-sign-500x700-duplex")!;
+  assert.equal(qrProductEntitlement(portrait, plan1).allowed, true);
+  assert.equal(qrProductEntitlement(table, plan1).allowed, false);
+  assert.equal(qrProductEntitlement(welcome, plan2).includedQuantity, 1);
+  assert.equal(qrProductEntitlement(welcome, plan2).allowed, false, "unfinished artwork must stay unavailable even when the package includes it");
 });

@@ -169,3 +169,19 @@ export function resolveQrVariant(templateId: QrCollectionId, variantId: QrColorV
   const template = qrTemplates[templateId];
   return template.variants.find((item) => item.id === variantId) ?? template.variants.find((item) => item.id === template.defaultVariant)!;
 }
+
+const velvetPhysicalVariantFolders: Partial<Record<QrColorVariantId, string>> = {
+  burgundy: "burgundy",
+  navy: "midnight-navy",
+  black: "obsidian-black",
+  cream: "classic-cream",
+  emerald: "emerald",
+};
+
+export function resolvePhysicalQrBackground(templateId: QrCollectionId, variantId: QrColorVariantId, face: "front" | "back") {
+  if (templateId !== "velvet-flow") return null;
+  const folder = velvetPhysicalVariantFolders[variantId];
+  if (!folder) return null;
+  const availableFace = folder === "obsidian-black" ? "back" : face;
+  return `/design-center/templates/velvet-flow/${folder}/portrait-mini/velvet-flow-${folder}-portrait-mini-${availableFace}-base-clean.png`;
+}

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { qrColorVariantIds } from "./qr-templates";
+import { qrProductIds } from "./qr-products";
+import { weddingTemplateIds, weddingTemplates } from "./wedding-templates";
 
 export const themeIds = [
   "burgundy",
@@ -256,7 +258,8 @@ export const pageTemplates = {
 } as const;
 export const templateCatalog: readonly TemplateMetadata[] = [
   { id: "filmstrip", name: pageTemplates.filmstrip, surface: "wedding", version: 1, available: true, description: "Hareketli iki sıralı fotoğraf alanı" },
-  ...Object.entries(introTypes).filter(([id]) => id !== "video").map(([id, name]) => ({ id, name, surface: "loading" as const, version: 1, available: true, description: "Yerel, özelleştirilebilir açılış" })),
+  ...weddingTemplates.map((template) => ({ id: template.id, name: template.name, surface: "wedding" as const, version: 1, available: true, asset: template.reference, description: template.description })),
+  ...Object.entries(introTypes).filter(([id]) => id !== "video").map(([id, name]) => ({ id, name, surface: "loading" as const, version: 1, available: true, description: "Hazır animasyonlu açılış" })),
   { id: "video", name: introTypes.video, surface: "loading", version: 1, available: true, asset: "/intro/shineqr-portrait-v2.mp4", description: "ShineQR bordo açılış filmi" },
   ...cardPresets.map((preset) => ({ id: preset.id, name: preset.name, surface: "qr" as const, version: 1, available: true, asset: preset.image, description: `${cardTemplates[preset.template]} QR kartı` })),
 ];
@@ -300,6 +303,9 @@ export const designSchema = z
     qrTemplateId: z.enum(qrCollectionIds).default("the-editorial"),
     qrColorVariant: z.enum(qrColorVariantIds).default("cream"),
     qrTemplateVersion: z.number().int().min(1).default(1),
+    qrProductId: z.enum(qrProductIds).default("portrait-mini-75x100-duplex"),
+    qrCompleted: z.boolean().default(false),
+    loadingCompleted: z.boolean().default(false),
     qrPresetId: z.enum(editorialPresetIds).default("editorial-cream"),
     qrFontPairId: z.enum(editorialFontPairIds).default("cormorant-manrope"),
     qrHook: z.string().trim().min(1).max(72).default("Bu günün bir karesi de senden olsun."),
@@ -315,7 +321,13 @@ export const designSchema = z
       icons: qrElementLayoutSchema.default(defaultQrLayout.icons),
       divider: qrElementLayoutSchema.default(defaultQrLayout.divider),
     }).default(defaultQrLayout),
-    pageTemplate: z.enum(["filmstrip"]).default("filmstrip"),
+    pageTemplate: z.enum(["filmstrip", ...weddingTemplateIds]).default("filmstrip"),
+    weddingTemplateVersion: z.number().int().min(1).default(1),
+    weddingImage: z.string().trim().max(2048).default(""),
+    weddingImagePositionX: z.number().min(0).max(100).default(50),
+    weddingImagePositionY: z.number().min(0).max(100).default(50),
+    weddingImageZoom: z.number().min(1).max(3).default(1),
+    weddingCompleted: z.boolean().default(false),
     brandTagline: z
       .string()
       .trim()
@@ -347,7 +359,30 @@ export const designSchema = z
       .max(160)
       .default("Fotoğraf veya video seçin"),
   })
-  .strict();
+  .strict()
+  .superRefine((design, context) => {
+    if (design.loadingCompleted && !design.qrCompleted) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["loadingCompleted"],
+        message: "Loading aşaması QR aşaması tamamlanmadan tamamlanamaz.",
+      });
+    }
+    if (design.weddingCompleted && !design.loadingCompleted) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["weddingCompleted"],
+        message: "Wedding aşaması Loading aşaması tamamlanmadan tamamlanamaz.",
+      });
+    }
+    if (design.weddingCompleted && !design.weddingImage) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["weddingImage"],
+        message: "Wedding aşamasını tamamlamak için bir organizasyon fotoğrafı seçin.",
+      });
+    }
+  });
 export type WeddingDesign = z.infer<typeof designSchema>;
 export const defaultDesign: WeddingDesign = {
   version: 2,
@@ -366,6 +401,9 @@ export const defaultDesign: WeddingDesign = {
   qrTemplateId: "the-editorial",
   qrColorVariant: "cream",
   qrTemplateVersion: 1,
+  qrProductId: "portrait-mini-75x100-duplex",
+  qrCompleted: false,
+  loadingCompleted: false,
   qrPresetId: "editorial-cream",
   qrFontPairId: "cormorant-manrope",
   qrHook: "Bu günün bir karesi de senden olsun.",
@@ -373,6 +411,12 @@ export const defaultDesign: WeddingDesign = {
   qrCta: "QR kodu okut ve anılarını yükle.",
   qrLayout: defaultQrLayout,
   pageTemplate: "filmstrip",
+  weddingTemplateVersion: 1,
+  weddingImage: "",
+  weddingImagePositionX: 50,
+  weddingImagePositionY: 50,
+  weddingImageZoom: 1,
+  weddingCompleted: false,
   brandTagline: "Anılarınız her karede ışıldasın.",
   pageHeading: "Sıradaki kare sizden.",
   pageMessage: "Bu özel günde yakaladığınız anları bizimle paylaşın.",

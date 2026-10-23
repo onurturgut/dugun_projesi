@@ -6,6 +6,7 @@ import {
   GIB,
   PACKAGE_CATALOG,
   packageSnapshot,
+  resolvePackageSnapshot,
   packageUploadDays,
   istanbulCalendarMonth,
   packageStorageLimit,
@@ -57,6 +58,14 @@ test("package snapshots cannot mutate the catalog", () => {
   const snapshot = packageSnapshot("plan-3");
   snapshot.miniQrCount = 1;
   assert.equal(PACKAGE_CATALOG["plan-3"].miniQrCount, 40);
+});
+
+test("legacy organizations resolve a conservative package without replacing a historical snapshot", () => {
+  const historical = packageSnapshot("plan-2");
+  historical.miniQrCount = 17;
+  assert.equal(resolvePackageSnapshot(historical, "plan-3").miniQrCount, 17);
+  assert.equal(resolvePackageSnapshot(undefined, "plan-2").code, "plan-2");
+  assert.equal(resolvePackageSnapshot(undefined, undefined).code, "plan-1");
 });
 
 test("add-ons update the frozen customer total and only eligible items earn commission", () => {

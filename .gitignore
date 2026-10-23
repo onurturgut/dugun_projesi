@@ -7,10 +7,12 @@ node_modules/
 .next-design-test/
 .next-build-check/
 .next-build-review/
+.codex-build/
 .env*
 !.env.example
 *.tsbuildinfo
 
 # Local browser profiles and responsive screenshots
 tmp/chrome-profile-*/
+tmp/edge-presentation-profile/
 tmp/responsive/

@@ -131,6 +131,15 @@
   box-shadow: 0 0 10px rgb(230 195 139 / 65%);
 }
 
+.templatePage .header {
+  min-height: 76px;
+  padding: 13px 20px 4px;
+}
+
+.templatePage .brandLogo { width: 104px; }
+.templatePage .brandTagline,
+.templatePage .brandOrnament { display: none; }
+
 .statement {
   position: relative;
   z-index: 5;
@@ -176,6 +185,102 @@
   font-size: clamp(1.2rem, 5vw, 1.65rem);
   line-height: 1.35;
   color: var(--wedding-accent);
+}
+
+.templateHero {
+  position: relative;
+  min-height: clamp(390px, 112vw, 620px);
+  margin: 0 14px 28px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--wedding-accent), transparent 48%);
+  border-radius: 34px 34px 18px 18px;
+  background: var(--wedding-light);
+  box-shadow: 0 28px 70px rgb(0 0 0 / 28%);
+}
+
+.templatePhoto {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--wedding-base), black 12%);
+  touch-action: none;
+}
+
+.templatePhotoImage {
+  object-fit: cover;
+  object-position: var(--wedding-photo-x) var(--wedding-photo-y);
+  transform: scale(var(--wedding-photo-zoom));
+  transform-origin: var(--wedding-photo-x) var(--wedding-photo-y);
+  transition: filter 220ms ease;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.interactivePhoto { cursor: grab; }
+.interactivePhoto:active { cursor: grabbing; }
+.photoEmpty { position: absolute; inset: 0; display: grid; place-items: center; padding: 30px; color: var(--wedding-ink); font-size: .8rem; text-align: center; }
+
+.templateHero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 36%, color-mix(in srgb, var(--wedding-base), black 18%) 94%);
+  pointer-events: none;
+}
+
+.templateHero[data-image-treatment="arch"] .templatePhoto {
+  inset: 20px 20px 35%;
+  border-radius: 48% 48% 18px 18px;
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--wedding-light), transparent 8%);
+}
+
+.templateHero[data-image-treatment="polaroid"] .templatePhoto {
+  inset: 22px 30px 39%;
+  border: 10px solid #f7ead6;
+  border-bottom-width: 34px;
+  border-radius: 3px;
+  rotate: -1.8deg;
+  box-shadow: 0 16px 30px rgb(0 0 0 / 26%);
+}
+
+.templateHero[data-monochrome="true"] .templatePhotoImage { filter: grayscale(1) contrast(1.08); }
+
+.templateHeroCopy {
+  position: absolute;
+  z-index: 2;
+  inset: auto 22px 24px;
+  color: var(--wedding-ink);
+  text-align: center;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 55%);
+}
+
+.templateHero[data-image-treatment="arch"] .templateHeroCopy,
+.templateHero[data-image-treatment="polaroid"] .templateHeroCopy { text-shadow: none; }
+
+.templateHeroCopy h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 9vw, 3.65rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: .025em;
+}
+
+.templateHeroCopy time {
+  display: block;
+  margin-top: 10px;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.templateHeroCopy p {
+  max-width: 390px;
+  margin: 13px auto 0;
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 4vw, 1.35rem);
+  line-height: 1.28;
 }
 
 .footer {
