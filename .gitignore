@@ -12,7 +12,6 @@ node_modules/
 !.env.example
 *.tsbuildinfo
 
-# Local browser profiles and responsive screenshots
-tmp/chrome-profile-*/
-tmp/edge-presentation-profile/
-tmp/responsive/
+# Generated design exports and local work files
+output/
+tmp/
