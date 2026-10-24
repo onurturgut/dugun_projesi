@@ -11,6 +11,12 @@ import {
   type WeddingDesign,
 } from "@/lib/design";
 import { WeddingFilmstrip } from "./WeddingFilmstrip";
+import { RetroRomanceWedding } from "./RetroRomanceWedding";
+import { VelvetFlowWedding } from "./VelvetFlowWedding";
+import { IvoryEditorialWedding } from "./IvoryEditorialWedding";
+import { BotanicalWedding } from "./BotanicalWedding";
+import { AuroraWedding } from "./AuroraWedding";
+import { RomanticCeremonyWedding } from "./RomanticCeremonyWedding";
 import { resolveWeddingTemplate } from "@/lib/wedding-templates";
 import styles from "@/app/wedding/[slug]/wedding.module.css";
 
@@ -35,6 +41,13 @@ export function WeddingPageTemplate({
 }: WeddingPageTemplateProps) {
   const design = resolveDesign(savedDesign);
   const selectedTemplate = resolveWeddingTemplate(design.pageTemplate);
+  const isCinematic = selectedTemplate?.id === "cinematic";
+  const isRetroRomance = selectedTemplate?.id === "retro-romance";
+  const isVelvetFlow = selectedTemplate?.id === "velvet-flow";
+  const isIvoryEditorial = selectedTemplate?.id === "ivory-editorial";
+  const isBotanical = selectedTemplate?.id === "botanical";
+  const isAurora = selectedTemplate?.id === "aurora";
+  const isRomanticCeremony = selectedTemplate?.id === "romantic-ceremony";
   const palette = selectedTemplate || themes[design.theme];
   const selectedImage = selectedTemplate ? design.weddingImage : images[0];
   const formattedDate = date
@@ -87,7 +100,64 @@ export function WeddingPageTemplate({
           </div>
         </header>
 
-        {selectedTemplate ? (
+        {isRomanticCeremony ? (
+          <RomanticCeremonyWedding
+            title={title}
+            formattedDate={formattedDate}
+            date={date}
+            message={design.pageMessage}
+          >
+            {children}
+          </RomanticCeremonyWedding>
+        ) : isAurora ? (
+          <AuroraWedding
+            title={title}
+            formattedDate={formattedDate}
+            date={date}
+            message={design.pageMessage}
+          >
+            {children}
+          </AuroraWedding>
+        ) : isBotanical ? (
+          <BotanicalWedding
+            title={title}
+            formattedDate={formattedDate}
+            date={date}
+            message={design.pageMessage}
+          >
+            {children}
+          </BotanicalWedding>
+        ) : isIvoryEditorial ? (
+          <IvoryEditorialWedding
+            title={title}
+            formattedDate={formattedDate}
+            date={date}
+            message={design.pageMessage}
+          >
+            {children}
+          </IvoryEditorialWedding>
+        ) : isVelvetFlow ? (
+          <VelvetFlowWedding
+            title={title}
+            formattedDate={formattedDate}
+            date={date}
+            message={design.pageMessage}
+          >
+            {children}
+          </VelvetFlowWedding>
+        ) : isRetroRomance ? (
+          <RetroRomanceWedding
+            image={selectedImage}
+            title={title}
+            formattedDate={formattedDate}
+            date={date}
+            message={design.pageMessage}
+            preview={preview}
+            onPhotoPointerDown={onPhotoPointerDown}
+          >
+            {children}
+          </RetroRomanceWedding>
+        ) : selectedTemplate ? (
           <section
             className={styles.templateHero}
             data-image-treatment={selectedTemplate.imageTreatment}
@@ -99,15 +169,29 @@ export function WeddingPageTemplate({
               onPointerDown={onPhotoPointerDown}
             >
               {selectedImage ? (
-                <Image
-                  unoptimized
-                  src={selectedImage}
-                  alt={`${title} Wedding fotoğrafı`}
-                  fill
-                  loading={preview ? "eager" : undefined}
-                  sizes="(max-width: 700px) 100vw, 700px"
-                  className={styles.templatePhotoImage}
-                />
+                <>
+                  {isCinematic ? (
+                    <Image
+                      unoptimized
+                      src={selectedImage}
+                      alt=""
+                      aria-hidden="true"
+                      fill
+                      loading={preview ? "eager" : undefined}
+                      sizes="100vw"
+                      className={styles.cinematicPhotoBackdrop}
+                    />
+                  ) : null}
+                  <Image
+                    unoptimized
+                    src={selectedImage}
+                    alt={`${title} Wedding fotoğrafı`}
+                    fill
+                    loading={preview ? "eager" : undefined}
+                    sizes="(max-width: 700px) 100vw, 700px"
+                    className={`${styles.templatePhotoImage} ${isCinematic ? styles.cinematicPhotoForeground : ""}`}
+                  />
+                </>
               ) : (
                 <span className={styles.photoEmpty}>Organizasyon fotoğrafı seçilmedi</span>
               )}
@@ -117,6 +201,9 @@ export function WeddingPageTemplate({
               {formattedDate ? <time dateTime={date || undefined}>{formattedDate}</time> : null}
               <p>{design.pageMessage}</p>
             </div>
+            {isCinematic ? (
+              <div className={styles.cinematicUpload}>{children}</div>
+            ) : null}
           </section>
         ) : (
           <>
@@ -131,7 +218,9 @@ export function WeddingPageTemplate({
           </>
         )}
 
-        {children}
+        {!isCinematic && !isRetroRomance && !isVelvetFlow && !isIvoryEditorial && !isBotanical && !isAurora && !isRomanticCeremony
+          ? children
+          : null}
         <footer className={styles.footer}>{title}</footer>
       </div>
     </main>

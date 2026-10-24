@@ -1,6 +1,9 @@
 import type { Account, Wedding } from "./models";
 import { effectiveStaffRole } from "./access-control";
 export const DAY = 86400000;
+const DEVELOPMENT_UPLOAD_EVENT_IDS = new Set([
+  "941abe00-e71d-448d-be40-82b2608babeb",
+]);
 // Istanbul uses UTC+03:00. Date-only organization dates start at local midnight.
 export function deadlines(date: string, uploadDays = 7, retentionMonths = 3) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Geçersiz tarih.");
@@ -68,6 +71,37 @@ export function uploadsOpen(event: Wedding, now = Date.now()) {
     Date.parse(event.uploads_open_at) <= now &&
     Date.parse(event.uploads_close_at) > now
   );
+}
+export function developmentUploadOverride(
+  event: Wedding,
+  environment = process.env.NODE_ENV,
+  now = Date.now(),
+) {
+  return (
+    environment !== "production" &&
+    DEVELOPMENT_UPLOAD_EVENT_IDS.has(event.id) &&
+    event.upload_enabled &&
+    !expired(event, now)
+  );
+}
+export function uploadsOpenForRuntime(
+  event: Wedding,
+  now = Date.now(),
+  environment = process.env.NODE_ENV,
+) {
+  return (
+    uploadsOpen(event, now) ||
+    developmentUploadOverride(event, environment, now)
+  );
+}
+export function uploadWindowDeadline(
+  event: Wedding,
+  now = Date.now(),
+  environment = process.env.NODE_ENV,
+) {
+  return developmentUploadOverride(event, environment, now)
+    ? now + DAY
+    : Date.parse(event.uploads_close_at || "");
 }
 export function trashDeadline(event: Wedding, now = Date.now()) {
   return new Date(

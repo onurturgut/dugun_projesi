@@ -346,3 +346,145 @@
     display: none;
   }
 }
+
+.campusScene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background: #f1e6d7 url("/intro/university-campus-loading.webp") center / cover no-repeat;
+  color: #35251f;
+}
+
+.campusContent {
+  position: absolute;
+  z-index: 2;
+  top: 13%;
+  left: 50%;
+  display: flex;
+  width: min(70%, 430px);
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.campusLogo {
+  width: min(57%, 228px);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgb(255 252 243 / 55%));
+  animation: campusReveal calc(var(--scene-duration) * .42) ease-out both;
+}
+
+.campusMotto {
+  margin-top: clamp(26px, 5svh, 52px);
+  font-family: var(--font-display), Georgia, serif;
+  text-transform: uppercase;
+  text-shadow: 0 1px 6px rgb(255 252 242 / 92%);
+  animation: campusReveal calc(var(--scene-duration) * .48) calc(var(--scene-duration) * .08) ease-out both;
+}
+
+.campusMotto span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  font-size: clamp(.72rem, 2.8vw, .95rem);
+  letter-spacing: .32em;
+}
+
+.campusMotto span i,
+.campusFooter i {
+  width: clamp(36px, 10vw, 62px);
+  height: 1px;
+  background: #94132b;
+}
+
+.campusMotto strong {
+  display: block;
+  margin-top: 12px;
+  font-size: clamp(.78rem, 3vw, 1rem);
+  font-weight: 500;
+  letter-spacing: .28em;
+}
+
+.campusProgress {
+  width: min(84%, 360px);
+  margin-top: clamp(42px, 7svh, 74px);
+  animation: campusReveal calc(var(--scene-duration) * .42) calc(var(--scene-duration) * .14) ease-out both;
+}
+
+.campusProgress > span {
+  display: block;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(74 57 51 / 18%);
+  box-shadow: inset 0 1px 2px rgb(60 33 28 / 12%);
+}
+
+.campusProgress > span i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #961229;
+  transform-origin: left;
+  animation: campusLoad var(--scene-duration) linear both;
+}
+
+.campusProgress em {
+  display: block;
+  margin-top: 18px;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(1.05rem, 4vw, 1.4rem);
+  font-weight: 400;
+}
+
+.campusFooter {
+  position: absolute;
+  z-index: 2;
+  bottom: max(10%, env(safe-area-inset-bottom));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  width: min(80%, 450px);
+  transform: translateX(-50%);
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(.64rem, 2.6vw, .84rem);
+  line-height: 1.5;
+  letter-spacing: .3em;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0 1px 7px rgb(255 251 238 / 90%);
+}
+
+@keyframes campusLoad {
+  from { transform: scaleX(.06); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes campusReveal {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-height: 700px) {
+  .campusContent { top: 7%; }
+  .campusLogo { width: min(42%, 170px); }
+  .campusMotto { margin-top: 18px; }
+  .campusProgress { margin-top: 26px; }
+  .campusFooter { bottom: 5%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campusLogo,
+  .campusMotto,
+  .campusProgress,
+  .campusProgress > span i {
+    animation: none;
+  }
+}

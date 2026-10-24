@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DAY,
   deadlines,
   canAccess,
   uploadsOpen,
+  uploadsOpenForRuntime,
+  uploadWindowDeadline,
   trashDeadline,
   expired,
   weddingScope,
@@ -62,6 +65,52 @@ test("upload closing is enforced at exact deadline", () => {
   assert.equal(uploadsOpen(event, end), false);
   assert.equal(
     uploadsOpen({ ...event, upload_enabled: false }, end - 1),
+    false,
+  );
+});
+test("Muhammed development event can upload after closing only outside production", () => {
+  const now = Date.parse("2026-10-24T12:00:00.000Z");
+  const developmentEvent = {
+    ...event,
+    id: "941abe00-e71d-448d-be40-82b2608babeb",
+    uploads_close_at: "2026-10-17T21:00:00.000Z",
+    expires_at: "2027-01-10T21:00:00.000Z",
+  } as Wedding;
+  assert.equal(uploadsOpen(developmentEvent, now), false);
+  assert.equal(
+    uploadsOpenForRuntime(developmentEvent, now, "development"),
+    true,
+  );
+  assert.equal(
+    uploadsOpenForRuntime(developmentEvent, now, "production"),
+    false,
+  );
+  assert.equal(
+    uploadWindowDeadline(developmentEvent, now, "development"),
+    now + DAY,
+  );
+  assert.equal(
+    uploadsOpenForRuntime(
+      { ...developmentEvent, upload_enabled: false },
+      now,
+      "development",
+    ),
+    false,
+  );
+  assert.equal(
+    uploadsOpenForRuntime(
+      { ...developmentEvent, purged_at: "2026-10-20T00:00:00.000Z" },
+      now,
+      "development",
+    ),
+    false,
+  );
+  assert.equal(
+    uploadsOpenForRuntime(
+      { ...developmentEvent, id: "another-event" },
+      now,
+      "development",
+    ),
     false,
   );
 });

@@ -283,6 +283,1611 @@
   line-height: 1.28;
 }
 
+/* Cinematic is a single-screen composition: the couple photo is the stage and
+   the existing upload flow sits on top of it instead of starting below it. */
+.templatePage[data-wedding-template="cinematic"] .shell {
+  width: 100%;
+  max-width: none;
+  box-shadow: none;
+}
+
+.templatePage[data-wedding-template="cinematic"] .header {
+  display: none;
+}
+
+.templatePage[data-wedding-template="cinematic"] .templateHero {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding-top: clamp(240px, 40svh, 420px);
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: #111;
+  box-shadow: none;
+}
+
+.templatePage[data-wedding-template="cinematic"] .templateHero::after {
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 22%) 0%, transparent 25%),
+    linear-gradient(180deg, transparent 22%, rgb(0 0 0 / 34%) 48%, rgb(0 0 0 / 88%) 100%);
+}
+
+.cinematicPhotoBackdrop {
+  object-fit: cover;
+  object-position: var(--wedding-photo-x) var(--wedding-photo-y);
+  filter: grayscale(1) blur(28px) brightness(.52);
+  transform: scale(1.12);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.cinematicPhotoForeground {
+  z-index: 1;
+  object-fit: contain;
+  filter: grayscale(1) contrast(1.06);
+  transform: none;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(0 0 0 / 28%) 4%,
+    #000 12%,
+    #000 88%,
+    rgb(0 0 0 / 28%) 96%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(0 0 0 / 28%) 4%,
+    #000 12%,
+    #000 88%,
+    rgb(0 0 0 / 28%) 96%,
+    transparent 100%
+  );
+}
+
+.templatePage[data-wedding-template="cinematic"] .templateHeroCopy {
+  inset: clamp(54px, 10svh, 112px) 20px auto;
+  color: #fff;
+  text-shadow: 0 2px 20px rgb(0 0 0 / 80%);
+}
+
+.templatePage[data-wedding-template="cinematic"] .templateHeroCopy h1 {
+  font-size: clamp(2rem, 8vw, 4.6rem);
+}
+
+.templatePage[data-wedding-template="cinematic"] .templateHeroCopy p {
+  max-width: 34rem;
+  font-size: clamp(.92rem, 3.4vw, 1.25rem);
+}
+
+.cinematicUpload {
+  position: relative;
+  z-index: 3;
+  min-width: 0;
+  width: 100%;
+  margin-top: auto;
+}
+
+.cinematicUpload > :global(section) {
+  box-sizing: border-box;
+  width: min(100%, 34rem);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0 14px;
+}
+
+.cinematicUpload :global(.memory-upload-card) {
+  border-color: rgb(255 255 255 / 25%);
+  background: rgb(12 12 12 / 76%);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 55%), inset 0 1px 0 rgb(255 255 255 / 10%);
+  backdrop-filter: blur(18px) saturate(.75);
+  -webkit-backdrop-filter: blur(18px) saturate(.75);
+}
+
+.cinematicUpload :global(.memory-dropzone) {
+  min-height: 132px;
+  padding: 16px 12px;
+  border-color: rgb(255 255 255 / 34%);
+  background: rgb(255 255 255 / 3%);
+}
+
+.cinematicUpload :global(.memory-upload-icon) {
+  width: 44px;
+  height: 44px;
+  color: #fff;
+  border-color: rgb(255 255 255 / 28%);
+  background: rgb(255 255 255 / 6%);
+}
+
+.cinematicUpload :global(.memory-upload-icon svg) {
+  width: 28px;
+  height: 28px;
+}
+
+.cinematicUpload :global(.memory-dropzone > span.font-display) {
+  color: #fff;
+}
+
+.cinematicUpload :global(.memory-dropzone > span.font-display:last-child),
+.cinematicUpload :global(.memory-upload-card p:last-child) {
+  color: rgb(255 255 255 / 68%);
+}
+
+.cinematicUpload :global(.memory-field input),
+.cinematicUpload :global(.memory-field textarea) {
+  border-color: rgb(255 255 255 / 20%);
+  background: rgb(255 255 255 / 8%);
+  color: #fff;
+}
+
+.cinematicUpload :global(.memory-field input::placeholder),
+.cinematicUpload :global(.memory-field textarea::placeholder) {
+  color: rgb(255 255 255 / 65%);
+}
+
+.templatePage[data-wedding-template="cinematic"] .footer {
+  display: none;
+}
+
+/* Retro Romance owns its complete composition. Its organization photo always
+   stays inside the same 3:2 Polaroid frame at every responsive breakpoint. */
+.templatePage[data-wedding-template="retro-romance"] {
+  background: #321a15;
+}
+
+.templatePage[data-wedding-template="retro-romance"] .shell {
+  width: min(100%, 560px);
+  max-width: 100%;
+  background: #d89a76;
+}
+
+.templatePage[data-wedding-template="retro-romance"] .header,
+.templatePage[data-wedding-template="retro-romance"] .footer {
+  display: none;
+}
+
+.retroStage {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(34px, 6svh, 58px) 12px max(12px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #e4b487 url("/wedding-designs/retro-romance-background.webp") center / cover no-repeat;
+  color: #761c21;
+}
+
+.retroStage::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: rgb(112 42 28 / 7%);
+  pointer-events: none;
+}
+
+.retroPhotoFrame {
+  position: relative;
+  width: min(82%, 460px);
+  aspect-ratio: 3 / 2;
+  flex: none;
+  padding: 8px 8px 24px;
+  border: 1px solid rgb(100 54 36 / 18%);
+  background: #f8ead2;
+  box-shadow: 0 14px 34px rgb(75 30 20 / 28%);
+  rotate: -1.5deg;
+}
+
+.retroPhotoFrame::after {
+  content: "";
+  position: absolute;
+  inset: 8px 8px 24px;
+  border: 1px solid rgb(255 255 255 / 35%);
+  pointer-events: none;
+}
+
+.retroPhoto {
+  inset: 8px 8px 24px !important;
+  width: calc(100% - 16px) !important;
+  height: calc(100% - 32px) !important;
+  object-fit: cover;
+  object-position: var(--wedding-photo-x) var(--wedding-photo-y);
+  transform: scale(var(--wedding-photo-zoom));
+  transform-origin: var(--wedding-photo-x) var(--wedding-photo-y);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.retroPhotoEmpty {
+  position: absolute;
+  inset: 8px 8px 24px;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  color: #7f4b3a;
+  background: #d8b38e;
+  font-size: .72rem;
+  text-align: center;
+}
+
+.retroCopy {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 440px);
+  margin-top: -8px;
+  text-align: center;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 35%);
+}
+
+.retroCopy h1 {
+  margin: 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(2rem, 8.5vw, 3.1rem);
+  font-weight: 500;
+  line-height: .96;
+  color: #8f1f27;
+}
+
+.retroCopy time {
+  display: block;
+  margin-top: 8px;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+
+.retroCopy p {
+  margin: 9px auto 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(1rem, 4vw, 1.28rem);
+  line-height: 1.18;
+}
+
+.retroUpload {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.retroUpload > :global(section) {
+  box-sizing: border-box;
+  width: min(100%, 34rem);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0;
+}
+
+.retroUpload :global(.memory-upload-card) {
+  border-color: rgb(255 225 188 / 34%);
+  border-radius: 28px 28px 18px 18px;
+  background: rgb(161 66 49 / 91%);
+  box-shadow: 0 24px 48px rgb(80 27 20 / 35%), inset 0 1px 0 rgb(255 255 255 / 20%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.retroUpload :global(.memory-dropzone) {
+  min-height: 142px;
+  padding: 16px 12px;
+  border-color: rgb(255 226 185 / 52%);
+  background: rgb(111 35 30 / 9%);
+}
+
+.retroUpload :global(.memory-upload-icon) {
+  width: 46px;
+  height: 46px;
+  color: #ffe2b5;
+  border-color: rgb(255 226 181 / 42%);
+  background: rgb(255 220 173 / 7%);
+}
+
+.retroUpload :global(.memory-upload-icon svg) {
+  width: 29px;
+  height: 29px;
+}
+
+.retroUpload :global(.memory-dropzone > span.font-display) {
+  color: #fff1dc;
+}
+
+.retroUpload :global(.memory-dropzone > span.font-display:last-child),
+.retroUpload :global(.memory-upload-card p:last-child) {
+  color: rgb(255 239 216 / 76%);
+}
+
+.retroUpload :global(.memory-field input),
+.retroUpload :global(.memory-field textarea) {
+  border-color: rgb(255 226 188 / 25%);
+  background: rgb(255 239 218 / 13%);
+  color: #fff3e2;
+}
+
+.retroUpload :global(.memory-field input::placeholder),
+.retroUpload :global(.memory-field textarea::placeholder) {
+  color: rgb(255 242 222 / 75%);
+}
+
+@media (max-width: 479px) {
+  .retroStage {
+    padding-inline: 8px;
+  }
+
+  .retroPhotoFrame {
+    width: min(84%, 390px);
+    padding: 7px 7px 21px;
+  }
+
+  .retroPhoto,
+  .retroPhotoFrame::after {
+    inset: 7px 7px 21px !important;
+  }
+
+  .retroPhoto {
+    width: calc(100% - 14px) !important;
+    height: calc(100% - 28px) !important;
+  }
+
+  .retroUpload :global(.memory-upload-card) {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 720px) {
+  .templatePage[data-wedding-template="retro-romance"] {
+    padding-block: 24px;
+  }
+
+  .templatePage[data-wedding-template="retro-romance"] .shell {
+    border: 1px solid rgb(255 229 192 / 24%);
+    border-radius: 30px;
+    overflow: hidden;
+    box-shadow: 0 34px 90px rgb(28 9 7 / 62%);
+  }
+
+  .retroStage {
+    min-height: calc(100dvh - 48px);
+  }
+}
+
+.previewPage[data-wedding-template="retro-romance"],
+.previewPage[data-wedding-template="retro-romance"] .shell,
+.previewPage[data-wedding-template="retro-romance"] .retroStage {
+  min-height: 100%;
+}
+
+.previewPage[data-wedding-template="retro-romance"] .retroStage {
+  padding: 30px 7px 8px;
+}
+
+.previewPage[data-wedding-template="retro-romance"] .retroPhotoFrame {
+  width: 84%;
+}
+
+.previewPage[data-wedding-template="retro-romance"] .retroCopy h1 {
+  font-size: 1.75rem;
+}
+
+.previewPage[data-wedding-template="retro-romance"] .retroCopy p {
+  font-size: .88rem;
+}
+
+.previewPage[data-wedding-template="retro-romance"] .retroUpload {
+  margin-top: 8px;
+}
+
+/* Velvet Flow is intentionally self-contained so future template work cannot
+   change its approved composition or upload-card treatment. */
+.templatePage[data-wedding-template="velvet-flow"] {
+  background: #1d0206;
+}
+
+.templatePage[data-wedding-template="velvet-flow"] .shell {
+  width: min(100%, 560px);
+  max-width: 100%;
+  background: #47060d;
+}
+
+.templatePage[data-wedding-template="velvet-flow"] .header,
+.templatePage[data-wedding-template="velvet-flow"] .footer {
+  display: none;
+}
+
+.velvetStage {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(36px, 6svh, 62px) 12px max(12px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #4a0911 url("/wedding-designs/velvet-flow-background.webp") center / cover no-repeat;
+  color: #f4d78f;
+}
+
+.velvetStage::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: rgb(31 0 6 / 12%);
+  pointer-events: none;
+}
+
+.velvetCopy {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  min-height: clamp(178px, 32svh, 260px);
+  padding-inline: 24px;
+  text-align: center;
+  text-shadow: 0 2px 16px rgb(20 0 3 / 78%);
+}
+
+.velvetMark {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  object-position: 50% 46%;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  filter: sepia(1) saturate(1.2) brightness(1.12);
+}
+
+.velvetCopy h1 {
+  margin: 10px 0 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(2.15rem, 9vw, 3.35rem);
+  font-weight: 500;
+  line-height: .98;
+  color: #f1d184;
+}
+
+.velvetCopy time {
+  display: block;
+  margin-top: 10px;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+
+.velvetCopy p {
+  max-width: 19rem;
+  margin: 12px auto 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(1rem, 4vw, 1.3rem);
+  line-height: 1.2;
+  color: #f8dfaa;
+}
+
+.velvetUpload {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  margin-top: auto;
+}
+
+.velvetUpload > :global(section) {
+  box-sizing: border-box;
+  width: min(100%, 34rem);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0;
+}
+
+.velvetUpload :global(.memory-upload-card) {
+  border-color: rgb(239 205 133 / 38%);
+  border-radius: 30px 30px 18px 18px;
+  background: rgb(102 18 28 / 91%);
+  box-shadow: 0 28px 58px rgb(21 0 4 / 52%), inset 0 1px 0 rgb(255 235 190 / 16%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.velvetUpload :global(.memory-dropzone) {
+  min-height: 144px;
+  padding: 17px 12px;
+  border-color: rgb(238 204 130 / 58%);
+  background: rgb(58 0 9 / 16%);
+}
+
+.velvetUpload :global(.memory-upload-icon) {
+  width: 46px;
+  height: 46px;
+  color: #f5d88d;
+  border-color: rgb(241 207 132 / 48%);
+  background: rgb(245 216 141 / 8%);
+}
+
+.velvetUpload :global(.memory-upload-icon svg) {
+  width: 29px;
+  height: 29px;
+}
+
+.velvetUpload :global(.memory-dropzone > span.font-display) {
+  color: #f8e1ad;
+}
+
+.velvetUpload :global(.memory-dropzone > span.font-display:last-child),
+.velvetUpload :global(.memory-upload-card p:last-child) {
+  color: rgb(255 232 190 / 74%);
+}
+
+.velvetUpload :global(.memory-field input),
+.velvetUpload :global(.memory-field textarea) {
+  border-color: rgb(243 208 137 / 28%);
+  background: rgb(255 234 198 / 8%);
+  color: #fff0d1;
+}
+
+.velvetUpload :global(.memory-field input::placeholder),
+.velvetUpload :global(.memory-field textarea::placeholder) {
+  color: rgb(255 234 198 / 72%);
+}
+
+@media (max-width: 479px) {
+  .velvetStage {
+    padding-inline: 8px;
+  }
+
+  .velvetCopy {
+    min-height: clamp(168px, 30svh, 225px);
+    padding-inline: 16px;
+  }
+
+  .velvetUpload :global(.memory-upload-card) {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 720px) {
+  .templatePage[data-wedding-template="velvet-flow"] {
+    padding-block: 24px;
+  }
+
+  .templatePage[data-wedding-template="velvet-flow"] .shell {
+    border: 1px solid rgb(239 207 139 / 20%);
+    border-radius: 30px;
+    overflow: hidden;
+    box-shadow: 0 34px 90px rgb(17 0 3 / 72%);
+  }
+
+  .velvetStage {
+    min-height: calc(100dvh - 48px);
+  }
+}
+
+.previewPage[data-wedding-template="velvet-flow"],
+.previewPage[data-wedding-template="velvet-flow"] .shell,
+.previewPage[data-wedding-template="velvet-flow"] .velvetStage {
+  min-height: 100%;
+}
+
+.previewPage[data-wedding-template="velvet-flow"] .velvetStage {
+  padding: 28px 7px 8px;
+}
+
+.previewPage[data-wedding-template="velvet-flow"] .velvetCopy {
+  min-height: 190px;
+  padding-inline: 10px;
+}
+
+.previewPage[data-wedding-template="velvet-flow"] .velvetCopy h1 {
+  font-size: 1.8rem;
+}
+
+.previewPage[data-wedding-template="velvet-flow"] .velvetCopy p {
+  font-size: .9rem;
+}
+
+/* Ivory Editorial is an isolated arch composition with its own responsive
+   photo crop and upload treatment. */
+.templatePage[data-wedding-template="ivory-editorial"] {
+  background: #d8c9b2;
+}
+
+.templatePage[data-wedding-template="ivory-editorial"] .shell {
+  width: min(100%, 560px);
+  max-width: 100%;
+  background: #f3e9d8;
+}
+
+.templatePage[data-wedding-template="ivory-editorial"] .header,
+.templatePage[data-wedding-template="ivory-editorial"] .footer {
+  display: none;
+}
+
+.ivoryStage {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(34px, 5svh, 54px) 12px max(12px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #f3e9d8 url("/wedding-designs/ivory-editorial-background.webp") center / cover no-repeat;
+  color: #4b2e20;
+}
+
+.ivoryPhotoFrame {
+  position: absolute;
+  z-index: 1;
+  top: clamp(39px, 6.35svh, 64px);
+  left: 50%;
+  width: min(69.2%, 388px);
+  aspect-ratio: .762;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #d8c6a9;
+  clip-path: polygon(
+    50% 0,
+    39% 2.5%,
+    29% 7.5%,
+    20% 15%,
+    13% 25%,
+    7.5% 37%,
+    3.5% 51%,
+    1% 66%,
+    0 78%,
+    0 100%,
+    100% 100%,
+    100% 78%,
+    99% 66%,
+    96.5% 51%,
+    92.5% 37%,
+    87% 25%,
+    80% 15%,
+    71% 7.5%,
+    61% 2.5%
+  );
+  transform: translateX(-50%);
+}
+
+.ivoryPhoto {
+  object-fit: cover;
+  object-position: var(--wedding-photo-x) var(--wedding-photo-y);
+  transform: scale(var(--wedding-photo-zoom));
+  transform-origin: var(--wedding-photo-x) var(--wedding-photo-y);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.ivoryPhotoEmpty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  color: #72533a;
+  font-size: .72rem;
+  text-align: center;
+}
+
+.ivoryCopy {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 450px);
+  min-height: clamp(302px, 43svh, 382px);
+  margin-inline: auto;
+  padding-top: clamp(128px, 19svh, 174px);
+  text-align: center;
+  text-shadow: 0 1px 7px rgb(255 250 237 / 90%);
+}
+
+.ivoryCopy h1 {
+  margin: 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(2rem, 8.8vw, 3.2rem);
+  font-weight: 500;
+  line-height: .98;
+  color: #4a3023;
+}
+
+.ivoryCopy time {
+  display: block;
+  margin-top: 9px;
+  font-size: .64rem;
+  font-weight: 800;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+
+.ivoryCopy p {
+  max-width: 19rem;
+  margin: 11px auto 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(1rem, 4vw, 1.28rem);
+  line-height: 1.2;
+}
+
+.ivoryUpload {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  margin-top: auto;
+}
+
+.ivoryUpload > :global(section) {
+  box-sizing: border-box;
+  width: min(100%, 34rem);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0;
+}
+
+.ivoryUpload :global(.memory-upload-card) {
+  border-color: rgb(105 73 39 / 26%);
+  border-radius: 30px 30px 18px 18px;
+  background: rgb(255 248 235 / 93%);
+  box-shadow: 0 24px 52px rgb(81 54 29 / 20%), inset 0 1px 0 white;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.ivoryUpload :global(.memory-dropzone) {
+  min-height: 142px;
+  padding: 16px 12px;
+  border-color: rgb(112 76 39 / 42%);
+  background: rgb(122 81 39 / 3%);
+}
+
+.ivoryUpload :global(.memory-upload-icon) {
+  width: 46px;
+  height: 46px;
+  color: #68401f;
+  border-color: rgb(104 64 31 / 34%);
+  background: rgb(122 81 39 / 4%);
+}
+
+.ivoryUpload :global(.memory-upload-icon svg) {
+  width: 29px;
+  height: 29px;
+}
+
+.ivoryUpload :global(.memory-dropzone > span.font-display) {
+  color: #4a2f20;
+}
+
+.ivoryUpload :global(.memory-dropzone > span.font-display:last-child),
+.ivoryUpload :global(.memory-upload-card p:last-child) {
+  color: rgb(67 43 29 / 70%);
+}
+
+.ivoryUpload :global(.memory-field input),
+.ivoryUpload :global(.memory-field textarea) {
+  border-color: rgb(104 67 34 / 20%);
+  background: rgb(255 252 245 / 82%);
+  color: #4b3020;
+}
+
+.ivoryUpload :global(.memory-field input::placeholder),
+.ivoryUpload :global(.memory-field textarea::placeholder) {
+  color: rgb(74 48 32 / 66%);
+}
+
+@media (max-width: 479px) {
+  .ivoryStage {
+    padding-inline: 8px;
+  }
+
+  .ivoryPhotoFrame {
+    width: min(69.2%, 330px);
+  }
+
+  .ivoryCopy {
+    min-height: clamp(286px, 41svh, 350px);
+    padding-top: clamp(122px, 18svh, 156px);
+  }
+
+  .ivoryUpload :global(.memory-upload-card) {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 720px) {
+  .templatePage[data-wedding-template="ivory-editorial"] {
+    padding-block: 24px;
+  }
+
+  .templatePage[data-wedding-template="ivory-editorial"] .shell {
+    border: 1px solid rgb(255 255 255 / 46%);
+    border-radius: 30px;
+    overflow: hidden;
+    box-shadow: 0 34px 90px rgb(74 51 27 / 32%);
+  }
+
+  .ivoryStage {
+    min-height: calc(100dvh - 48px);
+  }
+}
+
+.previewPage[data-wedding-template="ivory-editorial"],
+.previewPage[data-wedding-template="ivory-editorial"] .shell,
+.previewPage[data-wedding-template="ivory-editorial"] .ivoryStage {
+  min-height: 100%;
+}
+
+.previewPage[data-wedding-template="ivory-editorial"] .ivoryStage {
+  padding: 27px 7px 8px;
+}
+
+.previewPage[data-wedding-template="ivory-editorial"] .ivoryPhotoFrame {
+  top: 31px;
+  width: 69.2%;
+}
+
+.previewPage[data-wedding-template="ivory-editorial"] .ivoryCopy {
+  min-height: 278px;
+  padding-top: 120px;
+}
+
+.previewPage[data-wedding-template="ivory-editorial"] .ivoryCopy h1 {
+  font-size: 1.75rem;
+}
+
+.previewPage[data-wedding-template="ivory-editorial"] .ivoryCopy p {
+  font-size: .88rem;
+}
+
+/* Botanical keeps its floral stationery composition independent from every
+   other Wedding template. */
+.templatePage[data-wedding-template="botanical"] {
+  background: #263c2b;
+}
+
+.templatePage[data-wedding-template="botanical"] .shell {
+  width: min(100%, 560px);
+  max-width: 100%;
+  background: #f2ead7;
+}
+
+.templatePage[data-wedding-template="botanical"] .header,
+.templatePage[data-wedding-template="botanical"] .footer {
+  display: none;
+}
+
+.botanicalStage {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(104px, 18svh, 154px) 18px max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #f2ead7 url("/wedding-designs/botanical-background.webp") center / cover no-repeat;
+  color: #173c2a;
+}
+
+.botanicalCopy {
+  position: relative;
+  z-index: 1;
+  width: min(75%, 390px);
+  margin-inline: auto;
+  text-align: center;
+  text-shadow: 0 1px 4px rgb(255 252 240 / 80%);
+}
+
+.botanicalCopy h1 {
+  margin: 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(2rem, 8.5vw, 3rem);
+  font-weight: 500;
+  line-height: 1;
+  color: #214331;
+}
+
+.botanicalCopy time {
+  display: block;
+  margin-top: 10px;
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.botanicalCopy p {
+  max-width: 17rem;
+  margin: 13px auto 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(1rem, 4vw, 1.22rem);
+  line-height: 1.28;
+}
+
+.botanicalUpload {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin-top: clamp(38px, 7svh, 68px);
+}
+
+.botanicalUpload > :global(section) {
+  box-sizing: border-box;
+  width: min(100%, 33rem);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0;
+}
+
+.botanicalUpload :global(.memory-upload-card) {
+  border-color: rgb(43 77 54 / 28%);
+  border-radius: 28px 28px 20px 20px;
+  background: rgb(250 246 232 / 94%);
+  box-shadow: 0 22px 54px rgb(33 61 42 / 18%), inset 0 1px 0 rgb(255 255 255 / 86%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.botanicalUpload :global(.memory-dropzone) {
+  min-height: 140px;
+  padding: 15px 12px;
+  border-color: rgb(43 77 54 / 38%);
+  background: rgb(255 252 240 / 50%);
+}
+
+.botanicalUpload :global(.memory-upload-icon) {
+  width: 46px;
+  height: 46px;
+  color: #214b34;
+  border-color: rgb(33 75 52 / 34%);
+  background: rgb(33 75 52 / 4%);
+}
+
+.botanicalUpload :global(.memory-upload-icon svg) {
+  width: 29px;
+  height: 29px;
+}
+
+.botanicalUpload :global(.memory-dropzone > span.font-display),
+.botanicalUpload :global(.memory-upload-card button) {
+  color: #173c2a;
+}
+
+.botanicalUpload :global(.memory-field input),
+.botanicalUpload :global(.memory-field textarea) {
+  border-color: rgb(36 72 48 / 20%);
+  background: rgb(255 252 241 / 82%);
+  color: #173c2a;
+}
+
+@media (max-width: 479px) {
+  .botanicalStage {
+    padding: clamp(94px, 17svh, 126px) 10px 12px;
+  }
+
+  .botanicalCopy {
+    width: 78%;
+  }
+
+  .botanicalUpload {
+    margin-top: clamp(30px, 5svh, 46px);
+  }
+}
+
+@media (min-width: 720px) {
+  .templatePage[data-wedding-template="botanical"] {
+    padding-block: 24px;
+  }
+
+  .templatePage[data-wedding-template="botanical"] .shell {
+    border: 1px solid rgb(255 255 255 / 42%);
+    border-radius: 30px;
+    overflow: hidden;
+    box-shadow: 0 34px 90px rgb(15 38 24 / 36%);
+  }
+
+  .botanicalStage {
+    min-height: calc(100dvh - 48px);
+  }
+}
+
+.previewPage[data-wedding-template="botanical"],
+.previewPage[data-wedding-template="botanical"] .shell,
+.previewPage[data-wedding-template="botanical"] .botanicalStage {
+  min-height: 100%;
+}
+
+.previewPage[data-wedding-template="botanical"] .botanicalStage {
+  padding: 72px 8px 8px;
+}
+
+.previewPage[data-wedding-template="botanical"] .botanicalCopy {
+  width: 78%;
+}
+
+.previewPage[data-wedding-template="botanical"] .botanicalCopy h1 {
+  font-size: 1.72rem;
+}
+
+.previewPage[data-wedding-template="botanical"] .botanicalCopy p {
+  font-size: .86rem;
+}
+
+.previewPage[data-wedding-template="botanical"] .botanicalUpload {
+  margin-top: 28px;
+}
+
+/* Aurora is isolated so its rose-onyx surface and translucent form never
+   leak into another Wedding template. */
+.templatePage[data-wedding-template="aurora"] {
+  background: #7f2937;
+}
+
+.templatePage[data-wedding-template="aurora"] .shell {
+  width: min(100%, 560px);
+  max-width: 100%;
+  background: #f6c7c2;
+}
+
+.templatePage[data-wedding-template="aurora"] .header,
+.templatePage[data-wedding-template="aurora"] .footer {
+  display: none;
+}
+
+.auroraStage {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(62px, 10svh, 94px) 16px max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #f6c7c2 url("/wedding-designs/aurora-background.webp") center / cover no-repeat;
+  color: #77192a;
+}
+
+.auroraCopy {
+  position: relative;
+  z-index: 1;
+  width: min(78%, 410px);
+  margin-inline: auto;
+  text-align: center;
+  text-shadow: 0 1px 4px rgb(255 229 225 / 72%);
+}
+
+.auroraMonogram {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 16px;
+  border: 1px solid rgb(119 25 42 / 44%);
+  border-radius: 50%;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: .83rem;
+  letter-spacing: .08em;
+}
+
+.auroraCopy h1 {
+  margin: 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(2.05rem, 8.8vw, 3.15rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.auroraCopy time {
+  display: block;
+  margin-top: 10px;
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+
+.auroraCopy p {
+  max-width: 17rem;
+  margin: 14px auto 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(1rem, 4vw, 1.23rem);
+  line-height: 1.28;
+}
+
+.auroraUpload {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin-top: clamp(34px, 6svh, 58px);
+}
+
+.auroraUpload > :global(section) {
+  box-sizing: border-box;
+  width: min(100%, 33rem);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0;
+}
+
+.auroraUpload :global(.memory-upload-card) {
+  border-color: rgb(141 40 57 / 28%);
+  border-radius: 28px 28px 20px 20px;
+  background: rgb(255 218 214 / 83%);
+  box-shadow: 0 22px 54px rgb(112 25 42 / 20%), inset 0 1px 0 rgb(255 245 241 / 74%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.auroraUpload :global(.memory-dropzone) {
+  min-height: 140px;
+  padding: 15px 12px;
+  border-color: rgb(130 29 47 / 42%);
+  background: rgb(255 230 226 / 27%);
+}
+
+.auroraUpload :global(.memory-upload-icon) {
+  width: 46px;
+  height: 46px;
+  color: #801a2c;
+  border-color: rgb(128 26 44 / 38%);
+  background: rgb(128 26 44 / 3%);
+}
+
+.auroraUpload :global(.memory-upload-icon svg) {
+  width: 29px;
+  height: 29px;
+}
+
+.auroraUpload :global(.memory-dropzone > span.font-display),
+.auroraUpload :global(.memory-upload-card button) {
+  color: #761729;
+}
+
+.auroraUpload :global(.memory-field input),
+.auroraUpload :global(.memory-field textarea) {
+  border-color: rgb(129 29 47 / 20%);
+  background: rgb(255 231 228 / 64%);
+  color: #701425;
+}
+
+@media (max-width: 479px) {
+  .auroraStage {
+    padding: clamp(54px, 9svh, 72px) 9px 12px;
+  }
+
+  .auroraCopy {
+    width: 82%;
+  }
+
+  .auroraMonogram {
+    margin-bottom: 12px;
+  }
+
+  .auroraUpload {
+    margin-top: clamp(27px, 4.5svh, 40px);
+  }
+}
+
+@media (min-width: 720px) {
+  .templatePage[data-wedding-template="aurora"] {
+    padding-block: 24px;
+  }
+
+  .templatePage[data-wedding-template="aurora"] .shell {
+    border: 1px solid rgb(255 255 255 / 40%);
+    border-radius: 30px;
+    overflow: hidden;
+    box-shadow: 0 34px 90px rgb(97 23 38 / 38%);
+  }
+
+  .auroraStage {
+    min-height: calc(100dvh - 48px);
+  }
+}
+
+.previewPage[data-wedding-template="aurora"],
+.previewPage[data-wedding-template="aurora"] .shell,
+.previewPage[data-wedding-template="aurora"] .auroraStage {
+  min-height: 100%;
+}
+
+.previewPage[data-wedding-template="aurora"] .auroraStage {
+  padding: 42px 8px 8px;
+}
+
+.previewPage[data-wedding-template="aurora"] .auroraCopy {
+  width: 82%;
+}
+
+.previewPage[data-wedding-template="aurora"] .auroraMonogram {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 10px;
+  font-size: .7rem;
+}
+
+.previewPage[data-wedding-template="aurora"] .auroraCopy h1 {
+  font-size: 1.72rem;
+}
+
+.previewPage[data-wedding-template="aurora"] .auroraCopy p {
+  font-size: .86rem;
+}
+
+.previewPage[data-wedding-template="aurora"] .auroraUpload {
+  margin-top: 24px;
+}
+
+/* The Romantic Ceremony reference uses a complete bespoke composition and
+   upload flow; keep every override scoped to this template. */
+.templatePage[data-wedding-template="romantic-ceremony"] {
+  background: #4d111b;
+}
+
+.templatePage[data-wedding-template="romantic-ceremony"] .shell {
+  width: min(100%, 560px);
+  max-width: 100%;
+  background: #f4eadf;
+}
+
+.templatePage[data-wedding-template="romantic-ceremony"] .header,
+.templatePage[data-wedding-template="romantic-ceremony"] .footer {
+  display: none;
+}
+
+.romanticCeremonyStage {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(74px, 10svh, 106px) 20px max(24px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background: #f4eadf url("/wedding-designs/romantic-ceremony-background.webp") center / cover no-repeat;
+  color: #4b1a18;
+}
+
+.romanticCeremonyCopy {
+  position: relative;
+  z-index: 1;
+  width: min(88%, 460px);
+  margin-inline: auto;
+  text-align: center;
+  text-shadow: 0 1px 7px rgb(255 250 240 / 90%);
+}
+
+.romanticCeremonyLogo {
+  width: clamp(118px, 29vw, 160px);
+  height: auto;
+  margin: 0 auto clamp(24px, 4svh, 42px);
+  object-fit: contain;
+}
+
+.romanticCeremonyCopy h1 {
+  margin: 0;
+  color: #7c1023;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(2.35rem, 10vw, 3.8rem);
+  font-style: italic;
+  font-weight: 500;
+  line-height: .92;
+}
+
+.romanticCeremonyCopy time {
+  display: block;
+  margin-top: 13px;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.romanticCeremonyCopy p {
+  max-width: 25rem;
+  margin: 12px auto 0;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: clamp(1.05rem, 4vw, 1.35rem);
+  line-height: 1.22;
+  text-transform: uppercase;
+}
+
+.romanticCeremonyCopy > strong {
+  display: block;
+  margin-top: 16px;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: .74rem;
+  font-weight: 500;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+}
+
+.romanticCeremonyDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 16px;
+  color: #92132b;
+}
+
+.romanticCeremonyDivider i {
+  width: 72px;
+  height: 1px;
+  background: currentColor;
+}
+
+.romanticCeremonyUpload {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin-top: clamp(28px, 4.5svh, 48px);
+}
+
+.romanticCeremonyUpload > :global(section) {
+  box-sizing: border-box;
+  width: min(100%, 35rem);
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 0;
+}
+
+.romanticCeremonyUpload :global(.memory-upload-card) {
+  overflow: hidden;
+  border: 1px solid rgb(139 16 40 / 24%);
+  background: rgb(255 249 242 / 90%);
+  box-shadow: 0 22px 52px rgb(74 38 28 / 18%), inset 0 1px 0 rgb(255 255 255 / 84%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.romanticCeremonyUpload :global(.memory-dropzone) {
+  min-height: 240px;
+  padding: 28px 16px;
+  border: 1px dashed rgb(76 60 52 / 48%);
+  border-radius: 18px;
+  outline: 0;
+  background: rgb(255 251 245 / 54%);
+  box-shadow: none;
+}
+
+.romanticCeremonyUpload :global(.memory-upload-icon) {
+  width: 68px;
+  height: 68px;
+  color: #8b1028;
+  border: 0;
+  background: rgb(139 16 40 / 7%);
+}
+
+.romanticCeremonyUpload :global(.memory-upload-icon svg) {
+  width: 38px;
+  height: 38px;
+}
+
+.romanticCeremonyUpload :global(.memory-dropzone > span.font-display) {
+  color: #251914;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.romanticCeremonyUpload :global(.memory-dropzone > span.font-display:last-child) {
+  color: rgb(37 25 20 / 48%);
+}
+
+.romanticCeremonyUpload :global(.memory-field input),
+.romanticCeremonyUpload :global(.memory-field textarea) {
+  border-color: rgb(139 16 40 / 20%);
+  border-radius: 14px;
+  background: rgb(255 251 246 / 84%);
+  color: #49171d;
+  box-shadow: none;
+}
+
+.romanticCeremonyUpload :global(.memory-field > svg) {
+  color: #8b1028;
+}
+
+.romanticCeremonyUpload :global(.memory-upload-card > p:last-child) {
+  display: flex;
+  color: rgb(73 23 29 / 66%);
+}
+
+@media (max-width: 479px) {
+  .romanticCeremonyStage {
+    padding: clamp(54px, 8svh, 76px) 12px 18px;
+  }
+
+  .romanticCeremonyLogo {
+    width: clamp(104px, 27vw, 132px);
+    margin-bottom: 20px;
+  }
+
+  .romanticCeremonyCopy > strong {
+    font-size: .64rem;
+    letter-spacing: .25em;
+  }
+
+  .romanticCeremonyUpload :global(.memory-dropzone) {
+    min-height: 210px;
+  }
+
+}
+
+@media (min-width: 720px) {
+  .templatePage[data-wedding-template="romantic-ceremony"] {
+    padding-block: 24px;
+  }
+
+  .templatePage[data-wedding-template="romantic-ceremony"] .shell {
+    border: 1px solid rgb(255 255 255 / 45%);
+    border-radius: 30px;
+    overflow: hidden;
+    box-shadow: 0 34px 90px rgb(66 11 23 / 38%);
+  }
+
+  .romanticCeremonyStage {
+    min-height: calc(100dvh - 48px);
+  }
+}
+
+.previewPage[data-wedding-template="romantic-ceremony"],
+.previewPage[data-wedding-template="romantic-ceremony"] .shell,
+.previewPage[data-wedding-template="romantic-ceremony"] .romanticCeremonyStage {
+  min-height: 100%;
+}
+
+.previewPage[data-wedding-template="romantic-ceremony"] .romanticCeremonyStage {
+  padding: 34px 8px 8px;
+}
+
+.previewPage[data-wedding-template="romantic-ceremony"] .romanticCeremonyLogo {
+  width: 86px;
+  margin-bottom: 10px;
+}
+
+.previewPage[data-wedding-template="romantic-ceremony"] .romanticCeremonyCopy h1 {
+  font-size: 1.72rem;
+}
+
+.previewPage[data-wedding-template="romantic-ceremony"] .romanticCeremonyCopy p {
+  font-size: .82rem;
+}
+
+.previewPage[data-wedding-template="romantic-ceremony"] .romanticCeremonyCopy > strong {
+  margin-top: 8px;
+  font-size: .54rem;
+}
+
+.previewPage[data-wedding-template="romantic-ceremony"] .romanticCeremonyDivider {
+  margin-top: 8px;
+}
+
+.previewPage[data-wedding-template="romantic-ceremony"] .romanticCeremonyUpload {
+  margin-top: 20px;
+}
+
+.previewPage[data-wedding-template="cinematic"],
+.previewPage[data-wedding-template="cinematic"] .shell {
+  min-height: 100%;
+}
+
+.previewPage[data-wedding-template="cinematic"] .templateHero {
+  min-height: 100%;
+  padding-top: 42%;
+}
+
+.previewPage[data-wedding-template="cinematic"] .templateHeroCopy {
+  inset-block-start: 7%;
+}
+
+.previewPage[data-wedding-template="cinematic"] .cinematicUpload > :global(section) {
+  padding-inline: 8px;
+}
+
+@media (max-width: 479px) {
+  .templatePage[data-wedding-template="cinematic"] .templateHero {
+    padding-top: clamp(210px, 38svh, 330px);
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .templateHeroCopy {
+    inset-inline: 14px;
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .templateHeroCopy h1 {
+    font-size: clamp(1.8rem, 10vw, 3rem);
+  }
+
+  .cinematicUpload > :global(section) {
+    padding-inline: clamp(8px, 3vw, 14px);
+  }
+
+  .cinematicUpload :global(.memory-upload-card) {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 480px) and (max-width: 1023px) {
+  .templatePage[data-wedding-template="cinematic"] .shell {
+    width: min(100%, 48rem);
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .templateHero {
+    min-height: max(100svh, 760px);
+    padding-top: clamp(280px, 42svh, 390px);
+  }
+
+  .cinematicUpload > :global(section) {
+    width: min(100%, 32rem);
+    padding-inline: 16px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .templatePage[data-wedding-template="cinematic"] {
+    display: grid;
+    place-items: center;
+    min-height: 100dvh;
+    padding: 24px;
+    background: #111;
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .shell {
+    width: min(100%, 56rem);
+    min-height: 0;
+    border: 1px solid rgb(255 255 255 / 14%);
+    border-radius: 28px;
+    box-shadow: 0 34px 90px rgb(0 0 0 / 58%);
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .templateHero {
+    min-height: min(900px, calc(100dvh - 48px));
+    padding-top: clamp(300px, 40dvh, 390px);
+    border-radius: inherit;
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .templateHeroCopy {
+    inset-block-start: clamp(46px, 8dvh, 84px);
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .templateHeroCopy h1 {
+    font-size: clamp(2.8rem, 5vw, 4.5rem);
+  }
+
+  .cinematicUpload > :global(section) {
+    width: min(100%, 32rem);
+    padding-inline: 18px;
+  }
+}
+
+@media (max-height: 760px) {
+  .templatePage[data-wedding-template="cinematic"] .templateHero {
+    padding-top: 190px;
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .templateHeroCopy {
+    inset-block-start: 32px;
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .templateHeroCopy p {
+    display: none;
+  }
+
+  .cinematicUpload :global(.memory-dropzone) {
+    min-height: 104px;
+    padding-block: 10px;
+  }
+
+  .cinematicUpload :global(.memory-upload-icon) {
+    width: 38px;
+    height: 38px;
+  }
+}
+
 .footer {
   padding: 12px 20px 36px;
   text-align: center;
@@ -310,5 +1915,16 @@
     border-radius: 42px;
     overflow: hidden;
     border: 1px solid rgb(255 255 255 / 18%);
+  }
+}
+
+@media (min-width: 720px) and (max-width: 1023px) {
+  .templatePage[data-wedding-template="cinematic"] {
+    padding-block: 0;
+  }
+
+  .templatePage[data-wedding-template="cinematic"] .shell {
+    border: 0;
+    border-radius: 0;
   }
 }

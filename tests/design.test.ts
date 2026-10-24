@@ -35,6 +35,31 @@ test("template libraries expose only available templates", () => {
     assert.ok(templates.every((template) => template.available && template.surface === surface));
   }
 });
+test("loading library keeps the legacy video and adds the portrait videos", () => {
+  const templates = availableTemplates("loading");
+  const legacy = templates.find((template) => template.id === "video");
+  const envelope = templates.find((template) => template.id === "envelope");
+  const album = templates.find((template) => template.id === "album");
+
+  assert.equal(legacy?.asset, "/intro/shineqr-portrait-v2.mp4");
+  assert.equal(
+    envelope?.asset,
+    "/intro/wedding-envelope-loading-9x16.mp4",
+  );
+  assert.equal(album?.asset, "/intro/wedding-album-loading-9x16.mp4");
+  assert.equal(
+    designSchema.safeParse({ ...defaultDesign, intro: "envelope" }).success,
+    true,
+  );
+  assert.equal(
+    designSchema.safeParse({ ...defaultDesign, intro: "album" }).success,
+    true,
+  );
+  assert.equal(
+    designSchema.safeParse({ ...defaultDesign, intro: "campus" }).success,
+    true,
+  );
+});
 test("all QR reference designs are available as valid presets", () => {
   assert.equal(cardPresets.length, 10);
   assert.equal(new Set(cardPresets.map((preset) => preset.id)).size, 10);
@@ -274,8 +299,8 @@ test("Wedding completion requires Loading and an organization photo", () => {
 });
 
 test("Wedding templates use the approved references and photo ownership is exact", () => {
-  assert.equal(weddingTemplates.length, 10);
-  assert.equal(new Set(weddingTemplates.map((template) => template.id)).size, 10);
+  assert.equal(weddingTemplates.length, 11);
+  assert.equal(new Set(weddingTemplates.map((template) => template.id)).size, 11);
   for (const template of weddingTemplates)
     assert.match(template.reference, /^\/wedding-designs\/\d{2}_.+\.png$/);
   assert.equal(weddingImageBelongsToEvent("/covers/a.jpg", ["/covers/a.jpg"]), true);

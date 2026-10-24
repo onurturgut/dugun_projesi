@@ -9,6 +9,7 @@ export const weddingTemplateIds = [
   "mediterranean",
   "cinematic",
   "timeless",
+  "romantic-ceremony",
 ] as const;
 
 export type WeddingTemplateId = (typeof weddingTemplateIds)[number];
@@ -38,6 +39,7 @@ export const weddingTemplates: readonly WeddingTemplateDefinition[] = [
   { id: "mediterranean", number: "08", name: "Mediterranean", description: "Canlı, ferah ve Akdeniz esintili", reference: "/wedding-designs/08_Mediterranean.png", base: "#DCEBF0", light: "#F7FBFC", accent: "#075D8A", ink: "#064A70", imageTreatment: "arch" },
   { id: "cinematic", number: "09", name: "Cinematic", description: "Siyah beyaz ve sinematik", reference: "/wedding-designs/09_Cinematic.png", base: "#111111", light: "#343434", accent: "#F2F2F2", ink: "#FFFFFF", imageTreatment: "full", monochrome: true },
   { id: "timeless", number: "10", name: "Timeless", description: "Klasik, sade ve zamansız", reference: "/wedding-designs/10_Timeless.png", base: "#EDE2CF", light: "#FFF9ED", accent: "#5C3B20", ink: "#38281B", imageTreatment: "arch" },
+  { id: "romantic-ceremony", number: "11", name: "Romantik Tören", description: "Aydınlık, romantik ve bordo detaylı", reference: "/wedding-designs/11_Romantik_Dugun.png", base: "#F4E9DD", light: "#FFF9F2", accent: "#8B0D25", ink: "#391A16", imageTreatment: "full" },
 ] as const;
 
 export function resolveWeddingTemplate(id: string) {

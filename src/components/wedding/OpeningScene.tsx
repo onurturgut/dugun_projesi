@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { type CSSProperties } from "react";
 import { designMonogram, themes, type WeddingDesign } from "@/lib/design";
 import styles from "./OpeningScene.module.css";
@@ -13,6 +14,39 @@ export function OpeningScene({
   still?: boolean;
 }) {
   const palette = themes[design.theme];
+  if (design.intro === "campus") {
+    return (
+      <div
+        className={`${styles.campusScene} ${still ? styles.still : ""}`}
+        style={{ "--scene-duration": `${6 / design.speed}s` } as CSSProperties}
+        aria-hidden="true"
+      >
+        <div className={styles.campusContent}>
+          <Image
+            src="/wedding-designs/mugla-university-logo-transparent.png"
+            alt=""
+            width={1080}
+            height={1456}
+            className={styles.campusLogo}
+            priority
+          />
+          <div className={styles.campusMotto}>
+            <span><i /> Bilgiyle <i /></span>
+            <strong>Daha güçlü yarınlara</strong>
+          </div>
+          <div className={styles.campusProgress}>
+            <span><i /></span>
+            <em>Hazırlanıyor...</em>
+          </div>
+        </div>
+        <div className={styles.campusFooter}>
+          <i />
+          <span>Üreten üniversite<br />topluma değer</span>
+          <i />
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className={`${styles.scene} ${design.intro === "monogram" ? styles.monogram : design.intro === "fade" ? styles.fade : ""} ${still ? styles.still : ""}`}

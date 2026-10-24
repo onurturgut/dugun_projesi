@@ -14,4 +14,20 @@
 .lockedState h1 { color: var(--admin-text); font: 600 28px/1.2 var(--font-display), Georgia, serif; }
 .lockedState p { max-width: 520px; font-size: 12px; line-height: 1.65; }
 .lockedState a { min-height: 42px; display: inline-flex; align-items: center; padding: 10px 16px; border-radius: 9px; background: #86162a; color: white; font-size: 11px; font-weight: 750; }
-@media (max-width: 760px) { .surfaceFlow { grid-template-columns: 1fr; } .surfaceItem { min-height: 62px; } }
+@media (max-width: 760px) {
+  .surfaceFlow {
+    display: flex;
+    margin-inline: -14px;
+    padding-inline: 14px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .surfaceFlow::-webkit-scrollbar { display: none; }
+  .surfaceItem {
+    flex: 0 0 min(280px, 82vw);
+    min-height: 62px;
+    scroll-snap-align: start;
+  }
+}

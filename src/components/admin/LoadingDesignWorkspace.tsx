@@ -18,13 +18,13 @@ import { OpeningScene } from "@/components/wedding/OpeningScene";
 import { api, type Wedding } from "@/lib/api";
 import {
   designSchema,
+  isVideoIntro,
   resolveDesign,
   type WeddingDesign,
+  videoIntroAssets,
 } from "@/lib/design";
 import { loadingTemplateLibrary } from "@/lib/design-libraries/loading";
 import styles from "./LoadingDesignWorkspace.module.css";
-
-const VIDEO_POSTER = "/intro/shineqr-portrait-v2-poster.jpg";
 
 export function LoadingDesignWorkspace({ event }: { event: Wedding }) {
   const queryClient = useQueryClient();
@@ -38,6 +38,9 @@ export function LoadingDesignWorkspace({ event }: { event: Wedding }) {
   const selectedTemplate = loadingTemplateLibrary.find(
     (template) => template.id === design.intro,
   );
+  const selectedVideoAsset = isVideoIntro(design.intro)
+    ? videoIntroAssets[design.intro]
+    : undefined;
 
   useEffect(() => {
     if (!dirty) return;
@@ -125,6 +128,9 @@ export function LoadingDesignWorkspace({ event }: { event: Wedding }) {
           <div className={styles.templateList}>
             {loadingTemplateLibrary.map((template) => {
               const selected = design.intro === template.id;
+              const videoAsset = isVideoIntro(template.id)
+                ? videoIntroAssets[template.id]
+                : undefined;
               const previewDesign = {
                 ...design,
                 intro: template.id as WeddingDesign["intro"],
@@ -139,9 +145,9 @@ export function LoadingDesignWorkspace({ event }: { event: Wedding }) {
                   }
                 >
                   <span className={styles.templateThumb} aria-hidden="true">
-                    {template.id === "video" ? (
+                    {videoAsset ? (
                       <Image
-                        src={VIDEO_POSTER}
+                        src={videoAsset.poster}
                         alt=""
                         fill
                         sizes="72px"
@@ -186,10 +192,10 @@ export function LoadingDesignWorkspace({ event }: { event: Wedding }) {
                 className={styles.phoneScreen}
                 key={`${replay}-${design.intro}`}
               >
-                {design.intro === "video" ? (
+                {selectedVideoAsset ? (
                   <video
-                    src="/intro/shineqr-portrait-v2.mp4"
-                    poster={VIDEO_POSTER}
+                    src={selectedVideoAsset.video}
+                    poster={selectedVideoAsset.poster}
                     autoPlay
                     muted
                     playsInline

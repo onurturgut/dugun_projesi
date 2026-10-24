@@ -31,6 +31,12 @@
   visibility: hidden;
 }
 
+.intro[data-intro="campus"] .ambient,
+.intro[data-intro="campus"] .frame,
+.intro[data-intro="campus"] .brand {
+  display: none;
+}
+
 .ambient {
   position: absolute;
   z-index: -2;
@@ -92,7 +98,8 @@
   inset: -32px;
   background:
     linear-gradient(rgb(35 4 10 / 42%), rgb(18 2 6 / 68%)),
-    url("/intro/shineqr-portrait-v2-poster.jpg") center / cover no-repeat;
+    var(--intro-poster, url("/intro/shineqr-portrait-v2-final.jpg")) center /
+      cover no-repeat;
   filter: blur(24px) saturate(0.82);
   transform: scale(1.08);
   pointer-events: none;
@@ -109,11 +116,14 @@
   filter: drop-shadow(0 0 36px rgb(12 1 4 / 48%));
 }
 .poster {
-  background: url("/intro/shineqr-portrait-v2-poster.jpg") center / contain
-    no-repeat;
+  background: var(--intro-poster, url("/intro/shineqr-portrait-v2-final.jpg"))
+    center / contain no-repeat;
 }
 .finalPoster {
-  background-image: url("/intro/shineqr-portrait-v2-final.jpg");
+  background-image: var(
+    --intro-final-poster,
+    url("/intro/shineqr-portrait-v2-final.jpg")
+  );
 }
 
 .footer {

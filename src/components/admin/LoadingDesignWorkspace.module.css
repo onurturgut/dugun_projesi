@@ -336,3 +336,10 @@
   .summaryPanel { border-top: 0; }
   .actions { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 420px) {
+  .templatePanel,
+  .summaryPanel { padding-inline: 14px; }
+  .previewStage { min-height: 460px; padding: 18px 8px; }
+  .phone { width: min(250px, 92%); }
+}

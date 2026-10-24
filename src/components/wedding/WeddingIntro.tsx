@@ -10,9 +10,11 @@ import {
 } from "react";
 import styles from "./WeddingIntro.module.css";
 import {
+  isVideoIntro,
   resolveDesign,
   themes,
   type WeddingDesign,
+  videoIntroAssets,
 } from "@/lib/design";
 import { OpeningScene } from "./OpeningScene";
 
@@ -25,8 +27,6 @@ interface WeddingIntroProps {
   title?: string;
 }
 
-const POSTER = "/intro/shineqr-portrait-v2-poster.jpg";
-
 export function WeddingIntro({
   ready,
   failed,
@@ -36,7 +36,16 @@ export function WeddingIntro({
   title = "",
 }: WeddingIntroProps) {
   const design = resolveDesign(savedDesign);
-  const palette = themes[design.intro === "video" ? "burgundy" : design.theme];
+  const videoAsset = isVideoIntro(design.intro)
+    ? videoIntroAssets[design.intro]
+    : undefined;
+  const palette = themes[
+    design.intro === "video"
+      ? "burgundy"
+      : videoAsset
+        ? "ivory"
+        : design.theme
+  ];
   const [phase, setPhase] = useState<
     "checking" | "playing" | "leaving" | "done"
   >("checking");
@@ -90,7 +99,7 @@ export function WeddingIntro({
 
   useEffect(() => {
     if (phase !== "playing" || finished) return;
-    if (design.intro !== "video") {
+    if (!isVideoIntro(design.intro)) {
       const duration = design.intro === "fade" ? 1800 : 6000;
       const timer = window.setTimeout(
         () => setFinished(true),
@@ -139,9 +148,16 @@ export function WeddingIntro({
               "--intro-base": palette.base,
               "--intro-accent": palette.accent,
               "--intro-ink": palette.ink,
+              "--intro-poster": videoAsset
+                ? `url("${videoAsset.poster}")`
+                : undefined,
+              "--intro-final-poster": videoAsset
+                ? `url("${videoAsset.final}")`
+                : undefined,
             } as CSSProperties
           }
           className={`${styles.intro} ${phase === "leaving" ? styles.leaving : ""}`}
+          data-intro={design.intro}
           aria-label="Davetinize hoş geldiniz"
           onKeyDown={(event) => {
             if (event.key === "Escape") setFinished(true);
@@ -165,19 +181,19 @@ export function WeddingIntro({
 
           <div className={styles.stage} aria-hidden="true">
             {/* A CSS poster remains visible even when autoplay is unavailable. */}
-            {design.intro === "video" ? (
+            {videoAsset ? (
               <div className={styles.poster} />
             ) : (
               phase !== "checking" && (
                 <OpeningScene design={design} title={title} still={finished} />
               )
             )}
-            {design.intro === "video" && phase !== "checking" && !finished && (
+            {videoAsset && phase !== "checking" && !finished && (
               <video
                 ref={videoRef}
                 className={styles.video}
-                src="/intro/shineqr-portrait-v2.mp4"
-                poster={POSTER}
+                src={videoAsset.video}
+                poster={videoAsset.poster}
                 width={720}
                 height={1280}
                 autoPlay
@@ -189,7 +205,7 @@ export function WeddingIntro({
                 onError={() => setFinished(true)}
               />
             )}
-            {design.intro === "video" && finished && (
+            {videoAsset && finished && (
               <div className={`${styles.poster} ${styles.finalPoster}`} />
             )}
           </div>

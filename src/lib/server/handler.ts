@@ -39,6 +39,8 @@ import {
   deadlines,
   expired,
   uploadsOpen,
+  uploadsOpenForRuntime,
+  uploadWindowDeadline,
   trashDeadline,
   weddingScope,
 } from "@/lib/policy";
@@ -106,7 +108,7 @@ const publicEvent = (w: Wedding) => ({
   hero_message: w.hero_message,
   thank_you_message: w.thank_you_message,
   design: w.design,
-  can_upload: uploadsOpen(w),
+  can_upload: uploadsOpenForRuntime(w),
   uploads_close_at: w.uploads_close_at,
 });
 export async function handle(
@@ -2301,7 +2303,7 @@ export async function handle(
           .findOne({ id: event.partner_id, active: true }))
       )
         throw new HttpError(404, "Organizasyon bulunamadı.");
-      if (!uploadsOpen(event))
+      if (!uploadsOpenForRuntime(event))
         throw new HttpError(410, "Bu organizasyon için yükleme kapalı.");
       const mediaType = data.mime_type.startsWith("image/") ? "photo" : "video";
       const fileLimit = mediaType === "photo"
@@ -2325,11 +2327,12 @@ export async function handle(
       const { client, bucket } = storage(),
         ticket = randomBytes(32).toString("hex"),
         key = `weddings/${event.id}/${randomUUID()}`;
+      const uploadDeadline = uploadWindowDeadline(event);
       const seconds = Math.max(
         1,
         Math.min(
           900,
-          Math.floor((Date.parse(event.uploads_close_at!) - Date.now()) / 1000),
+          Math.floor((uploadDeadline - Date.now()) / 1000),
         ),
       );
       const url = await getSignedUrl(
@@ -2388,7 +2391,7 @@ export async function handle(
             storage_limit_bytes: storageLimit,
             createdAt: new Date(),
             expiresAt: new Date(
-              Math.min(Date.now() + 3600000, Date.parse(event.uploads_close_at!)),
+              Math.min(Date.now() + 3600000, uploadDeadline),
             ),
             completed: false,
           }, { session: transaction });
@@ -2407,7 +2410,7 @@ export async function handle(
         .findOne({ token: hash(ticket), expiresAt: { $gt: new Date() } });
       if (!t) throw new HttpError(400, "Yükleme süresi dolmuş.");
       const event = await weddings.findOne({ id: t.weddingId });
-      if (!event || !uploadsOpen(event))
+      if (!event || !uploadsOpenForRuntime(event))
         throw new HttpError(410, "Yükleme kapalı.");
       if (
         !(await database

@@ -106,3 +106,10 @@
 @media (max-width: 1180px) { .editorGrid { grid-template-columns: 150px minmax(360px, 1fr) 310px; } .stepRail button { grid-template-columns: 28px 1fr; } .stepRail button > svg { display: none; } }
 @media (max-width: 920px) { .editorGrid { grid-template-columns: 116px minmax(0, 1fr); } .inspector { grid-column: 1 / -1; min-height: 600px; border-top: 1px solid #ddd8d0; border-left: 0; } .stepRail button { grid-template-columns: 28px 1fr; padding-inline: 12px; } .stepRail button small { display: none; } }
 @media (max-width: 640px) { .workspace { border-radius: 12px; } .toolbar { align-items: flex-start; flex-direction: column; } .editorGrid { display: block; } .stepRail { display: flex; overflow-x: auto; padding: 0; border-right: 0; border-bottom: 1px solid #ddd8d0; } .stepRail button { min-width: 112px; min-height: 72px; padding: 10px; } .stepRail button::after { display: none; } .previewToolbar { align-items: flex-start; flex-direction: column; } .previewStage { min-height: 560px; padding: 24px 10px; } .phone { width: min(284px, 86%); } .inspector { min-height: 650px; padding: 22px 17px 88px; } .bottomBar { align-items: stretch; flex-direction: column; } .bottomBar > button { width: 100%; } }
+
+@media (max-width: 420px) {
+  .previewStage { min-height: 500px; padding: 18px 8px; }
+  .phone { width: min(270px, 92%); }
+  .inspector { min-height: 0; padding-inline: 14px; }
+  .templateGrid { grid-template-columns: 1fr; }
+}
