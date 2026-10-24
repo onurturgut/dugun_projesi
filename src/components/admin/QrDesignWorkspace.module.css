@@ -208,3 +208,10 @@
   .bottomBar { align-items: stretch; flex-direction: column; }
   .bottomBar > button { width: 100%; }
 }
+
+@media (max-width: 420px) {
+  .canvasStage { min-height: 420px; padding: 18px 8px; }
+  .cardFrame { width: min(300px, 92%); }
+  .inspector { min-height: 0; padding-inline: 14px; }
+  .colorList { grid-template-columns: 1fr; }
+}

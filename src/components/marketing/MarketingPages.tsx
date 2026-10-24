@@ -18,7 +18,6 @@ import {
 import {
   ContactForm,
   FaqList,
-  HomeThemeShowcase,
   ThemeGallery,
 } from "./Interactive";
 import {
@@ -29,6 +28,11 @@ import {
 } from "./MarketingShell";
 import { features, useCases } from "./data";
 import styles from "./marketing.module.css";
+import { PACKAGE_CATALOG, type PackageCode } from "@/lib/commercial-policy";
+import albumDashboard from "../../../shineqr_planlama/düzenleme24_10/dijital_albüm.png";
+import uploadWedding from "../../../shineqr_planlama/düzenleme24_10/fotograf_ve_videolari_yukleyin.png";
+import qrCollection from "../../../shineqr_planlama/düzenleme24_10/kisilestirilebilir_qr_tasarımları.png";
+import createEvent from "../../../shineqr_planlama/düzenleme24_10/organizasyonunu_olustur.png";
 
 const featureIcons = [
   QrCode,
@@ -102,14 +106,16 @@ export function HomePage() {
             </span>
           </div>
         </div>
-        <div className={styles.premiumHeroVisual}>
-          <Image
-            src="/marketing/shineqr-wedding-hero-composition.png"
-            alt="ShineQR dijital albümünü gösteren telefon ve düğün fotoğrafları"
-            fill
-            priority
-            sizes="(max-width: 760px) 100vw, 58vw"
-          />
+        <div className={styles.premiumHeroVisual} aria-label="ShineQR tasarım örnekleri">
+          <div className={styles.heroVisualTrack}>
+            {[
+              ["/marketing/qr-table-cards-hero-transparent.png", "Dört kişiselleştirilmiş ShineQR QR masa kartı"],
+              ["/marketing/floral-wedding-cards-hero-transparent.png", "Çiçek detaylı ShineQR düğün masa kartları"],
+              ["/marketing/seher-muhammed-wedding-composition-v2.png", "ShineQR düğün albümü deneyimi"],
+            ].map(([src, alt], index) => (
+              <Image key={src} src={src} alt={alt} fill priority={index === 0} sizes="(max-width: 760px) 100vw, 58vw" />
+            ))}
+          </div>
           <span className={styles.heroShadow} aria-hidden="true" />
         </div>
       </section>
@@ -138,38 +144,29 @@ export function HomePage() {
           ))}
         </div>
       </section>
-      <section className={`${styles.section} ${styles.themeShowcaseSection}`}>
-        <SectionHeading
-          eyebrow="TASARIM KOLEKSİYONU"
-          title="Her etkinliğe özel. Her detayda size ait."
-          text="QR kartınızdan karşılama ekranınıza kadar tüm deneyimi etkinliğinizin kimliğine göre şekillendirin."
-        />
-        <HomeThemeShowcase />
-        <div className={styles.centerAction}>
-          <Link className={styles.ghost} href="/temalar">
-            Tüm tasarımları keşfet <ArrowRight size={16} />
-          </Link>
-        </div>
-      </section>
       <section className={`${styles.section} ${styles.bentoSection}`}>
         <SectionHeading
           eyebrow="DENEYİMİN HER DETAYI"
           title="Teknoloji görünmez. Anılar başrolde."
           text="Etkinliğinizin tüm dijital dokunuşları tek, sade ve güvenli bir deneyimde."
         />
-        <div className={styles.bentoGrid}>
-          <article className={`${styles.bentoCard} ${styles.bentoAlbum}`}>
-            <div><span>01</span><h3>Özel Dijital Albüm</h3><p>Tüm fotoğraf, video ve mesajlar yalnızca size ait tek bir albümde.</p></div>
-            <Image src="/marketing/seher-muhammed-wedding-composition.png" alt="ShineQR özel dijital albümü" fill sizes="600px" />
+        <div className={styles.experienceGrid}>
+          <article className={styles.experienceCard}>
+            <div className={styles.experienceVisual}><Image src={albumDashboard} alt="ShineQR özel dijital albüm yönetim ekranı" fill sizes="(max-width: 760px) 92vw, 38vw" /></div>
+            <div className={styles.experienceCopy}><span>01</span><h3>Özel Dijital Albüm</h3><p>Tüm fotoğraf, video ve mesajlar yalnızca size ait tek bir albümde.</p></div>
           </article>
-          <article className={`${styles.bentoCard} ${styles.bentoQr}`}>
-            <div><span>02</span><h3>Kişiselleştirilebilir QR Tasarımı</h3><p>Etkinliğinizin stilini masadaki ilk dokunuştan itibaren hissettirin.</p></div>
-            <Image src="/marketing/qr-table-card-a2-flat.png" alt="Kişiselleştirilebilir ShineQR masa kartı" fill sizes="420px" />
+          <article className={styles.experienceCard}>
+            <div className={styles.experienceVisual}><Image src={qrCollection} alt="Kişiselleştirilebilir ShineQR QR tasarım koleksiyonu" fill sizes="(max-width: 760px) 92vw, 38vw" /></div>
+            <div className={styles.experienceCopy}><span>02</span><h3>Kişiselleştirilebilir QR Tasarımı</h3><p>Etkinliğinizin stilini masadaki ilk dokunuştan itibaren hissettirin.</p></div>
           </article>
-          <article className={`${styles.bentoCard} ${styles.bentoWelcome}`}>
-            <div><span>03</span><h3>Temalı Karşılama Ekranları</h3><p>QR kartınızla aynı görsel dili taşıyan etkileyici mobil açılış.</p></div>
-            <Image src="/intro/shineqr-portrait-v2-final.jpg" alt="ShineQR temalı karşılama ekranı" fill sizes="420px" />
+          <article className={styles.experienceCard}>
+            <div className={styles.experienceVisual}><video className={styles.experienceVideo} autoPlay muted loop playsInline poster="/intro/shineqr-portrait-v2-final.jpg">
+              <source src="/intro/shineqr-portrait-v2.mp4" type="video/mp4" />
+            </video></div>
+            <div className={styles.experienceCopy}><span>03</span><h3>Temalı Karşılama Ekranları</h3><p>QR kartınızla aynı görsel dili taşıyan etkileyici mobil açılış.</p></div>
           </article>
+        </div>
+        <div className={`${styles.bentoGrid} ${styles.bentoMiniGrid}`}>
           {[
             [Smartphone, "Uygulamasız kullanım"],
             [Camera, "Fotoğraf ve video"],
@@ -201,6 +198,28 @@ export function HomePage() {
           <Link className={styles.primary} href="/wedding/oguz-hilal">Örnek Albümü Keşfet <ArrowRight size={17} /></Link>
         </div>
       </section>
+      <section className={`${styles.section} ${styles.homePricingSection}`}>
+        <SectionHeading eyebrow="PAKETLER" title="Anılarınız için doğru kapsam." text="Fiyatlar KDV dahildir; paket hakkı ve fiyatı satış anında kayıt altına alınır." />
+        <div className={styles.pricing}>
+          {(Object.keys(PACKAGE_CATALOG) as PackageCode[]).map((code, index) => {
+            const plan = PACKAGE_CATALOG[code];
+            return <article className={styles.priceCard} key={code}>
+              <p className={styles.eyebrow}>{index === 1 ? "EN ÇOK TERCİH EDİLEN" : `PLAN ${index + 1}`}</p>
+              <h3>{plan.name}</h3>
+              <div className={styles.price}>{new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(plan.grossPriceCents / 100)}</div>
+              <ul>
+                <li>{plan.miniQrCount} mini QR kart</li>
+                {plan.tableQrCount ? <li>{plan.tableQrCount} masa QR kartı</li> : null}
+                {plan.welcomeSignCount ? <li>{plan.welcomeSignCount} karşılama panosu</li> : null}
+                <li>{plan.digitalRetentionMonths} ay dijital saklama</li>
+                <li>{plan.revisionLimit} revizyon hakkı</li>
+              </ul>
+              <Link className={index === 1 ? styles.primary : styles.ghost} href="/iletisim">Paketi görüşelim</Link>
+            </article>;
+          })}
+        </div>
+        <div className={styles.centerAction}><Link className={styles.ghost} href="/paketler">Tüm paket detayları <ArrowRight size={16} /></Link></div>
+      </section>
       <CtaBand />
     </MarketingShell>
   );
@@ -208,21 +227,9 @@ export function HomePage() {
 
 export function HowPage() {
   const rows = [
-    [
-      "Etkinliğini oluştur",
-      "İşletme ya da organizasyon sahibi panelden etkinlik tarihini, çift adlarını ve erişim süresini belirler.",
-      "/marketing/qr-card-options-editorial.webp",
-    ],
-    [
-      "QR kodunu paylaş",
-      "Oluşturulan QR kod, seçtiğiniz masa kartı tasarımıyla basılır veya dijital davetlerde paylaşılır.",
-      "/marketing/qr-scan-wedding-cards.png",
-    ],
-    [
-      "Fotoğraf ve videoları yükleyin",
-      "Misafirler tarayıcıdan içeriklerini gönderir; siz albümden görüntüler ve topluca indirirsiniz.",
-      "/marketing/guest-camera.webp",
-    ],
+    { title: "Etkinliğini oluştur", text: "İşletme ya da organizasyon sahibi panelden etkinlik tarihini, çift adlarını ve erişim süresini belirler.", image: createEvent },
+    { title: "QR kodunu paylaş", text: "Oluşturulan QR kod, seçtiğiniz masa kartı tasarımıyla basılır veya dijital davetlerde paylaşılır.", image: "/marketing/qr-scan-wedding-cards.png" },
+    { title: "Fotoğraf ve videoları yükleyin", text: "Misafirler tarayıcıdan içeriklerini gönderir; siz albümden görüntüler ve topluca indirirsiniz.", image: uploadWedding },
   ];
   return (
     <MarketingShell>
@@ -234,7 +241,7 @@ export function HowPage() {
       />
       <section className={styles.section}>
         <div className={styles.editorialSteps}>
-          {rows.map(([title, text, image], i) => (
+          {rows.map(({ title, text, image }, i) => (
             <article className={styles.editorialStep} key={title}>
               <div>
                 <span className={styles.stepNumber}>0{i + 1}</span>
@@ -242,7 +249,8 @@ export function HowPage() {
                 <p>{text}</p>
               </div>
               <div className={styles.editorialPhoto}>
-                <Image src={image} alt="" fill sizes="600px" />
+                <Image className={styles.editorialPhotoDesktop} src={image} alt={`${title} adımı`} fill sizes="(max-width: 760px) 1px, 52vw" />
+                <Image className={styles.editorialPhotoMobile} src={image} alt={`${title} mobil görünümü`} fill sizes="(max-width: 760px) 92vw, 1px" />
               </div>
             </article>
           ))}
@@ -371,28 +379,28 @@ export function PricingPage() {
       <PageHero
         eyebrow="PAKETLER"
         title="İhtiyacınıza göre doğru paket"
-        description="Güncel fiyatlar ve kapasite limitleri teklif sırasında doğrulanır; burada yalnızca paket yapısını gösteriyoruz."
-        image="/marketing/qr-table-card-a2-flat.png"
+        description="KDV dahil paket fiyatlarını ve kayıt altına alınan kullanım haklarını tek bakışta karşılaştırın."
+        hideVisual
       />
       <section className={styles.section}>
         <div className={styles.pricing}>
-          {["Başlangıç", "Standart", "Premium"].map((name, i) => (
-            <article className={styles.priceCard} key={name}>
+          {(Object.keys(PACKAGE_CATALOG) as PackageCode[]).map((code, i) => {
+            const plan = PACKAGE_CATALOG[code];
+            return (
+            <article className={styles.priceCard} key={code}>
               <p className={styles.eyebrow}>
-                {i === 1 ? "EN ÇOK TERCİH EDİLEN" : "SHINEQR"}
+                {i === 1 ? "EN ÇOK TERCİH EDİLEN" : `PLAN ${i + 1}`}
               </p>
-              <h3>{name}</h3>
-              <div className={styles.price}>Teklif alın</div>
+              <h3>{plan.name}</h3>
+              <div className={styles.price}>
+                {new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(plan.grossPriceCents / 100)}
+              </div>
               <ul>
-                {[
-                  "Etkinliğe özel QR kod",
-                  "Fotoğraf ve video yükleme",
-                  "Özel dijital albüm",
-                  i > 0 ? "Geniş tema seçenekleri" : "Temel tema seçenekleri",
-                  i > 1 ? "Öncelikli destek" : "Standart destek",
-                ].map((x) => (
-                  <li key={x}>{x}</li>
-                ))}
+                <li>{plan.miniQrCount} mini QR kart</li>
+                {plan.tableQrCount ? <li>{plan.tableQrCount} masa QR kartı</li> : null}
+                {plan.welcomeSignCount ? <li>{plan.welcomeSignCount} karşılama panosu</li> : null}
+                <li>{plan.digitalRetentionMonths} ay dijital saklama</li>
+                <li>{plan.revisionLimit} revizyon hakkı</li>
               </ul>
               <Link
                 className={i === 1 ? styles.primary : styles.ghost}
@@ -401,16 +409,17 @@ export function PricingPage() {
                 Güncel teklif iste
               </Link>
             </article>
-          ))}
+            );
+          })}
         </div>
         <div className={styles.notice}>
-          <strong>Not:</strong> Fiyat, saklama süresi ve yükleme limitleri
-          doğrulanmış satış verisi olmadan yayınlanmamıştır.
+          <strong>Not:</strong> Gösterilen fiyatlar KDV dahildir. Satış anındaki
+          paket ve fiyat bilgileri organizasyon kaydında saklanır.
         </div>
       </section>
       <section className={`${styles.section} ${styles.soft}`}>
-        <div className={styles.split}>
-          <div>
+        <div className={styles.pricingEditorial}>
+          <div className={styles.pricingStatement}>
             <p className={styles.eyebrow}>KURUMSAL ETKİNLİKLER</p>
             <h2 style={{ fontSize: "52px", color: "#650d1c" }}>
               Size özel fiyatlandırma
@@ -423,13 +432,10 @@ export function PricingPage() {
               Kurumsal teklif al
             </Link>
           </div>
-          <div className={styles.splitImage}>
-            <Image
-              src="/marketing/celebration.webp"
-              alt="Kurumsal etkinlik masası"
-              fill
-              sizes="50vw"
-            />
+          <div className={styles.pricingNotes}>
+            <span>Çoklu etkinlik kapsamı</span>
+            <span>Markaya uyarlanan görünüm</span>
+            <span>Ekip erişimi planlaması</span>
           </div>
         </div>
       </section>
@@ -444,10 +450,10 @@ export function BusinessPage() {
         eyebrow="İŞLETMELER İÇİN"
         title="Müşterilerinize yeni bir deneyim sunun"
         description="Organizasyon firmaları, fotoğrafçılar ve etkinlik ekipleri için markanıza uyum sağlayan dijital anı çözümü."
-        image="/marketing/qr-card-options.webp"
+        hideVisual
       />
       <section className={styles.section}>
-        <div className={styles.split}>
+        <div className={styles.businessIntro}>
           <div>
             <SectionHeading
               eyebrow="PARTNER PANELİ"
@@ -489,14 +495,30 @@ export function BusinessPage() {
               Partner olmak istiyorum
             </Link>
           </div>
-          <div className={styles.splitImage}>
-            <Image
-              src="/marketing/seher-muhammed-wedding-composition.png"
-              alt="ShineQR partner albüm deneyimi"
-              fill
-              sizes="50vw"
-            />
-          </div>
+        </div>
+      </section>
+      <section className={`${styles.section} ${styles.roleEditorial}`}>
+        <div className={styles.roleLead}>
+          <p className={styles.eyebrow}>FOTOĞRAFÇI ÇALIŞMA ALANI</p>
+          <h2>Profesyonel çekimler için ayrı ve anlaşılır bir akış.</h2>
+          <p>
+            Fotoğrafçı rolü; organizasyon erişimini, profesyonel çekimlerin
+            düzenlenmesini ve albüm teslim sürecini müşteri alanından ayıracak
+            şekilde planlanır.
+          </p>
+        </div>
+        <div className={styles.roleSteps}>
+          {[
+            ["01", "Organizasyona bağlan", "Yetkili olduğunuz organizasyonları tek çalışma alanında görün."],
+            ["02", "Çekimleri düzenle", "Profesyonel içerikleri misafir yüklemelerinden ayrı bir akışta yönetin."],
+            ["03", "Teslimi hazırlayın", "Müşteriye açılacak albüm kapsamını kontrollü biçimde hazırlayın."],
+          ].map(([number, title, text]) => (
+            <article className={styles.roleStep} key={number}>
+              <span>{number}</span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
         </div>
       </section>
       <section className={`${styles.section} ${styles.soft}`}>
@@ -533,20 +555,13 @@ export function UseCasesPage() {
         eyebrow="YILIN HER ANINA"
         title="Kullanım alanları"
         description="Düğünden kurumsal etkinliğe, paylaşılan her anı tek bir albümde buluşturun."
-        image="/marketing/celebration.webp"
+        hideVisual
       />
       <section className={styles.section}>
-        <div className={styles.useGrid}>
-          {useCases.map(([title, text, image]) => (
-            <article className={styles.useCard} key={title}>
-              <div className={styles.useCardImage}>
-                <Image
-                  src={image}
-                  alt={`${title} etkinliği`}
-                  fill
-                  sizes="380px"
-                />
-              </div>
+        <div className={styles.useEditorialGrid}>
+          {useCases.map(([title, text], index) => (
+            <article className={styles.useEditorialCard} key={title}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
               <div>
                 <h3>{title}</h3>
                 <p>{text}</p>
@@ -614,7 +629,7 @@ export function FaqPage() {
         eyebrow="MERAK ETTİKLERİNİZ"
         title="Sık sorulan sorular"
         description="ShineQR’ın çalışma biçimi, güvenliği ve etkinlik akışı hakkında net cevaplar."
-        image="/marketing/guest-camera.webp"
+        hideVisual
       />
       <section className={styles.section}>
         <FaqList />
@@ -631,7 +646,7 @@ export function ContactPage() {
         eyebrow="BİRLİKTE TASARLAYALIM"
         title="İletişime geçin"
         description="Etkinliğiniz, kurumsal iş birliği veya ShineQR hakkında merak ettikleriniz için bize yazın."
-        image="/marketing/seher-muhammed-wedding-composition-v2.png"
+        image="/brand/shineqr-lockup.png"
       />
       <section className={styles.section}>
         <div className={styles.contactLayout}>

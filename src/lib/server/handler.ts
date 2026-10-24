@@ -620,7 +620,14 @@ export async function handle(
             { projection: { _id: 0 } },
           ).sort({ at: -1 }).limit(20).toArray(),
         ]);
-        return json({ partner, events, accounts, activity });
+        const photographers = accounts.filter((account) => account.role === "partner" && account.staff_role === "photographer");
+        const eventsWithPhotographers = events.map((event) => ({
+          ...event,
+          photographers: photographers
+            .filter((account) => Array.isArray(account.assigned_event_ids) && account.assigned_event_ids.includes(event.id))
+            .map((account) => ({ id: account.id, display_name: account.display_name, email: account.email, disabled: !!account.disabled })),
+        }));
+        return json({ partner, events: eventsWithPhotographers, accounts, activity });
       }
       if (method !== "PATCH") throw new HttpError(405, "Yöntem desteklenmiyor.");
       const data = z
@@ -1360,7 +1367,9 @@ export async function handle(
       }
       const partner_id =
         user.role === "platform" ? data.partner_id || "platform" : user.partner_id!;
-      const partner = await database.collection("partners").findOne({ id: partner_id, active: true });
+      const partner = partner_id === "platform"
+        ? { id: "platform", name: "Platform organizasyonları", active: true, logo_url: "" }
+        : await database.collection("partners").findOne({ id: partner_id, active: true });
       if (!partner) throw new HttpError(400, "İşletme bulunamadı.");
       const id = randomUUID();
       const now = new Date().toISOString();
@@ -1797,7 +1806,26 @@ export async function handle(
         return json({ design, snapshot_id: snapshotId, revision, design_status: event.design_status || "draft", design_revisions_used: event.design_revisions_used || 0, add_on_selections: addOnSelections ?? event.add_on_selections ?? [], price_snapshot: pricing });
       }
       if (path.length === 3) {
-        if (method === "GET") return json(event);
+        if (method === "GET") {
+          const assignedPhotographers = await database.collection("users").find(
+            {
+              partner_id: event.partner_id,
+              role: "partner",
+              staff_role: "photographer",
+              assigned_event_ids: event.id,
+            },
+            { projection: { _id: 0, id: 1, display_name: 1, email: 1, disabled: 1 } },
+          ).sort({ display_name: 1 }).toArray();
+          return json({
+            ...event,
+            assigned_photographers: assignedPhotographers.map((photographer) => ({
+              id: photographer.id,
+              display_name: photographer.display_name,
+              ...(user.role !== "owner" ? { email: photographer.email } : {}),
+              disabled: !!photographer.disabled,
+            })),
+          });
+        }
         if (method === "PATCH") {
           requirePermission(user, "organization.update");
           if (user.role !== "platform" && event.approval_status === "submitted")

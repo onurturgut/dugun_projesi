@@ -59,6 +59,19 @@ test("partner staff can access only explicitly assigned events", () => {
   assert.equal(canAccess({ ...staff, assigned_event_ids: [] }, event), false);
   assert.deepEqual(weddingScope(staff), { partner_id: "a", id: { $in: ["one"] } });
 });
+test("photographers remain tenant-bound and event-bound", () => {
+  const photographer = {
+    id: "photo-a",
+    role: "partner",
+    staff_role: "photographer",
+    partner_id: "a",
+    assigned_event_ids: ["one"],
+    disabled: false,
+  } as Account;
+  assert.equal(canAccess(photographer, event), true);
+  assert.equal(canAccess({ ...photographer, partner_id: "b" }, event), false);
+  assert.equal(canAccess({ ...photographer, assigned_event_ids: [] }, event), false);
+});
 test("upload closing is enforced at exact deadline", () => {
   const end = Date.parse(event.uploads_close_at!);
   assert.equal(uploadsOpen(event, end - 1), true);
@@ -129,6 +142,10 @@ test("drafts retain safe profile fields but never retain a password", () => {
   });
   assert.equal(parsed.customer_email, "hilal@example.com");
   assert.equal("password" in parsed, false);
+});
+test("early wizard drafts omit names that are required only in later steps", () => {
+  assert.equal(eventDraftInput.safeParse({ title: "Onur Turgut", wizard_step: 2 }).success, true);
+  assert.equal(eventDraftInput.safeParse({ title: "Onur Turgut", bride_name: "", groom_name: "", wizard_step: 2 }).success, false);
 });
 test("publishing requires a strong temporary password", () => {
   assert.equal(eventPublishInput.safeParse({ password: "short" }).success, false);

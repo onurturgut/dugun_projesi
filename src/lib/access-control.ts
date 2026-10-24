@@ -18,6 +18,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
   partner_owner: ["partner.manage_staff", "organization.create", "organization.update", "organization.submit", "organization.cancel", "album.view", "album.download", "album.manage", "design.select", "design.request_revision", "design.approve_for_print", "finance.view_own", "commission.view_own"],
   partner_sales: ["organization.create", "organization.update", "organization.submit", "design.select", "design.request_revision"],
   partner_operations_design: ["organization.update", "organization.submit", "album.view", "album.download", "album.manage", "design.select", "design.request_revision", "design.approve_for_print"],
+  photographer: ["album.view", "album.download"],
   organization_owner: ["organization.update", "album.view", "album.download", "album.manage", "design.select", "design.request_revision", "design.approve_for_print"],
   organization_editor: ["organization.update", "album.view", "album.download", "design.select", "design.request_revision"],
   album_viewer: ["album.view", "album.download"],
@@ -31,7 +32,7 @@ export function defaultStaffRole(role: Role): StaffRole {
 
 const compatibleRoles: Record<Role, readonly StaffRole[]> = {
   platform: ["platform_admin", "finance_manager", "operations_manager", "design_manager"],
-  partner: ["partner_owner", "partner_sales", "partner_operations_design"],
+  partner: ["partner_owner", "partner_sales", "partner_operations_design", "photographer"],
   owner: ["organization_owner", "organization_editor", "album_viewer"],
 };
 

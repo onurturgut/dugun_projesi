@@ -24,6 +24,7 @@ import {
   X,
   Share2,
   Palette,
+  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ArchiveButton } from "@/components/admin/ArchiveButton";
@@ -271,6 +272,25 @@ export default function EventDetail() {
               <p>Kalıcı silinme: {dateText(w.expires_at, true)} (İstanbul)</p>
             </details>
           </div>
+          <section className="event-photographer-card" aria-labelledby="event-photographer-title">
+            <span className="event-photographer-icon"><Camera size={19} /></span>
+            <div className="event-photographer-copy">
+              <p>PROFESYONEL ÇEKİM EKİBİ</p>
+              <h2 id="event-photographer-title">Atanmış fotoğrafçı</h2>
+              {w.assigned_photographers?.length ? (
+                <div className="event-photographer-list">
+                  {w.assigned_photographers.map((photographer) => (
+                    <span key={photographer.id}>
+                      <strong>{photographer.display_name}</strong>
+                      <small>{photographer.email || "Organizasyona atanmış fotoğrafçı"}{photographer.disabled ? " · Erişimi kapalı" : ""}</small>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="event-photographer-empty">Bu organizasyona henüz fotoğrafçı atanmamış.</span>
+              )}
+            </div>
+          </section>
           <nav className="admin-tabs" aria-label="Organizasyon bölümleri">
             <Link href={`/admin/${id}/design/wedding`}>
               <Palette size={18} /> Tasarım

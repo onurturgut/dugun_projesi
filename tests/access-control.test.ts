@@ -15,6 +15,14 @@ test("sales cannot approve organizations or view all finance", () => {
   assert.equal(hasPermission("partner_sales", "finance.view_all"), false);
 });
 
+test("photographers can only view and download assigned event albums", () => {
+  assert.equal(hasPermission("photographer", "album.view"), true);
+  assert.equal(hasPermission("photographer", "album.download"), true);
+  assert.equal(hasPermission("photographer", "album.manage"), false);
+  assert.equal(hasPermission("photographer", "organization.update"), false);
+  assert.equal(hasPermission("photographer", "finance.view_own"), false);
+});
+
 test("only platform administration preset can impersonate", () => {
   assert.equal(hasPermission("platform_admin", "account.impersonate_readonly"), true);
   assert.equal(hasPermission("partner_owner", "account.impersonate_readonly"), false);

@@ -1,9 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Instagram, Mail, Menu } from "lucide-react";
+import { ArrowRight, Instagram, Mail } from "lucide-react";
 import { navigation } from "./data";
 import styles from "./marketing.module.css";
 import { ThemeToggle } from "./ThemeToggle";
+import { MobileNavigation } from "./MobileNavigation";
+import type { StaticImageData } from "next/image";
+import { MarketingMotion } from "./MarketingMotion";
 
 export function MarketingShell({ children }: { children: React.ReactNode }) {
   return (
@@ -25,26 +28,13 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        <details className={styles.mobileNav}>
-          <summary aria-label="Menüyü aç">
-            <Menu size={21} />
-          </summary>
-          <div>
-            {navigation.map((item) => (
-              <Link key={item.href} href={item.href}>
-                {item.label}
-              </Link>
-            ))}
-            <Link href="/sss">Sık sorulan sorular</Link>
-            <Link href="/iletisim">İletişim</Link>
-          </div>
-        </details>
+        <MobileNavigation />
         <ThemeToggle />
         <Link href="/auth" className={styles.headerCta}>
           Hemen başla <ArrowRight size={15} />
         </Link>
       </header>
-      {children}
+      <MarketingMotion>{children}</MarketingMotion>
       <footer className={styles.footer}>
         <div>
           <Image
@@ -67,6 +57,9 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
           <Mail size={18} />
           <Instagram size={18} />
         </div>
+        <p className={styles.designCredit}>
+          Bu site <a href="https://www.onurturgut.com/" target="_blank" rel="noopener noreferrer">Aisurix.web</a> tarafından tasarlanmıştır.
+        </p>
       </footer>
     </div>
   );
@@ -77,27 +70,29 @@ export function PageHero({
   title,
   description,
   image = "/marketing/shineqr-wedding-hero-composition.png",
+  hideVisual = false,
 }: {
   eyebrow: string;
   title: string;
   description: string;
-  image?: string;
+  image?: string | StaticImageData;
+  hideVisual?: boolean;
 }) {
   return (
-    <section className={styles.pageHero}>
+    <section className={`${styles.pageHero} ${hideVisual ? styles.pageHeroTextOnly : ""}`}>
       <div>
         <p className={styles.eyebrow}>{eyebrow}</p>
         <h1>{title}</h1>
         <p className={styles.lead}>{description}</p>
       </div>
-      <Image
+      {!hideVisual ? <Image
         src={image}
         alt=""
         width={900}
         height={700}
         priority
         sizes="(max-width: 800px) 100vw, 48vw"
-      />
+      /> : null}
     </section>
   );
 }

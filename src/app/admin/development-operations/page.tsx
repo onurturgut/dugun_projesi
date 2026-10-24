@@ -42,7 +42,7 @@ export default function DevelopmentOperationsPage() {
   function submitReview(event: FormEvent, id: string) { event.preventDefault(); if (note.trim().length < 3) return; review.mutate({ id, decision, note: note.trim() }); }
   const changeFilter = (setter: (value: string) => void, value: string) => { setter(value); setPage(1); };
   return <AdminShell>
-    <div className="admin-heading devops-heading"><div><p className="admin-kicker">GELİŞTİRME OPERASYONLARI</p><h1>Agent raporları</h1><p className="admin-subtitle">Uzman agent bulgularını, doğrulama kanıtlarını ve insan onaylarını tek merkezden yönetin.</p></div><button className="admin-button" onClick={() => reports.refetch()} disabled={reports.isFetching}><RefreshCw size={15} className={reports.isFetching ? "animate-spin" : ""} /> Yenile</button></div>
+    <div className="admin-heading devops-heading"><div><p className="admin-kicker">GELİŞTİRME OPERASYONLARI</p><h1>Agent raporları</h1><p className="admin-subtitle">Uzman agent bulgularını, doğrulama kanıtlarını ve insan onaylarını tek merkezden yönetin.</p></div><button className="admin-button icon-only" aria-label="Agent raporlarını yenile" title="Yenile" onClick={() => reports.refetch()} disabled={reports.isFetching}><RefreshCw size={17} className={reports.isFetching ? "animate-spin" : ""} /></button></div>
     <section className="partner-stat-grid devops-kpis" aria-label="Agent raporu özeti">
       <article><Bot size={18} /><span>Toplam rapor</span><strong>{reports.data?.summary.total ?? "—"}</strong></article>
       <article><CircleDot size={18} /><span>İnceleme bekleyen</span><strong>{reports.data?.summary.pending ?? "—"}</strong></article>

@@ -106,18 +106,6 @@ export default function Events() {
             Her organizasyon, bir araya gelen yüzlerce anı.
           </p>
         </div>
-        {me.data && me.data.role !== "owner" && (
-          <button
-            className="admin-button primary"
-            onClick={() => {
-              setSelectedDraft(undefined);
-              setOpen(!open);
-            }}
-          >
-            <Plus size={16} />
-            {open ? "Formu kapat" : "Yeni organizasyon"}
-          </button>
-        )}
       </div>
       {status.data &&
         (!status.data.r2_ready ||
@@ -200,6 +188,7 @@ export default function Events() {
             </button>
           )}
           <button className="admin-button" onClick={saveView}><BookmarkPlus size={15}/> Görünümü kaydet</button>
+          {me.data && me.data.role !== "owner" ? <button className="admin-button primary admin-new-event-button" onClick={() => { setSelectedDraft(undefined); setOpen(!open); }}><Plus size={15} />{open ? "Formu kapat" : "Yeni organizasyon"}</button> : null}
         </div>
       </div>
       {savedViews.length ? <div className="saved-filter-row"><span>Kayıtlı görünümler</span>{savedViews.map((view) => <button key={view.name} onClick={() => { setSearch(view.search); setStatusFilter(view.status); setDate(view.date); setPage(1); }}>{view.name}</button>)}</div> : null}

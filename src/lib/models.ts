@@ -9,6 +9,7 @@ export type StaffRole =
   | "partner_owner"
   | "partner_sales"
   | "partner_operations_design"
+  | "photographer"
   | "organization_owner"
   | "organization_editor"
   | "album_viewer";
@@ -123,6 +124,12 @@ export interface SaleRecord {
   refund_reason?: string | null;
 }
 export interface Wedding {
+  assigned_photographers?: Array<{
+    id: string;
+    display_name: string;
+    email?: string;
+    disabled: boolean;
+  }>;
   design?: WeddingDesign;
   design_revision?: number;
   design_snapshot_id?: string;

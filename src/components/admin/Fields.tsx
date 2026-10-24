@@ -4,8 +4,12 @@ import { useId, useState } from "react";
 import { DateField } from "./DateField";
 export function Field({
   label,
+  onValueChange,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  onValueChange?: (value: string) => void;
+}) {
   if (props.type === "date")
     return (
       <div className="form-field">
@@ -13,7 +17,9 @@ export function Field({
         <DateField
           label={label}
           name={props.name}
+          value={props.value === undefined ? undefined : String(props.value)}
           defaultValue={String(props.defaultValue || "")}
+          onValueChange={onValueChange}
           required={props.required}
           disabled={props.disabled}
         />
@@ -78,7 +84,7 @@ export function Notice({ children }: { children: React.ReactNode }) {
   return (
     <p
       role="alert"
-      className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-cream"
+      className="admin-form-notice"
     >
       {children}
     </p>

@@ -4085,6 +4085,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"gsap@npm:^3.15.0":
+  version: 3.15.0
+  resolution: "gsap@npm:3.15.0"
+  checksum: 10c0/5d86de72cb0bd6b20502c34c329a83a7d679979731bb465164407b7a5225aa61d612beee740eea36258622897c116cd2ca35320d530b7cf68bad62522361fcf7
+  languageName: node
+  linkType: hard
+
 "has-flag@npm:^4.0.0":
   version: 4.0.0
   resolution: "has-flag@npm:4.0.0"
@@ -5777,6 +5784,7 @@ __metadata:
     eslint-plugin-react-hooks: "npm:^5.2.0"
     ffmpeg-static: "npm:^5.3.0"
     globals: "npm:^15.15.0"
+    gsap: "npm:^3.15.0"
     input-otp: "npm:^1.4.2"
     lucide-react: "npm:^0.575.0"
     mongodb: "npm:^6.21.0"
