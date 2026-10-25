@@ -44,7 +44,12 @@ import { VideoPreview } from "@/components/admin/VideoPreview";
 import { Notice } from "@/components/admin/Fields";
 import { formatBytes } from "@/lib/config";
 import { uploadsOpen } from "@/lib/policy";
-import { GIB, packageStorageLimit, storageBytesInUse } from "@/lib/commercial-policy";
+import {
+  GIB,
+  packageStorageLimit,
+  storageBytesInUse,
+} from "@/lib/commercial-policy";
+import { accountHasPermission, effectiveStaffRole } from "@/lib/access-control";
 
 const dateText = (s: string | null, time = false) =>
   s
@@ -65,6 +70,7 @@ export default function EventDetail() {
   const [section, setSection] = useState("album"),
     [trash, setTrash] = useState(false),
     [kind, setKind] = useState("all"),
+    [source, setSource] = useState("all"),
     [search, setSearch] = useState(""),
     [debouncedSearch, setDebouncedSearch] = useState(""),
     [sort, setSort] = useState("new");
@@ -75,6 +81,16 @@ export default function EventDetail() {
     [pending, setPending] = useState<string[]>([]),
     [pendingAction, setPendingAction] = useState<"trash" | "purge">("trash");
   const [additionalGb, setAdditionalGb] = useState("0");
+  const [photographerId, setPhotographerId] = useState("");
+  const [photographerDueDate, setPhotographerDueDate] = useState("");
+  const [expectedFileCount, setExpectedFileCount] = useState("");
+  const [invite, setInvite] = useState({
+    email: "",
+    business_name: "",
+    phone: "",
+    address: "",
+    expires_at: "",
+  });
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const deleteReturnFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -92,33 +108,67 @@ export default function EventDetail() {
     queryKey: ["admin-wedding", id],
     queryFn: () => api<Wedding>(`/admin/weddings/${id}`),
   });
+  const photographers = useQuery({
+    queryKey: ["photographers"],
+    queryFn: () =>
+      api<Array<{ id: string; display_name: string; partner_id: string }>>(
+        "/admin/photographers",
+      ),
+    enabled:
+      !!me.data &&
+      me.data.role !== "owner" &&
+      effectiveStaffRole(me.data) !== "photographer",
+  });
   const w = event.data,
+    canViewAlbum = !!me.data && accountHasPermission(me.data, "album.view"),
+    isPhotographer =
+      !!me.data && effectiveStaffRole(me.data) === "photographer",
     expired =
       !!w?.purged_at ||
       !!(w?.expires_at && Date.parse(w.expires_at) <= Date.now());
-  const baseStorageLimit = w?.package_snapshot ? packageStorageLimit(w.package_snapshot) || 0 : 0;
-  const effectiveStorageLimit = Math.max(baseStorageLimit, w?.storage_limit_override_bytes || 0);
+  const baseStorageLimit = w?.package_snapshot
+    ? packageStorageLimit(w.package_snapshot) || 0
+    : 0;
+  const effectiveStorageLimit = Math.max(
+    baseStorageLimit,
+    w?.storage_limit_override_bytes || 0,
+  );
   const storageUsed = w ? storageBytesInUse(w) : 0;
   const storagePercent = effectiveStorageLimit
-    ? Math.min(100, Math.round((storageUsed / effectiveStorageLimit) * 1000) / 10)
+    ? Math.min(
+        100,
+        Math.round((storageUsed / effectiveStorageLimit) * 1000) / 10,
+      )
     : 0;
   useEffect(() => {
     if (!w) return;
-    setAdditionalGb(String(Math.max(0, Math.round(((w.storage_limit_override_bytes || baseStorageLimit) - baseStorageLimit) / GIB))));
+    setAdditionalGb(
+      String(
+        Math.max(
+          0,
+          Math.round(
+            ((w.storage_limit_override_bytes || baseStorageLimit) -
+              baseStorageLimit) /
+              GIB,
+          ),
+        ),
+      ),
+    );
   }, [w, baseStorageLimit]);
   const media = useInfiniteQuery({
-    queryKey: ["admin-media", id, trash, kind, debouncedSearch, sort],
+    queryKey: ["admin-media", id, trash, kind, source, debouncedSearch, sort],
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ limit: "24", sort });
       if (trash) params.set("trash", "1");
       if (kind !== "all") params.set("type", kind);
+      if (source !== "all") params.set("source", source);
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (pageParam) params.set("cursor", pageParam);
       return api<MediaPage>(`/admin/weddings/${id}/media?${params}`);
     },
     initialPageParam: "",
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
-    enabled: !!w && !expired && section === "album",
+    enabled: !!w && !expired && section === "album" && canViewAlbum,
     staleTime: 15_000,
     refetchInterval: section === "album" ? 30_000 : false,
     refetchIntervalInBackground: false,
@@ -135,7 +185,7 @@ export default function EventDetail() {
     () => selected.filter((selectedId) => rowIds.has(selectedId)),
     [rowIds, selected],
   );
-  const filtered = kind !== "all" || !!search;
+  const filtered = kind !== "all" || source !== "all" || !!search;
   const archive = `/api/admin/weddings/${id}/archive`;
   function resetSelection() {
     setSelected([]);
@@ -156,6 +206,107 @@ export default function EventDetail() {
       toast.success("Depolama kapasitesi güncellendi.");
     } catch (reason) {
       setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function assignPhotographer() {
+    if (!photographerId) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/admin/weddings/${id}/photographers`, {
+        method: "POST",
+        body: JSON.stringify({
+          account_id: photographerId,
+          delivery_due_at: photographerDueDate
+            ? new Date(`${photographerDueDate}T23:59:59+03:00`).toISOString()
+            : null,
+          expected_file_count: expectedFileCount
+            ? Number(expectedFileCount)
+            : null,
+        }),
+      });
+      setPhotographerId("");
+      setPhotographerDueDate("");
+      setExpectedFileCount("");
+      await qc.invalidateQueries({ queryKey: ["admin-wedding", id] });
+      toast.success("Fotoğrafçı organizasyona atandı.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function completePhotographerDelivery() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/admin/weddings/${id}/photographer-delivery`, {
+        method: "POST",
+      });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin-wedding", id] }),
+        qc.invalidateQueries({ queryKey: ["admin-notifications"] }),
+      ]);
+      toast.success("Profesyonel fotoğraf teslimatı tamamlandı.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function createPhotographerInvitation() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{ invite_url: string }>(
+        `/admin/weddings/${id}/photographer-invitations`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...invite,
+            expires_at: new Date(
+              `${invite.expires_at}T23:59:59+03:00`,
+            ).toISOString(),
+            delivery_due_at: photographerDueDate
+              ? new Date(`${photographerDueDate}T23:59:59+03:00`).toISOString()
+              : null,
+            expected_file_count: expectedFileCount
+              ? Number(expectedFileCount)
+              : null,
+          }),
+        },
+      );
+      await navigator.clipboard.writeText(
+        `${window.location.origin}${result.invite_url}`,
+      );
+      toast.success("Davet bağlantısı oluşturuldu ve panoya kopyalandı.");
+      setInvite({
+        email: "",
+        business_name: "",
+        phone: "",
+        address: "",
+        expires_at: "",
+      });
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function unassignPhotographer(accountId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/admin/weddings/${id}/photographers`, {
+        method: "DELETE",
+        body: JSON.stringify({ account_id: accountId }),
+      });
+      await qc.invalidateQueries({ queryKey: ["admin-wedding", id] });
+      toast.success("Fotoğrafçı ataması kaldırıldı.");
+    } catch (cause) {
+      setError((cause as Error).message);
     } finally {
       setBusy(false);
     }
@@ -255,14 +406,33 @@ export default function EventDetail() {
                 {trash ? "çöp kutusunda" : "toplam"}
               </span>
               <span>
-                <strong>{w.design_revisions_used || 0}/{w.package_snapshot?.revisionLimit || 1}</strong>
-                {w.design_status === "approved_for_print" ? "baskı onaylı" : w.design_status === "revision_requested" ? "revizyon açık" : "revizyon hakkı"}
+                <strong>
+                  {w.design_revisions_used || 0}/
+                  {w.package_snapshot?.revisionLimit || 1}
+                </strong>
+                {w.design_status === "approved_for_print"
+                  ? "baskı onaylı"
+                  : w.design_status === "revision_requested"
+                    ? "revizyon açık"
+                    : "revizyon hakkı"}
               </span>
             </div>
-            <div className="quota-usage" aria-label={`Depolama kullanımı yüzde ${storagePercent}`}>
-              <div><span>Depolama</span><strong>{formatBytes(storageUsed)} / {formatBytes(effectiveStorageLimit)}</strong></div>
+            <div
+              className="quota-usage"
+              aria-label={`Depolama kullanımı yüzde ${storagePercent}`}
+            >
+              <div>
+                <span>Depolama</span>
+                <strong>
+                  {formatBytes(storageUsed)} /{" "}
+                  {formatBytes(effectiveStorageLimit)}
+                </strong>
+              </div>
               <progress max="100" value={storagePercent} />
-              <small>{storagePercent}% kullanılıyor · çöp kutusu ve bekleyen yüklemeler dahil</small>
+              <small>
+                {storagePercent}% kullanılıyor · çöp kutusu ve bekleyen
+                yüklemeler dahil
+              </small>
             </div>
             <details className="admin-dates">
               <summary>
@@ -272,8 +442,13 @@ export default function EventDetail() {
               <p>Kalıcı silinme: {dateText(w.expires_at, true)} (İstanbul)</p>
             </details>
           </div>
-          <section className="event-photographer-card" aria-labelledby="event-photographer-title">
-            <span className="event-photographer-icon"><Camera size={19} /></span>
+          <section
+            className="event-photographer-card"
+            aria-labelledby="event-photographer-title"
+          >
+            <span className="event-photographer-icon">
+              <Camera size={19} />
+            </span>
             <div className="event-photographer-copy">
               <p>PROFESYONEL ÇEKİM EKİBİ</p>
               <h2 id="event-photographer-title">Atanmış fotoğrafçı</h2>
@@ -282,26 +457,174 @@ export default function EventDetail() {
                   {w.assigned_photographers.map((photographer) => (
                     <span key={photographer.id}>
                       <strong>{photographer.display_name}</strong>
-                      <small>{photographer.email || "Organizasyona atanmış fotoğrafçı"}{photographer.disabled ? " · Erişimi kapalı" : ""}</small>
+                      <small>
+                        {photographer.email ||
+                          "Organizasyona atanmış fotoğrafçı"}
+                        {photographer.disabled ? " · Erişimi kapalı" : ""}
+                      </small>
+                      {me.data?.role !== "owner" && !isPhotographer ? (
+                        <button
+                          className="admin-button"
+                          disabled={busy}
+                          onClick={() =>
+                            void unassignPhotographer(photographer.id)
+                          }
+                        >
+                          Atamayı kaldır
+                        </button>
+                      ) : null}
                     </span>
                   ))}
                 </div>
               ) : (
-                <span className="event-photographer-empty">Bu organizasyona henüz fotoğrafçı atanmamış.</span>
+                <span className="event-photographer-empty">
+                  Bu organizasyona henüz fotoğrafçı atanmamış.
+                </span>
               )}
+              {me.data?.role !== "owner" && !isPhotographer ? (
+                <div className="event-photographer-assign">
+                  <SelectField
+                    value={photographerId}
+                    onValueChange={setPhotographerId}
+                    aria-label="Fotoğrafçı seç"
+                  >
+                    <option value="">Fotoğrafçı seçin</option>
+                    {photographers.data
+                      ?.filter(
+                        (item) =>
+                          !w.assigned_photographers?.some(
+                            (assigned) => assigned.id === item.id,
+                          ),
+                      )
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.display_name}
+                        </option>
+                      ))}
+                  </SelectField>
+                  <input
+                    type="date"
+                    aria-label="Fotoğrafçı teslim tarihi"
+                    value={photographerDueDate}
+                    onChange={(event) =>
+                      setPhotographerDueDate(event.target.value)
+                    }
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    max="100000"
+                    aria-label="Beklenen profesyonel dosya sayısı"
+                    placeholder="Beklenen dosya"
+                    value={expectedFileCount}
+                    onChange={(event) =>
+                      setExpectedFileCount(event.target.value)
+                    }
+                  />
+                  <button
+                    className="admin-button"
+                    disabled={!photographerId || busy}
+                    onClick={() => void assignPhotographer()}
+                  >
+                    Fotoğrafçı ata
+                  </button>
+                </div>
+              ) : null}
+              {me.data?.role !== "owner" && !isPhotographer ? (
+                <details className="event-photographer-invite">
+                  <summary>Kayıtlı olmayan fotoğrafçıyı davet et</summary>
+                  <div>
+                    <input
+                      type="email"
+                      placeholder="E-posta"
+                      value={invite.email}
+                      onChange={(event) =>
+                        setInvite((current) => ({
+                          ...current,
+                          email: event.target.value,
+                        }))
+                      }
+                    />
+                    <input
+                      placeholder="Fotoğraf işletmesi"
+                      value={invite.business_name}
+                      onChange={(event) =>
+                        setInvite((current) => ({
+                          ...current,
+                          business_name: event.target.value,
+                        }))
+                      }
+                    />
+                    <input
+                      inputMode="numeric"
+                      minLength={11}
+                      maxLength={11}
+                      placeholder="05xxxxxxxxx"
+                      value={invite.phone}
+                      onChange={(event) =>
+                        setInvite((current) => ({
+                          ...current,
+                          phone: event.target.value
+                            .replace(/\D/g, "")
+                            .slice(0, 11),
+                        }))
+                      }
+                    />
+                    <input
+                      placeholder="Adres"
+                      value={invite.address}
+                      onChange={(event) =>
+                        setInvite((current) => ({
+                          ...current,
+                          address: event.target.value,
+                        }))
+                      }
+                    />
+                    <input
+                      type="date"
+                      aria-label="Davet son kullanma tarihi"
+                      value={invite.expires_at}
+                      onChange={(event) =>
+                        setInvite((current) => ({
+                          ...current,
+                          expires_at: event.target.value,
+                        }))
+                      }
+                    />
+                    <button
+                      className="admin-button"
+                      disabled={
+                        busy ||
+                        !invite.email ||
+                        !invite.business_name ||
+                        !invite.phone ||
+                        !invite.address ||
+                        !invite.expires_at
+                      }
+                      onClick={() => void createPhotographerInvitation()}
+                    >
+                      Davet bağlantısı oluştur
+                    </button>
+                  </div>
+                </details>
+              ) : null}
             </div>
           </section>
           <nav className="admin-tabs" aria-label="Organizasyon bölümleri">
-            <Link href={`/admin/${id}/design/wedding`}>
-              <Palette size={18} /> Tasarım
-            </Link>
-            <button
-              aria-pressed={section === "album"}
-              onClick={() => setSection("album")}
-            >
-              <Images size={18} /> Albüm
-            </button>
-            {me.data?.role !== "owner" && (
+            {!isPhotographer && (
+              <Link href={`/admin/${id}/design/wedding`}>
+                <Palette size={18} /> Tasarım
+              </Link>
+            )}
+            {canViewAlbum && (
+              <button
+                aria-pressed={section === "album"}
+                onClick={() => setSection("album")}
+              >
+                <Images size={18} /> Albüm
+              </button>
+            )}
+            {me.data?.role !== "owner" && !isPhotographer && (
               <>
                 <button
                   aria-pressed={section === "share"}
@@ -318,60 +641,130 @@ export default function EventDetail() {
               </>
             )}
           </nav>
-          {section === "share" && me.data?.role !== "owner" && (
-            <div className="admin-panels">
-              <QrPanel slug={w.slug} />
-              <div className="admin-panel">
-                <h2>Anılara bir davet</h2>
+          {isPhotographer && (
+            <div className="admin-panel">
+              <p className="admin-kicker">PROFESYONEL TESLİMAT</p>
+              <h2>Çekimlerinizi yükleyin</h2>
+              <p className="admin-hint">
+                Yalnızca bu organizasyona profesyonel dosya yükleyebilirsiniz.
+                Misafir albümü ve diğer yüklemeler size gösterilmez.
+              </p>
+              {w.assigned_photographers?.find(
+                (item) => item.id === me.data?.id,
+              ) ? (
                 <p className="admin-hint">
-                  QR kodunu masalara yerleştirin veya misafir bağlantısını
-                  paylaşın. Misafirler hesap açmadan fotoğraf, video ve mesaj
-                  bırakabilir.
+                  Teslim durumu:{" "}
+                  {w.assigned_photographers.find(
+                    (item) => item.id === me.data?.id,
+                  )?.delivery_status || "assigned"}{" "}
+                  · Yüklenen:{" "}
+                  {w.assigned_photographers.find(
+                    (item) => item.id === me.data?.id,
+                  )?.delivered_file_count || 0}
+                  {w.assigned_photographers.find(
+                    (item) => item.id === me.data?.id,
+                  )?.expected_file_count
+                    ? ` / ${w.assigned_photographers.find((item) => item.id === me.data?.id)?.expected_file_count}`
+                    : ""}
                 </p>
-                <p className="admin-notice">
-                  Albüm misafirlere açık değildir. İçerikleri organizasyon
-                  sahibi, ilgili işletme ve platform yöneticisi görebilir.
-                </p>
-                <Link className="admin-button" href={`/wedding/${w.slug}`}>
-                  Misafir sayfasını aç
-                </Link>
-              </div>
+              ) : null}
+              <Link
+                className="admin-button primary"
+                href={`/wedding/${w.slug}`}
+              >
+                Yükleme alanını aç
+              </Link>
+              <button
+                className="admin-button"
+                disabled={
+                  busy ||
+                  w.assigned_photographers?.find(
+                    (item) => item.id === me.data?.id,
+                  )?.delivery_status === "completed"
+                }
+                onClick={() => void completePhotographerDelivery()}
+              >
+                Yüklemeyi tamamladım
+              </button>
             </div>
           )}
-          {section === "settings" && me.data && me.data.role !== "owner" && (
-            <div className="space-y-6">
-              {me.data.role === "platform" && (
-                <div className="admin-panel storage-limit-panel">
-                  <div>
-                    <p className="admin-kicker">KOTA ONAYI</p>
-                    <h2>Ek depolama kapasitesi</h2>
-                    <p className="admin-hint">Paket sınırına eklenecek kapasiteyi belirleyin. 0 GB seçilirse paket sınırına geri dönülür.</p>
-                  </div>
-                  <label>
-                    Ek kapasite (GB)
-                    <input type="number" min="0" max="350" step="1" value={additionalGb} onChange={(e) => setAdditionalGb(e.target.value)} />
-                  </label>
-                  <button className="admin-button" disabled={busy || !/^\d+$/.test(additionalGb) || Number(additionalGb) > 350} onClick={() => void saveStorageLimit()}>
-                    {busy ? "Kaydediliyor…" : "Kapasiteyi onayla"}
-                  </button>
+          {section === "share" &&
+            me.data?.role !== "owner" &&
+            !isPhotographer && (
+              <div className="admin-panels">
+                <QrPanel slug={w.slug} />
+                <div className="admin-panel">
+                  <h2>Anılara bir davet</h2>
+                  <p className="admin-hint">
+                    QR kodunu masalara yerleştirin veya misafir bağlantısını
+                    paylaşın. Misafirler hesap açmadan fotoğraf, video ve mesaj
+                    bırakabilir.
+                  </p>
+                  <p className="admin-notice">
+                    Albüm misafirlere açık değildir. İçerikleri organizasyon
+                    sahibi ve yetkili ShineQR yöneticisi görebilir.
+                  </p>
+                  <Link className="admin-button" href={`/wedding/${w.slug}`}>
+                    Misafir sayfasını aç
+                  </Link>
                 </div>
-              )}
-              <div className="admin-panel">
-                <h2>Organizasyon bilgileri</h2>
-                <EventForm
-                  event={w}
-                  user={me.data}
-                  onSaved={() => {
-                    qc.invalidateQueries({ queryKey: ["admin-wedding", id] });
-                    qc.invalidateQueries({ queryKey: ["admin-weddings"] });
-                    toast.success("Organizasyon güncellendi.");
-                  }}
-                />
               </div>
-              <OwnerForm id={id} />
-            </div>
-          )}
-          {section === "album" && (
+            )}
+          {section === "settings" &&
+            me.data &&
+            me.data.role !== "owner" &&
+            !isPhotographer && (
+              <div className="space-y-6">
+                {me.data.role === "platform" && (
+                  <div className="admin-panel storage-limit-panel">
+                    <div>
+                      <p className="admin-kicker">KOTA ONAYI</p>
+                      <h2>Ek depolama kapasitesi</h2>
+                      <p className="admin-hint">
+                        Paket sınırına eklenecek kapasiteyi belirleyin. 0 GB
+                        seçilirse paket sınırına geri dönülür.
+                      </p>
+                    </div>
+                    <label>
+                      Ek kapasite (GB)
+                      <input
+                        type="number"
+                        min="0"
+                        max="350"
+                        step="1"
+                        value={additionalGb}
+                        onChange={(e) => setAdditionalGb(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      className="admin-button"
+                      disabled={
+                        busy ||
+                        !/^\d+$/.test(additionalGb) ||
+                        Number(additionalGb) > 350
+                      }
+                      onClick={() => void saveStorageLimit()}
+                    >
+                      {busy ? "Kaydediliyor…" : "Kapasiteyi onayla"}
+                    </button>
+                  </div>
+                )}
+                <div className="admin-panel">
+                  <h2>Organizasyon bilgileri</h2>
+                  <EventForm
+                    event={w}
+                    user={me.data}
+                    onSaved={() => {
+                      qc.invalidateQueries({ queryKey: ["admin-wedding", id] });
+                      qc.invalidateQueries({ queryKey: ["admin-weddings"] });
+                      toast.success("Organizasyon güncellendi.");
+                    }}
+                  />
+                </div>
+                <OwnerForm id={id} />
+              </div>
+            )}
+          {section === "album" && canViewAlbum && (
             <section aria-label="Medya albümü">
               <div className="admin-toolbar">
                 <div className="admin-actions">
@@ -411,6 +804,24 @@ export default function EventDetail() {
                       aria-pressed={kind === value}
                       onClick={() => {
                         setKind(value);
+                        resetSelection();
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="admin-segment" aria-label="İçerik kaynağı">
+                  {[
+                    ["all", "Tüm kaynaklar"],
+                    ["guest", "Misafir içerikleri"],
+                    ["photographer", "Profesyonel çekimler"],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      aria-pressed={source === value}
+                      onClick={() => {
+                        setSource(value);
                         resetSelection();
                       }}
                     >
@@ -473,6 +884,7 @@ export default function EventDetail() {
                       className="admin-button"
                       onClick={() => {
                         setKind("all");
+                        setSource("all");
                         setSearch("");
                         resetSelection();
                       }}

@@ -40,7 +40,13 @@ export function requireMediaPermission(
   user: Account,
   permission: "view" | "download" | "manage" | "archive",
 ) {
-  if (user.role === "platform") return;
+  const required: Permission = permission === "manage"
+    ? "album.manage"
+    : permission === "view"
+      ? "album.view"
+      : "album.download";
+  if (!accountHasPermission(user, required))
+    throw new HttpError(403, "Bu medya işlemi için hesabınıza yetki verilmemiş.");
   if (user.media_permissions?.[permission] === false)
     throw new HttpError(403, "Bu medya işlemi için hesabınıza yetki verilmemiş.");
 }

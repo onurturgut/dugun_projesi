@@ -1,27 +1,343 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Building2, CalendarDays, Camera, HardDrive, Users } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  Building2,
+  CalendarDays,
+  Camera,
+  HardDrive,
+  Users,
+} from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { Notice } from "@/components/admin/Fields";
+import { Field, Notice, TextField } from "@/components/admin/Fields";
+import { PartnerLogoUpload } from "@/components/admin/PartnerLogoUpload";
 import { api, type Account, type Partner } from "@/lib/api";
 import { formatBytes } from "@/lib/config";
-type Photographer = { id: string; display_name: string; email: string; disabled: boolean };
-type EventRow = { id: string; title: string; lifecycle_status?: string; wedding_date?: string; photo_count?: number; video_count?: number; media_bytes?: number; photographers: Photographer[] };
+type Photographer = {
+  id: string;
+  display_name: string;
+  email: string;
+  disabled: boolean;
+};
+type EventRow = {
+  id: string;
+  title: string;
+  lifecycle_status?: string;
+  wedding_date?: string;
+  photo_count?: number;
+  video_count?: number;
+  media_bytes?: number;
+  photographers: Photographer[];
+};
 type Activity = { at: string; action: string; actor_role?: string };
-type Detail = { partner: Partner; events: EventRow[]; accounts: Account[]; activity: Activity[] };
+type Detail = {
+  partner: Partner;
+  events: EventRow[];
+  accounts: Account[];
+  activity: Activity[];
+};
+const businessTypeLabels = {
+  venue: "Düğün salonu",
+  planner: "Organizasyon firması",
+  photography: "Fotoğraf işletmesi",
+  print_vendor: "Baskıcı",
+  other: "Diğer",
+} as const;
+function PartnerEditForm({
+  partner,
+  onSaved,
+}: {
+  partner: Partner;
+  onSaved: () => Promise<unknown>;
+}) {
+  const [name, setName] = useState(partner.name);
+  const [phone, setPhone] = useState(partner.phone || "");
+  const [address, setAddress] = useState(partner.address || "");
+  const [logo, setLogo] = useState(partner.logo_url || "");
+  const [types, setTypes] = useState<NonNullable<Partner["business_types"]>>(
+    partner.business_types?.length ? partner.business_types : ["other"],
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/admin/partners/${partner.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name,
+          phone,
+          address,
+          logo_url: logo,
+          business_types: types,
+        }),
+      });
+      await onSaved();
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function toggleType(type: keyof typeof businessTypeLabels, checked: boolean) {
+    setTypes((current) =>
+      checked
+        ? [...new Set([...current, type])]
+        : current.filter((item) => item !== type),
+    );
+  }
+  return (
+    <section className="admin-panel">
+      <div>
+        <p className="admin-kicker">İŞLETME PROFİLİ</p>
+        <h2>Bilgileri düzenle</h2>
+      </div>
+      {error ? <Notice>{error}</Notice> : null}
+      <form className="partner-create-form" onSubmit={submit}>
+        <Field
+          label="İşletme adı"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          required
+          maxLength={120}
+        />
+        <Field
+          label="Telefon numarası"
+          type="text"
+          inputMode="numeric"
+          pattern="0[0-9]{10}"
+          minLength={11}
+          maxLength={11}
+          value={phone}
+          onChange={(event) =>
+            setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))
+          }
+          placeholder="05xxxxxxxxx"
+          autoComplete="tel"
+          required
+        />
+        <TextField
+          label="İşletme adresi"
+          value={address}
+          onChange={(event) => setAddress(event.target.value)}
+          required
+          minLength={5}
+          maxLength={500}
+          placeholder="Mahalle, cadde/sokak, bina no, ilçe ve il"
+          autoComplete="street-address"
+        />
+        <fieldset className="permission-grid">
+          <legend>İşletme türleri</legend>
+          {Object.entries(businessTypeLabels).map(([type, label]) => (
+            <label key={type}>
+              <input
+                type="checkbox"
+                checked={types.includes(
+                  type as keyof typeof businessTypeLabels,
+                )}
+                onChange={(event) =>
+                  toggleType(
+                    type as keyof typeof businessTypeLabels,
+                    event.target.checked,
+                  )
+                }
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+        <PartnerLogoUpload
+          partnerId={partner.id}
+          partnerName={name}
+          value={logo}
+          disabled={busy}
+          onUploaded={async (url) => setLogo(url)}
+        />
+        <button
+          className="admin-button primary"
+          disabled={busy || !types.length}
+        >
+          {busy ? "Kaydediliyor…" : "İşletme bilgilerini kaydet"}
+        </button>
+      </form>
+    </section>
+  );
+}
 export default function PartnerDetailPage() {
   const params = useParams<{ id: string }>();
-  const detail = useQuery({ queryKey: ["partner-detail", params.id], queryFn: () => api<Detail>(`/admin/partners/${params.id}`) });
-  if (detail.error) return <AdminShell><Notice>{detail.error.message}</Notice></AdminShell>;
-  if (!detail.data) return <AdminShell><div className="admin-empty">İşletme yükleniyor…</div></AdminShell>;
+  const queryClient = useQueryClient();
+  const detail = useQuery({
+    queryKey: ["partner-detail", params.id],
+    queryFn: () => api<Detail>(`/admin/partners/${params.id}`),
+  });
+  if (detail.error)
+    return (
+      <AdminShell>
+        <Notice>{detail.error.message}</Notice>
+      </AdminShell>
+    );
+  if (!detail.data)
+    return (
+      <AdminShell>
+        <div className="admin-empty">İşletme yükleniyor…</div>
+      </AdminShell>
+    );
   const { partner, events, accounts, activity } = detail.data;
-  const media = events.reduce((sum, item) => sum + (item.photo_count || 0) + (item.video_count || 0), 0), bytes = events.reduce((sum, item) => sum + (item.media_bytes || 0), 0);
-  return <AdminShell><Link href="/admin/partners" className="admin-back-link"><ArrowLeft size={15}/> İşletmelere dön</Link><div className="admin-heading"><div><p className="admin-kicker">İŞLETME DETAYI</p><h1>{partner.name}</h1><p className="admin-subtitle">Organizasyon, hesap, medya ve son hareketler.</p></div><span className={`admin-status-pill ${partner.active ? "active" : "inactive"}`}><i/>{partner.active ? "Aktif" : "Erişim kapalı"}</span></div>
-  <section className="partner-stat-grid"><article><Building2/><span>Organizasyonlar</span><strong>{events.length}</strong></article><article><Users/><span>Yetkili ve müşteriler</span><strong>{accounts.length}</strong></article><article><HardDrive/><span>Medya</span><strong>{media}</strong></article><article><span>Depolama</span><strong>{formatBytes(bytes)}</strong></article></section>
-  <div className="partner-detail-grid"><section className="admin-panel detail-list partner-event-list"><header><CalendarDays/><div><span>ORGANİZASYONLAR</span><h2>İşletmenin kayıtları</h2></div></header>{events.map((event) => <article className="partner-event-row" key={event.id}><Link href={`/admin/${event.id}`}><div><strong>{event.title}</strong><small>{event.wedding_date ? new Date(event.wedding_date).toLocaleDateString("tr-TR") : "Tarih yok"} · {event.lifecycle_status || "yayında"}</small></div><span>{(event.photo_count || 0) + (event.video_count || 0)} medya</span></Link><div className="partner-event-photographers"><Camera size={15}/><div><b>Atanmış fotoğrafçı</b>{event.photographers.length ? event.photographers.map((photographer) => <span key={photographer.id}>{photographer.display_name}<small>{photographer.email}{photographer.disabled ? " · Erişimi kapalı" : ""}</small></span>) : <em>Bu organizasyona fotoğrafçı atanmamış.</em>}</div></div></article>)}{!events.length ? <p>Organizasyon bulunmuyor.</p> : null}</section>
-  <section className="admin-panel detail-list"><header><Users/><div><span>HESAPLAR</span><h2>Yetkili ve müşteriler</h2></div></header>{accounts.map((account) => <div className="detail-static-row" key={account.id}><div><strong>{account.display_name}</strong><small>{account.email}</small></div><span>{account.disabled ? "Kapalı" : account.role === "owner" ? "Müşteri" : account.staff_role === "photographer" ? "Fotoğrafçı" : "Yetkili"}</span></div>)}</section></div>
-  <section className="admin-panel detail-list partner-activity"><header><div><span>SON HAREKETLER</span><h2>İşlem zaman çizelgesi</h2></div></header>{activity.map((item, index) => <div className="detail-static-row" key={`${item.at}-${index}`}><div><strong>{item.action}</strong><small>{item.actor_role || "Sistem"}</small></div><time>{new Date(item.at).toLocaleString("tr-TR")}</time></div>)}{!activity.length ? <p>İşlem kaydı bulunmuyor.</p> : null}</section>
-  </AdminShell>;
+  const media = events.reduce(
+      (sum, item) => sum + (item.photo_count || 0) + (item.video_count || 0),
+      0,
+    ),
+    bytes = events.reduce((sum, item) => sum + (item.media_bytes || 0), 0);
+  return (
+    <AdminShell>
+      <Link href="/admin/partners" className="admin-back-link">
+        <ArrowLeft size={15} /> İşletmelere dön
+      </Link>
+      <div className="admin-heading">
+        <div>
+          <p className="admin-kicker">İŞLETME DETAYI</p>
+          <h1>{partner.name}</h1>
+          <p className="admin-subtitle">
+            {partner.phone ? `Telefon: ${partner.phone}` : "Telefon eklenmedi"}
+            {partner.address
+              ? ` · Adres: ${partner.address}`
+              : " · Adres eklenmedi"}
+          </p>
+        </div>
+        <span
+          className={`admin-status-pill ${partner.active ? "active" : "inactive"}`}
+        >
+          <i />
+          {partner.active ? "Aktif" : "Erişim kapalı"}
+        </span>
+      </div>
+      <section className="partner-stat-grid">
+        <article>
+          <Building2 />
+          <span>Organizasyonlar</span>
+          <strong>{events.length}</strong>
+        </article>
+        <article>
+          <Users />
+          <span>Yetkili ve müşteriler</span>
+          <strong>{accounts.length}</strong>
+        </article>
+        <article>
+          <HardDrive />
+          <span>Medya</span>
+          <strong>{media}</strong>
+        </article>
+        <article>
+          <span>Depolama</span>
+          <strong>{formatBytes(bytes)}</strong>
+        </article>
+      </section>
+      <PartnerEditForm
+        partner={partner}
+        onSaved={() =>
+          queryClient.invalidateQueries({
+            queryKey: ["partner-detail", params.id],
+          })
+        }
+      />
+      <div className="partner-detail-grid">
+        <section className="admin-panel detail-list partner-event-list">
+          <header>
+            <CalendarDays />
+            <div>
+              <span>ORGANİZASYONLAR</span>
+              <h2>İşletmenin kayıtları</h2>
+            </div>
+          </header>
+          {events.map((event) => (
+            <article className="partner-event-row" key={event.id}>
+              <Link href={`/admin/${event.id}`}>
+                <div>
+                  <strong>{event.title}</strong>
+                  <small>
+                    {event.wedding_date
+                      ? new Date(event.wedding_date).toLocaleDateString("tr-TR")
+                      : "Tarih yok"}{" "}
+                    · {event.lifecycle_status || "yayında"}
+                  </small>
+                </div>
+                <span>
+                  {(event.photo_count || 0) + (event.video_count || 0)} medya
+                </span>
+              </Link>
+              <div className="partner-event-photographers">
+                <Camera size={15} />
+                <div>
+                  <b>Atanmış fotoğrafçı</b>
+                  {event.photographers.length ? (
+                    event.photographers.map((photographer) => (
+                      <span key={photographer.id}>
+                        {photographer.display_name}
+                        <small>
+                          {photographer.email}
+                          {photographer.disabled ? " · Erişimi kapalı" : ""}
+                        </small>
+                      </span>
+                    ))
+                  ) : (
+                    <em>Bu organizasyona fotoğrafçı atanmamış.</em>
+                  )}
+                </div>
+              </div>
+            </article>
+          ))}
+          {!events.length ? <p>Organizasyon bulunmuyor.</p> : null}
+        </section>
+        <section className="admin-panel detail-list">
+          <header>
+            <Users />
+            <div>
+              <span>HESAPLAR</span>
+              <h2>Yetkili ve müşteriler</h2>
+            </div>
+          </header>
+          {accounts.map((account) => (
+            <div className="detail-static-row" key={account.id}>
+              <div>
+                <strong>{account.display_name}</strong>
+                <small>{account.email}</small>
+              </div>
+              <span>
+                {account.disabled
+                  ? "Kapalı"
+                  : account.role === "owner"
+                    ? "Müşteri"
+                    : account.staff_role === "photographer"
+                      ? "Fotoğrafçı"
+                      : "Yetkili"}
+              </span>
+            </div>
+          ))}
+        </section>
+      </div>
+      <section className="admin-panel detail-list partner-activity">
+        <header>
+          <div>
+            <span>SON HAREKETLER</span>
+            <h2>İşlem zaman çizelgesi</h2>
+          </div>
+        </header>
+        {activity.map((item, index) => (
+          <div className="detail-static-row" key={`${item.at}-${index}`}>
+            <div>
+              <strong>{item.action}</strong>
+              <small>{item.actor_role || "Sistem"}</small>
+            </div>
+            <time>{new Date(item.at).toLocaleString("tr-TR")}</time>
+          </div>
+        ))}
+        {!activity.length ? <p>İşlem kaydı bulunmuyor.</p> : null}
+      </section>
+    </AdminShell>
+  );
 }

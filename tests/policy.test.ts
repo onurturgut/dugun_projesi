@@ -57,9 +57,9 @@ test("partner staff can access only explicitly assigned events", () => {
   } as Account;
   assert.equal(canAccess(staff, event), true);
   assert.equal(canAccess({ ...staff, assigned_event_ids: [] }, event), false);
-  assert.deepEqual(weddingScope(staff), { partner_id: "a", id: { $in: ["one"] } });
+  assert.deepEqual(weddingScope(staff), { id: { $in: ["one"] } });
 });
-test("photographers remain tenant-bound and event-bound", () => {
+test("photographers can cross tenant boundaries only through explicit event assignment", () => {
   const photographer = {
     id: "photo-a",
     role: "partner",
@@ -69,7 +69,7 @@ test("photographers remain tenant-bound and event-bound", () => {
     disabled: false,
   } as Account;
   assert.equal(canAccess(photographer, event), true);
-  assert.equal(canAccess({ ...photographer, partner_id: "b" }, event), false);
+  assert.equal(canAccess({ ...photographer, partner_id: "b" }, event), true);
   assert.equal(canAccess({ ...photographer, assigned_event_ids: [] }, event), false);
 });
 test("upload closing is enforced at exact deadline", () => {

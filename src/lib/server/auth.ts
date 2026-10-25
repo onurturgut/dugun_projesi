@@ -27,29 +27,34 @@ export async function session() {
   if (!token) return null;
   const previewToken = jar.get("wm_preview")?.value;
   const tokenHash = hash(token);
-  const cacheKey = previewToken ? `${tokenHash}:${hash(previewToken)}` : tokenHash;
+  const cacheKey = previewToken
+    ? `${tokenHash}:${hash(previewToken)}`
+    : tokenHash;
   const cached = sessionCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.account;
   if (cached) sessionCache.delete(cacheKey);
   const database = await db();
-  const current = await database
-    .collection("sessions")
-    .findOne({
-      token: tokenHash,
-      expiresAt: { $gt: new Date() },
-      $or: [
-        { idleExpiresAt: { $gt: new Date() } },
-        { idleExpiresAt: { $exists: false } },
-      ],
-    });
+  const current = await database.collection("sessions").findOne({
+    token: tokenHash,
+    expiresAt: { $gt: new Date() },
+    $or: [
+      { idleExpiresAt: { $gt: new Date() } },
+      { idleExpiresAt: { $exists: false } },
+    ],
+  });
   if (!current) return null;
   const now = new Date();
   const idleExpiresAt = new Date(now.getTime() + 30 * 60_000);
-  if (!current.lastSeenAt || now.getTime() - new Date(current.lastSeenAt).getTime() >= 5 * 60_000) {
-    await database.collection("sessions").updateOne(
-      { _id: current._id, expiresAt: { $gt: now } },
-      { $set: { lastSeenAt: now, idleExpiresAt } },
-    );
+  if (
+    !current.lastSeenAt ||
+    now.getTime() - new Date(current.lastSeenAt).getTime() >= 5 * 60_000
+  ) {
+    await database
+      .collection("sessions")
+      .updateOne(
+        { _id: current._id, expiresAt: { $gt: now } },
+        { $set: { lastSeenAt: now, idleExpiresAt } },
+      );
   }
   const preview = previewToken
     ? await database.collection("sessions").findOne({
@@ -83,6 +88,16 @@ export async function session() {
   );
   if (!user || !["platform", "partner", "owner"].includes(user.role))
     return null;
+  if (user.role === "partner" && user.staff_role !== "partner_owner") {
+    user.assigned_event_ids = await database
+      .collection("organization_participants")
+      .find(
+        { account_id: user.id, active: true },
+        { projection: { _id: 0, wedding_id: 1 } },
+      )
+      .map((row) => String(row.wedding_id))
+      .toArray();
+  }
   const partner = await database.collection("partners").findOne({
     id: user.partner_id || "platform",
     active: true,
@@ -98,7 +113,9 @@ export async function session() {
           preview_read_only: true,
           impersonated_by: {
             id: current.userId,
-            display_name: String(preview.actorDisplayName || "Platform yöneticisi"),
+            display_name: String(
+              preview.actorDisplayName || "Platform yöneticisi",
+            ),
           },
         }
       : {}),

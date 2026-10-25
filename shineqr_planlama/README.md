@@ -13,6 +13,8 @@ Bu klasör, ShineQR'ı teknik ürün olarak değerlendirmek, fiyatlandırmak, pa
 4. [Satış, WhatsApp ve sunum konuşma rehberi](04-SATIS-WHATSAPP-VE-SUNUM-PLAYBOOK.md)
 5. [Pazarlama senaryoları ve 90 günlük plan](05-PAZARLAMA-SENARYOLARI-VE-90-GUN-PLAN.md)
 6. [Operasyon, sözleşme, KPI ve kontrol listeleri](06-OPERASYON-SOZLESME-KPI.md)
+7. [PWA, fotoğrafçı çalışma alanı ve dijital davetiye](07-PWA-FOTOGRAF-CALISMA-ALANI-VE-DIJITAL-DAVETIYE.md)
+8. [Çok taraflı organizasyon, fotoğrafçı ve baskı akışı](08-COK-TARAFLI-ORGANIZASYON-FOTOGRAFCI-VE-BASKI-AKISI.md)
 
 ## En kısa yönetici özeti
 

@@ -24,6 +24,8 @@ import {
   WalletCards,
   Palette,
   Workflow,
+  Camera,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Account } from "@/lib/api";
@@ -62,24 +64,88 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       });
       await qc.invalidateQueries({ queryKey: ["me"] });
     } catch (reason) {
-      toast.error(reason instanceof Error ? reason.message : "Tema değiştirilemedi.");
+      toast.error(
+        reason instanceof Error ? reason.message : "Tema değiştirilemedi.",
+      );
     }
   };
   const navigation =
     me.data?.role === "platform"
       ? [
           { href: "/admin", label: "Organizasyonlar", icon: LayoutDashboard },
-          { href: "/admin/design-center", label: "Tasarım Merkezi", icon: Palette },
+          {
+            href: "/admin/design-center",
+            label: "Tasarım Merkezi",
+            icon: Palette,
+          },
           { href: "/admin/partners", label: "İşletmeler", icon: Building2 },
+          {
+            href: "/admin/photographers",
+            label: "Fotoğrafçılar",
+            icon: Camera,
+          },
+          {
+            href: "/admin/print-jobs",
+            label: "Baskı operasyonu",
+            icon: Printer,
+          },
           { href: "/admin/accounts", label: "Yetkili hesaplar", icon: Users },
           { href: "/admin/operations", label: "Medya merkezi", icon: Activity },
-          { href: "/admin/finance", label: "Satış ve komisyon", icon: WalletCards },
+          {
+            href: "/admin/finance",
+            label: "Satış ve komisyon",
+            icon: WalletCards,
+          },
           { href: "/admin/audit", label: "İşlem kayıtları", icon: FileClock },
-          ...(!me.data?.staff_role || me.data.staff_role === "platform_admin" ? [{ href: "/admin/development-operations", label: "Geliştirme operasyonları", icon: Workflow }] : []),
+          ...(!me.data?.staff_role || me.data.staff_role === "platform_admin"
+            ? [
+                {
+                  href: "/admin/development-operations",
+                  label: "Geliştirme operasyonları",
+                  icon: Workflow,
+                },
+              ]
+            : []),
         ]
       : me.data?.role === "owner"
         ? [{ href: "/admin", label: "Etkinliğim", icon: Images }]
-        : [{ href: "/admin", label: "Organizasyonlarım", icon: LayoutDashboard }, ...(!me.data?.staff_role || me.data.staff_role === "partner_owner" ? [{ href: "/admin/finance", label: "Satış ve komisyon", icon: WalletCards }] : []), { href: "/admin/accounts", label: "Yetkili hesaplar", icon: Users }];
+        : me.data?.staff_role === "print_vendor"
+          ? [
+              {
+                href: "/admin/print-jobs",
+                label: "Baskı işlerim",
+                icon: Printer,
+              },
+            ]
+          : [
+              {
+                href: "/admin",
+                label:
+                  me.data?.staff_role === "photographer"
+                    ? "Atanmış işler"
+                    : "Organizasyonlarım",
+                icon: LayoutDashboard,
+              },
+              ...(!me.data?.staff_role || me.data.staff_role === "partner_owner"
+                ? [
+                    {
+                      href: "/admin/photographers",
+                      label: "Fotoğrafçılar",
+                      icon: Camera,
+                    },
+                    {
+                      href: "/admin/finance",
+                      label: "Satış ve komisyon",
+                      icon: WalletCards,
+                    },
+                    {
+                      href: "/admin/accounts",
+                      label: "Yetkili hesaplar",
+                      icon: Users,
+                    },
+                  ]
+                : []),
+            ];
   const current = navigation.find((item) =>
     item.href === "/admin"
       ? pathname === "/admin" || /^\/admin\/[^/]+/.test(pathname)
@@ -95,12 +161,28 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const SidebarContent = () => (
     <>
       <div className="dashboard-sidebar-head">
-        <Link href="/admin" className="dashboard-brand" aria-label="ShineQR panel ana sayfası">
+        <Link
+          href="/admin"
+          className="dashboard-brand"
+          aria-label="ShineQR panel ana sayfası"
+        >
           <Image src="/brand/shineqr-mark.png" alt="" width={36} height={36} />
-          <span><strong>SHINEQR</strong><small>{roleLabel}</small></span>
+          <span>
+            <strong>SHINEQR</strong>
+            <small>{roleLabel}</small>
+          </span>
         </Link>
-        <button type="button" className="dashboard-collapse" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? "Menüyü genişlet" : "Menüyü daralt"}>
-          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        <button
+          type="button"
+          className="dashboard-collapse"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-label={collapsed ? "Menüyü genişlet" : "Menüyü daralt"}
+        >
+          {collapsed ? (
+            <PanelLeftOpen size={18} />
+          ) : (
+            <PanelLeftClose size={18} />
+          )}
         </button>
       </div>
       <div className="dashboard-nav-label">ÇALIŞMA ALANI</div>
@@ -108,18 +190,48 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         {navigation.map(({ href, label, icon: Icon }) => {
           const active =
             href === "/admin"
-              ? pathname === "/admin" || /^\/admin\/[^/]+\/(design)(\/|$)/.test(pathname)
+              ? pathname === "/admin" ||
+                /^\/admin\/[^/]+\/(design)(\/|$)/.test(pathname)
               : pathname.startsWith(href);
-          return <Link href={href} key={href} aria-current={active ? "page" : undefined} title={collapsed ? label : undefined}><Icon size={18} strokeWidth={1.7} /><span>{label}</span></Link>;
+          return (
+            <Link
+              href={href}
+              key={href}
+              aria-current={active ? "page" : undefined}
+              title={collapsed ? label : undefined}
+            >
+              <Icon size={18} strokeWidth={1.7} />
+              <span>{label}</span>
+            </Link>
+          );
         })}
       </nav>
       <div className="dashboard-sidebar-foot">
-        <Link href="/account/password" aria-current={pathname.startsWith("/account/") ? "page" : undefined}><Settings size={18} strokeWidth={1.7} /><span>Hesap ayarları</span></Link>
+        <Link
+          href="/account/password"
+          aria-current={pathname.startsWith("/account/") ? "page" : undefined}
+        >
+          <Settings size={18} strokeWidth={1.7} />
+          <span>Hesap ayarları</span>
+        </Link>
         <div className="dashboard-tenant">
           <span className="admin-avatar">
-            {me.data?.partner_logo_url ? <Image src={me.data.partner_logo_url} alt="" fill unoptimized sizes="36px" /> : me.data?.display_name?.slice(0, 1) || "S"}
+            {me.data?.partner_logo_url ? (
+              <Image
+                src={me.data.partner_logo_url}
+                alt=""
+                fill
+                unoptimized
+                sizes="36px"
+              />
+            ) : (
+              me.data?.display_name?.slice(0, 1) || "S"
+            )}
           </span>
-          <span><strong>{me.data?.display_name || "Hesabım"}</strong><small>{me.data?.partner_name}</small></span>
+          <span>
+            <strong>{me.data?.display_name || "Hesabım"}</strong>
+            <small>{me.data?.partner_name}</small>
+          </span>
         </div>
       </div>
     </>
@@ -130,12 +242,28 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <a href="#admin-content" className="admin-skip">
         İçeriğe geç
       </a>
-      <aside className="dashboard-sidebar"><SidebarContent /></aside>
+      <aside className="dashboard-sidebar">
+        <SidebarContent />
+      </aside>
       {mobileOpen && (
         <>
-          <button className="dashboard-mobile-backdrop" aria-label="Menüyü kapat" onClick={() => setMobileOpen(false)} />
-          <aside className="dashboard-mobile-sidebar is-open" aria-label="Mobil panel menüsü">
-            <button className="dashboard-mobile-close" type="button" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat"><X size={20} /></button>
+          <button
+            className="dashboard-mobile-backdrop"
+            aria-label="Menüyü kapat"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside
+            className="dashboard-mobile-sidebar is-open"
+            aria-label="Mobil panel menüsü"
+          >
+            <button
+              className="dashboard-mobile-close"
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Menüyü kapat"
+            >
+              <X size={20} />
+            </button>
             <SidebarContent />
           </aside>
         </>
@@ -143,73 +271,105 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="dashboard-page">
         {me.data?.preview_read_only ? (
           <div className="admin-preview-banner">
-            <span><strong>Salt okunur hesap görünümü:</strong> {me.data.display_name}</span>
-            <button className="admin-button" onClick={async () => { try { await api("/auth/preview-stop", { method: "POST" }); qc.clear(); window.location.assign("/admin/accounts"); } catch (reason) { toast.error(reason instanceof Error ? reason.message : "Platform hesabına dönülemedi."); } }}>Platform hesabına dön</button>
+            <span>
+              <strong>Salt okunur hesap görünümü:</strong>{" "}
+              {me.data.display_name}
+            </span>
+            <button
+              className="admin-button"
+              onClick={async () => {
+                try {
+                  await api("/auth/preview-stop", { method: "POST" });
+                  qc.clear();
+                  window.location.assign("/admin/accounts");
+                } catch (reason) {
+                  toast.error(
+                    reason instanceof Error
+                      ? reason.message
+                      : "Platform hesabına dönülemedi.",
+                  );
+                }
+              }}
+            >
+              Platform hesabına dön
+            </button>
           </div>
         ) : null}
         <header className="dashboard-topbar">
-          <button type="button" className="dashboard-menu-button" onClick={() => setMobileOpen(true)} aria-label="Menüyü aç" aria-expanded={mobileOpen}><Menu size={20} /></button>
+          <button
+            type="button"
+            className="dashboard-menu-button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Menüyü aç"
+            aria-expanded={mobileOpen}
+          >
+            <Menu size={20} />
+          </button>
           <div className="dashboard-breadcrumb" aria-label="Sayfa yolu">
-            <span>{roleLabel}</span><ChevronDown size={13} aria-hidden="true" /><strong>{current?.label || "Organizasyon"}</strong>
+            <span>{roleLabel}</span>
+            <ChevronDown size={13} aria-hidden="true" />
+            <strong>{current?.label || "Organizasyon"}</strong>
           </div>
           <div className="dashboard-topbar-actions">
-          <AdminUtilities />
-          <button
-            className="admin-theme-toggle"
-            onClick={toggleTheme}
-            disabled={me.data?.preview_read_only}
-            aria-label={
-              theme === "dark" ? "Gündüz moduna geç" : "Gece moduna geç"
-            }
-            title={theme === "dark" ? "Gündüz modu" : "Gece modu"}
-          >
-            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-          </button>
-          <details className="admin-account">
-            <summary aria-label="Hesap ve gezinme menüsü">
-              <span className="admin-avatar">
-                {me.data?.partner_logo_url ? (
-                  <Image
-                    src={me.data.partner_logo_url}
-                    alt={`${me.data.partner_name || "İşletme"} logosu`}
-                    fill
-                    unoptimized
-                    sizes="34px"
-                  />
-                ) : (
-                  me.data?.display_name?.slice(0, 1) || "A"
-                )}
-              </span>
-              <span className="admin-account-label">Hesabım</span>
-              <ChevronDown size={14} />
-            </summary>
-            <div className="admin-account-menu">
-              <p>{me.data?.display_name || "Hesabım"}</p>
-              <small className="admin-account-partner">
-                {me.data?.partner_name}
-              </small>
-              <Link href="/account/password">
-                <KeyRound size={16} /> Hesap ayarları
-              </Link>
-              <button
-                onClick={async () => {
-                  try {
-                    await api("/auth/logout", { method: "POST" });
-                    qc.clear();
-                    router.replace("/auth");
-                    router.refresh();
-                  } catch {
-                    toast.error("Çıkış yapılamadı. Tekrar deneyin.");
-                  }
-                }}
-              >
-                <LogOut size={16} /> Çıkış yap
-              </button>
-            </div>
-          </details>
+            <AdminUtilities />
+            <button
+              className="admin-theme-toggle"
+              onClick={toggleTheme}
+              disabled={me.data?.preview_read_only}
+              aria-label={
+                theme === "dark" ? "Gündüz moduna geç" : "Gece moduna geç"
+              }
+              title={theme === "dark" ? "Gündüz modu" : "Gece modu"}
+            >
+              {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
+            <details className="admin-account">
+              <summary aria-label="Hesap ve gezinme menüsü">
+                <span className="admin-avatar">
+                  {me.data?.partner_logo_url ? (
+                    <Image
+                      src={me.data.partner_logo_url}
+                      alt={`${me.data.partner_name || "İşletme"} logosu`}
+                      fill
+                      unoptimized
+                      sizes="34px"
+                    />
+                  ) : (
+                    me.data?.display_name?.slice(0, 1) || "A"
+                  )}
+                </span>
+                <span className="admin-account-label">Hesabım</span>
+                <ChevronDown size={14} />
+              </summary>
+              <div className="admin-account-menu">
+                <p>{me.data?.display_name || "Hesabım"}</p>
+                <small className="admin-account-partner">
+                  {me.data?.partner_name}
+                </small>
+                <Link href="/account/password">
+                  <KeyRound size={16} /> Hesap ayarları
+                </Link>
+                <button
+                  onClick={async () => {
+                    try {
+                      await api("/auth/logout", { method: "POST" });
+                      qc.clear();
+                      router.replace("/auth");
+                      router.refresh();
+                    } catch {
+                      toast.error("Çıkış yapılamadı. Tekrar deneyin.");
+                    }
+                  }}
+                >
+                  <LogOut size={16} /> Çıkış yap
+                </button>
+              </div>
+            </details>
           </div>
         </header>
-        <main id="admin-content" className="admin-main">{children}</main>
+        <main id="admin-content" className="admin-main">
+          {children}
+        </main>
       </div>
     </div>
   );

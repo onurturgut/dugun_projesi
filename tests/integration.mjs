@@ -4,12 +4,15 @@ import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { randomUUID, randomBytes, scryptSync } from "node:crypto";
 import { MongoClient } from "mongodb";
+import { PDFDocument } from "pdf-lib";
 import { once } from "node:events";
 import dns from "node:dns";
 async function directMongoUri(uri) {
   if (!uri.startsWith("mongodb+srv://")) return uri;
   const parsed = new URL(uri);
-  const records = await dns.promises.resolveSrv(`_mongodb._tcp.${parsed.hostname}`);
+  const records = await dns.promises.resolveSrv(
+    `_mongodb._tcp.${parsed.hostname}`,
+  );
   const txt = (await dns.promises.resolveTxt(parsed.hostname)).flat().join("");
   const options = new URLSearchParams(txt);
   for (const [key, value] of parsed.searchParams) options.set(key, value);
@@ -18,10 +21,10 @@ async function directMongoUri(uri) {
   return `mongodb://${auth}${records.map((record) => `${record.name}:${record.port}`).join(",")}${parsed.pathname}?${options}`;
 }
 const dbName = `test_platform_${Date.now()}`;
-const mongoUri = await directMongoUri(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017");
-const mongo = new MongoClient(
-  mongoUri,
+const mongoUri = await directMongoUri(
+  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017",
 );
+const mongo = new MongoClient(mongoUri);
 const port = Number(process.env.TEST_PORT || 3100),
   base = `http://localhost:${port}`;
 const objects = new Map();
@@ -119,6 +122,7 @@ try {
       ),
     db.collection("weddings").createIndex({ slug: 1 }, { unique: true }),
     db.collection("media").createIndex({ storage_path: 1 }, { unique: true }),
+    db.collection("print_jobs").createIndex({ id: 1 }, { unique: true }),
   ]);
   const salt = randomBytes(16).toString("hex");
   await db.collection("users").insertOne({
@@ -196,7 +200,9 @@ try {
       {
         name: "A İşletmesi",
         display_name: "A Yetkili",
-        username: "partner-a",
+        username: "partner-a@example.com",
+        phone: "05320000001",
+        address: "Fethiye, Muğla",
         password: initial,
       },
       platform,
@@ -210,13 +216,62 @@ try {
       {
         name: "B İşletmesi",
         display_name: "B Yetkili",
-        username: "partner-b",
+        username: "partner-b@example.com",
+        phone: "05320000002",
+        address: "Fethiye, Muğla",
         password: initial,
       },
       platform,
       201,
     )
   ).data.id;
+  const printerId = randomUUID();
+  const otherPrinterId = randomUUID();
+  const printerSalt = randomBytes(16).toString("hex");
+  await db.collection("users").insertMany([
+    {
+      id: printerId,
+      email: "printer@example.com",
+      salt: printerSalt,
+      passwordHash: scryptSync(changed, printerSalt, 64).toString("hex"),
+      role: "partner",
+      staff_role: "print_vendor",
+      partner_id: partnerB,
+      display_name: "Test Baskıcı",
+      disabled: false,
+      must_change_password: false,
+    },
+    {
+      id: otherPrinterId,
+      email: "other-printer@example.com",
+      salt: printerSalt,
+      passwordHash: scryptSync(changed, printerSalt, 64).toString("hex"),
+      role: "partner",
+      staff_role: "print_vendor",
+      partner_id: partnerA,
+      display_name: "Diğer Baskıcı",
+      disabled: false,
+      must_change_password: false,
+    },
+  ]);
+  const printerCookie = await login("printer@example.com", changed);
+  const otherPrinterCookie = await login("other-printer@example.com", changed);
+  await call(
+    `/admin/partners/${partnerA}`,
+    "PATCH",
+    {
+      phone: "05320000003",
+      address: "Fethiye, Muğla",
+      business_types: ["venue", "planner"],
+    },
+    platform,
+  );
+  const updatedPartner = (
+    await call(`/admin/partners/${partnerA}`, "GET", undefined, platform)
+  ).data.partner;
+  assert.equal(updatedPartner.phone, "05320000003");
+  assert.equal(updatedPartner.address, "Fethiye, Muğla");
+  assert.deepEqual(updatedPartner.business_types, ["venue", "planner"]);
   const logoForm = new FormData();
   const logoBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
   logoForm.append(
@@ -245,21 +300,42 @@ try {
     logoUrl,
   );
   assert.equal((await fetch(base + logoUrl)).status, 200);
-  const temporaryPartner = await db.collection("users").findOne({ email: "partner-a" });
-  const temporaryCookie = await login("partner-a");
+  const temporaryPartner = await db
+    .collection("users")
+    .findOne({ email: "partner-a@example.com" });
+  const temporaryCookie = await login("partner-a@example.com");
   await call("/auth/preferences", "PATCH", { theme: "dark" }, temporaryCookie);
   await call("/admin/weddings", "GET", undefined, temporaryCookie, 403);
-  const previewCookie = (await call(`/admin/accounts/${temporaryPartner.id}/preview`, "POST", undefined, platform)).cookie;
+  const previewCookie = (
+    await call(
+      `/admin/accounts/${temporaryPartner.id}/preview`,
+      "POST",
+      undefined,
+      platform,
+    )
+  ).cookie;
   const previewSession = `${platform}; ${previewCookie}`;
-  assert.equal((await call("/auth/me", "GET", undefined, previewSession)).data.must_change_password, true);
+  assert.equal(
+    (await call("/auth/me", "GET", undefined, previewSession)).data
+      .must_change_password,
+    true,
+  );
   await call("/admin/weddings", "GET", undefined, previewSession);
-  await call("/auth/preferences", "PATCH", { theme: "dark" }, previewSession, 403);
+  await call(
+    "/auth/preferences",
+    "PATCH",
+    { theme: "dark" },
+    previewSession,
+    403,
+  );
   await call("/auth/preview-stop", "POST", undefined, previewSession);
-  const previewStopAudit = await db.collection("audit_logs").findOne({ action: "account.preview_stopped" });
+  const previewStopAudit = await db
+    .collection("audit_logs")
+    .findOne({ action: "account.preview_stopped" });
   assert.equal(previewStopAudit.actor_role, "platform");
   assert.equal(previewStopAudit.target.target_user_id, temporaryPartner.id);
-  const a = await activate("partner-a"),
-    b = await activate("partner-b");
+  const a = await activate("partner-a@example.com"),
+    b = await activate("partner-b@example.com");
   await call("/admin/partners", "GET", undefined, a, 403);
   const agentRunId = randomUUID();
   const agentReportInput = {
@@ -268,26 +344,75 @@ try {
     task_title: "Entegrasyon raporu",
     status: "needs-review",
     scope: ["tests/integration.mjs"],
-    findings: [{ severity: "info", title: "Kontrol tamamlandı", evidence: "API sözleşmesi doğrulandı." }],
-    verification: [{ check: "integration", result: "passed", evidence: "Test ortamı" }],
+    findings: [
+      {
+        severity: "info",
+        title: "Kontrol tamamlandı",
+        evidence: "API sözleşmesi doğrulandı.",
+      },
+    ],
+    verification: [
+      { check: "integration", result: "passed", evidence: "Test ortamı" },
+    ],
     risks: ["İnsan incelemesi gerekli."],
     recommendation: "approve",
     handoff: { role: "human-owner", action: "Raporu inceleyin." },
     change_ref: "stage-12",
   };
   await call("/admin/agent-reports", "POST", agentReportInput, a, 403);
-  const agentReport = (await call("/admin/agent-reports", "POST", agentReportInput, platform, 201)).data;
+  const agentReport = (
+    await call("/admin/agent-reports", "POST", agentReportInput, platform, 201)
+  ).data;
   assert.equal(agentReport.review_status, "pending");
-  assert.equal((await call("/admin/agent-reports", "POST", { ...agentReportInput, task_title: "Tekrarlanan istek" }, platform)).data.id, agentReport.id);
-  assert.equal(await db.collection("agent_reports").countDocuments({ run_id: agentRunId, agent_name: "code-reviewer" }), 1);
-  const reportListing = (await call(`/admin/agent-reports?agent_name=code-reviewer&search=stage-12`, "GET", undefined, platform)).data;
+  assert.equal(
+    (
+      await call(
+        "/admin/agent-reports",
+        "POST",
+        { ...agentReportInput, task_title: "Tekrarlanan istek" },
+        platform,
+      )
+    ).data.id,
+    agentReport.id,
+  );
+  assert.equal(
+    await db
+      .collection("agent_reports")
+      .countDocuments({ run_id: agentRunId, agent_name: "code-reviewer" }),
+    1,
+  );
+  const reportListing = (
+    await call(
+      `/admin/agent-reports?agent_name=code-reviewer&search=stage-12`,
+      "GET",
+      undefined,
+      platform,
+    )
+  ).data;
   assert.equal(reportListing.total, 1);
   assert.equal(reportListing.summary.pending, 1);
-  await call(`/admin/agent-reports/${agentReport.id}`, "GET", undefined, a, 403);
-  const reviewedReport = (await call(`/admin/agent-reports/${agentReport.id}/review`, "POST", { decision: "approved", note: "İnsan incelemesi tamamlandı." }, platform)).data;
+  await call(
+    `/admin/agent-reports/${agentReport.id}`,
+    "GET",
+    undefined,
+    a,
+    403,
+  );
+  const reviewedReport = (
+    await call(
+      `/admin/agent-reports/${agentReport.id}/review`,
+      "POST",
+      { decision: "approved", note: "İnsan incelemesi tamamlandı." },
+      platform,
+    )
+  ).data;
   assert.equal(reviewedReport.review_status, "approved");
   assert.equal(reviewedReport.reviews.length, 1);
-  assert.equal((await db.collection("agent_reports").findOne({ id: agentReport.id })).task_title, "Entegrasyon raporu");
+  assert.equal(
+    (await db.collection("agent_reports").findOne({ id: agentReport.id }))
+      .task_title,
+    "Entegrasyon raporu",
+  );
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Istanbul",
     year: "numeric",
@@ -305,18 +430,63 @@ try {
     hero_message: "Hoş geldiniz",
     thank_you_message: "Teşekkürler",
   });
-  async function approvedEvent(slug, partnerCookie, ownerEmail, packageCode = "plan-2") {
-    const draft = (await call("/admin/weddings/draft", "POST", {
-      ...input(slug), wizard_step: 7, customer_name: `${slug} müşterisi`,
-      customer_email: ownerEmail, package_code: packageCode,
-    }, partnerCookie, 201)).data;
-    await call(`/admin/weddings/${draft.id}/publish`, "POST", { password: initial }, partnerCookie, 202);
-    assert.equal((await db.collection("weddings").findOne({ id: draft.id })).approval_status, "submitted");
-    await call("/admin/weddings/draft", "POST", { id: draft.id, title: "Onay beklerken değişmez" }, partnerCookie, 409);
-    await call(`/admin/weddings/${draft.id}/approve`, "POST", undefined, platform);
-    return (await call(`/admin/weddings/${draft.id}`, "GET", undefined, platform)).data;
+  async function approvedEvent(
+    slug,
+    partnerCookie,
+    ownerEmail,
+    packageCode = "plan-2",
+  ) {
+    const draft = (
+      await call(
+        "/admin/weddings/draft",
+        "POST",
+        {
+          ...input(slug),
+          wizard_step: 7,
+          customer_name: `${slug} müşterisi`,
+          customer_email: ownerEmail,
+          package_code: packageCode,
+        },
+        partnerCookie,
+        201,
+      )
+    ).data;
+    await call(
+      `/admin/weddings/${draft.id}/publish`,
+      "POST",
+      { password: initial },
+      partnerCookie,
+      202,
+    );
+    assert.equal(
+      (await db.collection("weddings").findOne({ id: draft.id }))
+        .approval_status,
+      "submitted",
+    );
+    await call(
+      "/admin/weddings/draft",
+      "POST",
+      { id: draft.id, title: "Onay beklerken değişmez" },
+      partnerCookie,
+      409,
+    );
+    await call(
+      `/admin/weddings/${draft.id}/approve`,
+      "POST",
+      undefined,
+      platform,
+    );
+    return (
+      await call(`/admin/weddings/${draft.id}`, "GET", undefined, platform)
+    ).data;
   }
-  await call("/admin/weddings", "POST", { ...input("legacy-bypass"), partner_id: partnerB }, a, 403);
+  await call(
+    "/admin/weddings",
+    "POST",
+    { ...input("legacy-bypass"), partner_id: partnerB },
+    a,
+    403,
+  );
   const eventA = await approvedEvent("event-a", a, "owner-a");
   assert.equal(
     eventA.partner_id,
@@ -325,39 +495,111 @@ try {
   );
   const eventB = await approvedEvent("event-b", b, "owner-b");
   const eventA2 = await approvedEvent("event-a-2", a, "owner-a2", "plan-1");
-  const recordedSale = (await call("/admin/sales", "POST", {
-    wedding_id: eventA.id, idempotency_key: `integration-${eventA.id}`, vat_rate_bps: 2000,
-  }, platform, 201)).data;
+  const recordedSale = (
+    await call(
+      "/admin/sales",
+      "POST",
+      {
+        wedding_id: eventA.id,
+        idempotency_key: `integration-${eventA.id}`,
+        vat_rate_bps: 2000,
+      },
+      platform,
+      201,
+    )
+  ).data;
   assert.equal(recordedSale.net_cents, 333_333);
   assert.equal(recordedSale.gross_cents, 400_000);
   assert.equal(recordedSale.commission_cents, 100_000);
   assert.equal(recordedSale.qualifying_ordinal, 1);
-  assert.equal((await call("/admin/sales", "POST", {
-    wedding_id: eventA.id, idempotency_key: `integration-${eventA.id}`, vat_rate_bps: 2000,
-  }, platform)).data.id, recordedSale.id, "idempotent sale must return the original record");
-  assert.equal((await call("/admin/sales", "GET", undefined, a)).data.items.length, 1);
-  await call(`/admin/weddings/${eventA.id}/storage-limit`, "PATCH", { additional_gib: 5 }, a, 403);
-  const capacity = (await call(`/admin/weddings/${eventA.id}/storage-limit`, "PATCH", { additional_gib: 5 }, platform)).data;
+  assert.equal(
+    (
+      await call(
+        "/admin/sales",
+        "POST",
+        {
+          wedding_id: eventA.id,
+          idempotency_key: `integration-${eventA.id}`,
+          vat_rate_bps: 2000,
+        },
+        platform,
+      )
+    ).data.id,
+    recordedSale.id,
+    "idempotent sale must return the original record",
+  );
+  assert.equal(
+    (await call("/admin/sales", "GET", undefined, a)).data.items.length,
+    1,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/storage-limit`,
+    "PATCH",
+    { additional_gib: 5 },
+    a,
+    403,
+  );
+  const capacity = (
+    await call(
+      `/admin/weddings/${eventA.id}/storage-limit`,
+      "PATCH",
+      { additional_gib: 5 },
+      platform,
+    )
+  ).data;
   assert.equal(capacity.effective_limit_bytes, 105 * 1024 ** 3);
-  assert.equal((await db.collection("weddings").findOne({ id: eventA.id })).storage_limit_override_bytes, 105 * 1024 ** 3);
-  await call(`/admin/weddings/${eventA.id}/storage-limit`, "PATCH", { additional_gib: 0 }, platform);
-  assert.equal((await db.collection("weddings").findOne({ id: eventA.id })).storage_limit_override_bytes, undefined);
-  await call("/admin/sales", "POST", {
-    wedding_id: eventA.id, idempotency_key: `partner-cannot-${eventA.id}`, vat_rate_bps: 2000,
-  }, a, 403);
+  assert.equal(
+    (await db.collection("weddings").findOne({ id: eventA.id }))
+      .storage_limit_override_bytes,
+    105 * 1024 ** 3,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/storage-limit`,
+    "PATCH",
+    { additional_gib: 0 },
+    platform,
+  );
+  assert.equal(
+    (await db.collection("weddings").findOne({ id: eventA.id }))
+      .storage_limit_override_bytes,
+    undefined,
+  );
+  await call(
+    "/admin/sales",
+    "POST",
+    {
+      wedding_id: eventA.id,
+      idempotency_key: `partner-cannot-${eventA.id}`,
+      vat_rate_bps: 2000,
+    },
+    a,
+    403,
+  );
   const draft = (
-    await call("/admin/weddings/draft", "POST", {
-      title: "Güvenli taslak",
-      wizard_step: 6,
-      customer_name: "Taslak Müşteri",
-      customer_email: "draft-owner@example.com",
-      password: "taslakta-asla-kalmamali",
-    }, a, 201)
+    await call(
+      "/admin/weddings/draft",
+      "POST",
+      {
+        title: "Güvenli taslak",
+        wizard_step: 6,
+        customer_name: "Taslak Müşteri",
+        customer_email: "draft-owner@example.com",
+        password: "taslakta-asla-kalmamali",
+      },
+      a,
+      201,
+    )
   ).data;
   const storedDraft = await db.collection("weddings").findOne({ id: draft.id });
   assert.equal(storedDraft.lifecycle_status, "draft");
   assert.equal("password" in storedDraft, false);
-  await call("/admin/weddings/draft", "POST", { id: draft.id, wizard_step: 7 }, b, 404);
+  await call(
+    "/admin/weddings/draft",
+    "POST",
+    { id: draft.id, wizard_step: 7 },
+    b,
+    404,
+  );
   await call("/admin/operations", "GET", undefined, a, 403);
   await call(`/admin/weddings/${eventB.id}`, "GET", undefined, a, 404);
   await call(
@@ -424,7 +666,12 @@ try {
     400,
   );
   await call(`/admin/weddings/${eventA.id}/design`, "PUT", design, owner);
-  assert.equal(await db.collection("design_snapshots").countDocuments({ wedding_id: eventA.id }), 1);
+  assert.equal(
+    await db
+      .collection("design_snapshots")
+      .countDocuments({ wedding_id: eventA.id }),
+    1,
+  );
   const savedDesign = (
     await call(`/admin/weddings/${eventA.id}`, "GET", undefined, owner)
   ).data.design;
@@ -449,27 +696,433 @@ try {
     (await call("/weddings/slug/event-a")).data.design.theme,
     "navy",
   );
-  await call(`/admin/weddings/${eventA.id}/design/approve`, "POST", undefined, owner);
-  await call(`/admin/weddings/${eventA.id}/design`, "PUT", { ...design, theme: "emerald" }, owner, 409);
-  let revision = (await call(`/admin/weddings/${eventA.id}/design/request-revision`, "POST", { reason: "Renk paleti değiştirilsin." }, owner)).data;
+  await call(
+    `/admin/weddings/${eventA.id}/design/approve`,
+    "POST",
+    undefined,
+    owner,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/design`,
+    "PUT",
+    { ...design, theme: "emerald" },
+    owner,
+    409,
+  );
+  let revision = (
+    await call(
+      `/admin/weddings/${eventA.id}/design/request-revision`,
+      "POST",
+      { reason: "Renk paleti değiştirilsin." },
+      owner,
+    )
+  ).data;
   assert.equal(revision.design_revisions_used, 1);
   assert.equal(revision.design_revision_limit, 2);
-  await call(`/admin/weddings/${eventA.id}/design`, "PUT", { ...design, theme: "emerald" }, owner);
-  await call(`/admin/weddings/${eventA.id}/design/approve`, "POST", undefined, owner);
-  revision = (await call(`/admin/weddings/${eventA.id}/design/request-revision`, "POST", { reason: "Son tipografi düzenlemesi yapılsın." }, owner)).data;
+  await call(
+    `/admin/weddings/${eventA.id}/design`,
+    "PUT",
+    { ...design, theme: "emerald" },
+    owner,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/design/approve`,
+    "POST",
+    undefined,
+    owner,
+  );
+  revision = (
+    await call(
+      `/admin/weddings/${eventA.id}/design/request-revision`,
+      "POST",
+      { reason: "Son tipografi düzenlemesi yapılsın." },
+      owner,
+    )
+  ).data;
   assert.equal(revision.design_revisions_used, 2);
-  await call(`/admin/weddings/${eventA.id}/design`, "PUT", { ...design, theme: "burgundy" }, owner);
-  await call(`/admin/weddings/${eventA.id}/design/approve`, "POST", undefined, owner);
-  await call(`/admin/weddings/${eventA.id}/design/request-revision`, "POST", { reason: "Paket sınırını aşan talep." }, owner, 409);
-  const revisionEvent = (await call(`/admin/weddings/${eventA.id}`, "GET", undefined, owner)).data;
+  await call(
+    `/admin/weddings/${eventA.id}/design`,
+    "PUT",
+    { ...design, theme: "burgundy" },
+    owner,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/design/approve`,
+    "POST",
+    undefined,
+    owner,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/design/request-revision`,
+    "POST",
+    { reason: "Paket sınırını aşan talep." },
+    owner,
+    409,
+  );
+  const revisionEvent = (
+    await call(`/admin/weddings/${eventA.id}`, "GET", undefined, owner)
+  ).data;
   assert.equal(revisionEvent.design_status, "approved_for_print");
   assert.equal(revisionEvent.design_revisions_used, 2);
-  const stableQr = await fetch(`${base}/q/${eventA.id}`, { redirect: "manual" });
+  const invitation = (
+    await call(
+      `/admin/weddings/${eventA.id}/photographer-invitations`,
+      "POST",
+      {
+        email: "invited-photographer@example.com",
+        business_name: "Davetli Fotoğraf",
+        phone: "05320000004",
+        address: "Fethiye, Muğla",
+        expires_at: new Date(Date.now() + 86400_000).toISOString(),
+        delivery_due_at: new Date(Date.now() + 7 * 86400_000).toISOString(),
+        expected_file_count: 250,
+      },
+      platform,
+      201,
+    )
+  ).data;
+  const invitationToken = invitation.invite_url.split("/").at(-1);
+  await call(
+    `/photographer-invitations/${invitationToken}/accept`,
+    "POST",
+    { display_name: "Davetli Fotoğrafçı", password: changed },
+    undefined,
+    201,
+  );
+  const invitedPhotographer = await login(
+    "invited-photographer@example.com",
+    changed,
+  );
+  const photographerEvent = (
+    await call(
+      `/admin/weddings/${eventA.id}`,
+      "GET",
+      undefined,
+      invitedPhotographer,
+    )
+  ).data;
+  assert.equal(
+    photographerEvent.assigned_photographers[0].expected_file_count,
+    250,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/media`,
+    "GET",
+    undefined,
+    invitedPhotographer,
+    403,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/photographer-delivery`,
+    "POST",
+    undefined,
+    invitedPhotographer,
+    409,
+  );
+  const professionalBytes = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const professionalTicket = (
+    await call(
+      "/uploads/sign",
+      "POST",
+      {
+        weddingId: eventA.id,
+        file_name: "profesyonel.png",
+        mime_type: "image/png",
+        size_bytes: professionalBytes.length,
+        uploader_session_id: randomUUID(),
+        guest_name: "",
+        guest_message: "",
+      },
+      invitedPhotographer,
+    )
+  ).data;
+  assert.equal(
+    (
+      await fetch(professionalTicket.url, {
+        method: "PUT",
+        headers: { "content-type": "image/png" },
+        body: professionalBytes,
+      })
+    ).status,
+    200,
+  );
+  await call(
+    "/uploads/complete",
+    "POST",
+    { ticket: professionalTicket.ticket },
+    invitedPhotographer,
+  );
+  const completedPhotography = (
+    await call(
+      `/admin/weddings/${eventA.id}/photographer-delivery`,
+      "POST",
+      undefined,
+      invitedPhotographer,
+    )
+  ).data;
+  assert.equal(completedPhotography.delivered_file_count, 1);
+  assert.ok(
+    (
+      await call("/admin/notifications", "GET", undefined, owner)
+    ).data.items.some((item) => item.id === "photography-delivered"),
+  );
+  const printJob = (
+    await call(
+      "/admin/print-jobs",
+      "POST",
+      {
+        wedding_id: eventA.id,
+        printer_account_id: printerId,
+        product_description: "Masa üstü QR kartı",
+        quantity: 120,
+        due_date: null,
+        production_notes: "Onaylı tasarım kullanılacak.",
+      },
+      platform,
+      201,
+    )
+  ).data;
+  assert.equal(
+    (await call("/admin/print-jobs", "GET", undefined, printerCookie)).data
+      .length,
+    1,
+  );
+  await call(
+    `/admin/print-jobs/${printJob.id}`,
+    "GET",
+    undefined,
+    otherPrinterCookie,
+    404,
+  );
+  const productionPackage = (
+    await call(
+      `/admin/print-jobs/${printJob.id}/production-package`,
+      "GET",
+      undefined,
+      printerCookie,
+    )
+  ).data;
+  assert.equal(productionPackage.id, revisionEvent.design_snapshot_id);
+  assert.equal(productionPackage.configuration.commercial, undefined);
+  const wrongPdf = await PDFDocument.create();
+  wrongPdf.addPage([100, 100]);
+  const wrongPdfForm = new FormData();
+  wrongPdfForm.set(
+    "file",
+    new Blob([await wrongPdf.save()], { type: "application/pdf" }),
+    "yanlis-olcu.pdf",
+  );
+  const rejectedPdf = await fetch(
+    `${base}/api/admin/print-jobs/${printJob.id}/production-pdf`,
+    { method: "POST", headers: { cookie: platform }, body: wrongPdfForm },
+  );
+  assert.equal(rejectedPdf.status, 422);
+  const printPdf = await PDFDocument.create();
+  const mmToPoints = (value) => (value * 72) / 25.4;
+  printPdf.addPage([mmToPoints(81), mmToPoints(106)]);
+  printPdf.addPage([mmToPoints(81), mmToPoints(106)]);
+  const pdfBytes = Buffer.from(await printPdf.save());
+  const pdfForm = new FormData();
+  pdfForm.set(
+    "file",
+    new Blob([pdfBytes], { type: "application/pdf" }),
+    "event-a-baski.pdf",
+  );
+  const pdfUploadResponse = await fetch(
+    `${base}/api/admin/print-jobs/${printJob.id}/production-pdf`,
+    { method: "POST", headers: { cookie: platform }, body: pdfForm },
+  );
+  assert.equal(pdfUploadResponse.status, 200);
+  const printJobWithPdf = await pdfUploadResponse.json();
+  const forbiddenPdf = await fetch(
+    `${base}/api/admin/print-jobs/${printJob.id}/production-pdf`,
+    { headers: { cookie: otherPrinterCookie } },
+  );
+  assert.equal(forbiddenPdf.status, 404);
+  const downloadedPdf = await fetch(
+    `${base}/api/admin/print-jobs/${printJob.id}/production-pdf`,
+    { headers: { cookie: printerCookie } },
+  );
+  assert.equal(downloadedPdf.status, 200);
+  assert.equal(downloadedPdf.headers.get("content-type"), "application/pdf");
+  assert.deepEqual(Buffer.from(await downloadedPdf.arrayBuffer()), pdfBytes);
+  const downloaded = (
+    await call(
+      `/admin/print-jobs/${printJob.id}/status`,
+      "PATCH",
+      { status: "downloaded", version: printJobWithPdf.status_version },
+      printerCookie,
+    )
+  ).data;
+  await call(
+    `/admin/print-jobs/${printJob.id}/status`,
+    "PATCH",
+    { status: "printing", version: downloaded.status_version },
+    printerCookie,
+    409,
+  );
+  assert.ok(
+    (
+      await call("/admin/notifications", "GET", undefined, printerCookie)
+    ).data.items.some((item) => item.id === "print-action-required"),
+  );
+  const printerPreflight = (
+    await call(
+      `/admin/print-jobs/${printJob.id}/printer-preflight`,
+      "POST",
+      {
+        color_profile_confirmed: true,
+        fonts_confirmed: true,
+        resolution_confirmed: true,
+        bleed_and_trim_confirmed: true,
+        note: "Matbaa teknik kontrolü tamamlandı.",
+        version: downloaded.status_version,
+      },
+      printerCookie,
+    )
+  ).data;
+  await call(
+    `/admin/print-jobs/${printJob.id}/status`,
+    "PATCH",
+    { status: "printing", version: 1 },
+    printerCookie,
+    409,
+  );
+  const printing = (
+    await call(
+      `/admin/print-jobs/${printJob.id}/status`,
+      "PATCH",
+      { status: "printing", version: printerPreflight.status_version },
+      printerCookie,
+    )
+  ).data;
+  await call(
+    `/admin/print-jobs/${printJob.id}/status`,
+    "PATCH",
+    { status: "delivered_to_partner", version: printing.status_version },
+    printerCookie,
+    409,
+  );
+  const readyJob = (
+    await call(
+      `/admin/print-jobs/${printJob.id}/status`,
+      "PATCH",
+      {
+        status: "ready",
+        version: printing.status_version,
+        note: "Baskı tamamlandı.",
+      },
+      printerCookie,
+    )
+  ).data;
+  assert.ok(
+    (
+      await call("/admin/notifications", "GET", undefined, platform)
+    ).data.items.some((item) => item.id === "print-action-required"),
+  );
+  await call(
+    `/admin/print-jobs/${printJob.id}/status`,
+    "PATCH",
+    { status: "received_by_shineqr", version: readyJob.status_version },
+    platform,
+    400,
+  );
+  const receivedJob = (
+    await call(
+      `/admin/print-jobs/${printJob.id}/status`,
+      "PATCH",
+      {
+        status: "received_by_shineqr",
+        version: readyJob.status_version,
+        note: "ShineQR fiziksel teslim aldı.",
+      },
+      platform,
+    )
+  ).data;
+  const qualityCheckedJob = (
+    await call(
+      `/admin/print-jobs/${printJob.id}/status`,
+      "PATCH",
+      {
+        status: "quality_checked",
+        version: receivedJob.status_version,
+        note: "Kesim, renk ve QR okuma kontrolü tamamlandı.",
+      },
+      platform,
+    )
+  ).data;
+  const deliveredJob = (
+    await call(
+      `/admin/print-jobs/${printJob.id}/status`,
+      "PATCH",
+      {
+        status: "delivered_to_partner",
+        version: qualityCheckedJob.status_version,
+        note: "Partner yetkilisine teslim edildi.",
+        carrier: "Elden teslim",
+        tracking_code: "TESLIM-001",
+      },
+      platform,
+    )
+  ).data;
+  assert.equal(deliveredJob.fulfillment_records.length, 4);
+  assert.equal(
+    deliveredJob.fulfillment_records.at(-1).tracking_code,
+    "TESLIM-001",
+  );
+  const proofBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+  const proofForm = new FormData();
+  proofForm.set(
+    "file",
+    new Blob([proofBytes], { type: "image/png" }),
+    "teslim.png",
+  );
+  proofForm.set("recipient_name", "Partner Yetkilisi");
+  const proofUpload = await fetch(
+    `${base}/api/admin/print-jobs/${printJob.id}/delivery-proof`,
+    { method: "POST", headers: { cookie: platform }, body: proofForm },
+  );
+  assert.equal(proofUpload.status, 200);
+  const proofDownload = await fetch(
+    `${base}/api/admin/print-jobs/${printJob.id}/delivery-proof`,
+    { headers: { cookie: platform } },
+  );
+  assert.equal(proofDownload.status, 200);
+  assert.deepEqual(Buffer.from(await proofDownload.arrayBuffer()), proofBytes);
+  await call(
+    `/admin/print-jobs/${printJob.id}/delivery-proof`,
+    "GET",
+    undefined,
+    printerCookie,
+    403,
+  );
+  console.log(
+    "PASS: print job approval gate, assigned-printer isolation, safe production projection and optimistic status locking",
+  );
+  const stableQr = await fetch(`${base}/q/${eventA.id}`, {
+    redirect: "manual",
+  });
   assert.equal(stableQr.status, 307);
-  assert.equal(new URL(stableQr.headers.get("location")).pathname, "/wedding/event-a");
-  await call(`/admin/weddings/${eventA.id}`, "PATCH", { slug: "event-a-yeni" }, a);
-  const stableQrAfterSlug = await fetch(`${base}/q/${eventA.id}`, { redirect: "manual" });
-  assert.equal(new URL(stableQrAfterSlug.headers.get("location")).pathname, "/wedding/event-a-yeni");
+  assert.equal(
+    new URL(stableQr.headers.get("location")).pathname,
+    "/wedding/event-a",
+  );
+  await call(
+    `/admin/weddings/${eventA.id}`,
+    "PATCH",
+    { slug: "event-a-yeni" },
+    a,
+  );
+  const stableQrAfterSlug = await fetch(`${base}/q/${eventA.id}`, {
+    redirect: "manual",
+  });
+  assert.equal(
+    new URL(stableQrAfterSlug.headers.get("location")).pathname,
+    "/wedding/event-a-yeni",
+  );
   await call(`/admin/weddings/${eventA.id}`, "PATCH", { slug: "event-a" }, a);
   assert.equal(
     (await db.collection("weddings").findOne({ id: eventA.id })).partner_id,
@@ -511,24 +1164,48 @@ try {
     guest_name: "Misafir",
     guest_message: "Mutluluklar!",
   };
-  await call("/uploads/sign", "POST", { ...upload, size_bytes: 25 * 1024 ** 2 + 1 }, undefined, 413);
-  await call("/uploads/sign", "POST", {
-    ...upload,
-    file_name: "test.mp4",
-    mime_type: "video/mp4",
-  }, undefined, 400);
+  await call(
+    "/uploads/sign",
+    "POST",
+    { ...upload, size_bytes: 25 * 1024 ** 2 + 1 },
+    undefined,
+    413,
+  );
+  await call(
+    "/uploads/sign",
+    "POST",
+    {
+      ...upload,
+      file_name: "test.mp4",
+      mime_type: "video/mp4",
+    },
+    undefined,
+    400,
+  );
   await db.collection("weddings").updateOne(
     { id: eventA2.id },
-    { $set: { media_bytes: 3 * 1024 ** 3 - 10, trashed_bytes: 0, reserved_upload_bytes: 0 } },
+    {
+      $set: {
+        media_bytes: 3 * 1024 ** 3 - 10,
+        trashed_bytes: 0,
+        reserved_upload_bytes: 0,
+      },
+    },
   );
-  await call("/uploads/sign", "POST", { ...upload, weddingId: eventA2.id }, undefined, 413);
-  await db.collection("weddings").updateOne(
-    { id: eventA2.id },
-    { $set: { media_bytes: 0 } },
+  await call(
+    "/uploads/sign",
+    "POST",
+    { ...upload, weddingId: eventA2.id },
+    undefined,
+    413,
   );
+  await db
+    .collection("weddings")
+    .updateOne({ id: eventA2.id }, { $set: { media_bytes: 0 } });
   const ticket = (await call("/uploads/sign", "POST", upload)).data;
   assert.equal(
-    (await db.collection("weddings").findOne({ id: eventA.id })).reserved_upload_bytes,
+    (await db.collection("weddings").findOne({ id: eventA.id }))
+      .reserved_upload_bytes,
     payload.length,
   );
   assert.equal(
@@ -544,7 +1221,30 @@ try {
   await call("/uploads/complete", "POST", { ticket: ticket.ticket });
   await call("/uploads/complete", "POST", { ticket: ticket.ticket });
   assert.equal(
-    (await db.collection("weddings").findOne({ id: eventA.id })).reserved_upload_bytes,
+    (
+      await call(
+        `/admin/weddings/${eventA.id}/media?source=guest`,
+        "GET",
+        undefined,
+        owner,
+      )
+    ).data.total,
+    1,
+  );
+  assert.equal(
+    (
+      await call(
+        `/admin/weddings/${eventA.id}/media?source=photographer`,
+        "GET",
+        undefined,
+        owner,
+      )
+    ).data.total,
+    1,
+  );
+  assert.equal(
+    (await db.collection("weddings").findOne({ id: eventA.id }))
+      .reserved_upload_bytes,
     0,
   );
   const previewRun = await fetch(base + "/api/maintenance", {
@@ -552,20 +1252,59 @@ try {
     headers: { authorization: `Bearer ${secret}` },
   });
   assert.equal(previewRun.status, 200);
-  assert.equal((await previewRun.json()).processed, 1);
+  assert.equal((await previewRun.json()).processed, 2);
   const mediaPage = (
     await call(`/admin/weddings/${eventA.id}/media`, "GET", undefined, owner)
   ).data;
-  const ownerRecord = await db.collection("users").findOne({ email: "owner-a" });
-  await call(`/admin/accounts/${ownerRecord.id}`, "PATCH", { media_permissions: { view: false, download: false, manage: false, archive: false } }, a);
-  await call(`/admin/weddings/${eventA.id}/media`, "GET", undefined, owner, 403);
-  await call(`/admin/accounts/${ownerRecord.id}`, "PATCH", { media_permissions: { view: true, download: true, manage: true, archive: true } }, a);
+  await call(`/admin/weddings/${eventA.id}/media`, "GET", undefined, a, 403);
+  const ownerRecord = await db
+    .collection("users")
+    .findOne({ email: "owner-a" });
+  await call(
+    `/admin/accounts/${ownerRecord.id}`,
+    "PATCH",
+    {
+      media_permissions: {
+        view: false,
+        download: false,
+        manage: false,
+        archive: false,
+      },
+    },
+    a,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/media`,
+    "GET",
+    undefined,
+    owner,
+    403,
+  );
+  await call(
+    `/admin/accounts/${ownerRecord.id}`,
+    "PATCH",
+    {
+      media_permissions: {
+        view: true,
+        download: true,
+        manage: true,
+        archive: true,
+      },
+    },
+    a,
+  );
   owner = await login("owner-a", changed);
-  await call(`/admin/weddings/${eventB.id}/media`, "GET", undefined, owner, 404);
+  await call(
+    `/admin/weddings/${eventB.id}/media`,
+    "GET",
+    undefined,
+    owner,
+    404,
+  );
   const rows = mediaPage.items;
-  assert.equal(mediaPage.total, 1);
-  assert.equal(mediaPage.summary.photos, 1);
-  assert.equal(rows.length, 1);
+  assert.equal(mediaPage.total, 2);
+  assert.equal(mediaPage.summary.photos, 2);
+  assert.equal(rows.length, 2);
   assert.equal(rows[0].guest_message, "Mutluluklar!");
   assert.equal(rows[0].storage_path, undefined);
   assert.ok(rows[0].preview_url.startsWith("http"));
@@ -617,7 +1356,7 @@ try {
   assert.equal(
     (await call(`/admin/weddings/${eventA.id}/media`, "GET", undefined, owner))
       .data.items.length,
-    0,
+    1,
   );
   assert.equal(
     (
@@ -675,18 +1414,16 @@ try {
     deleted_at: new Date().toISOString(),
     purge_at: new Date(Date.now() + 86400000).toISOString(),
   });
-  await db
-    .collection("weddings")
-    .updateOne(
-      { id: eventA.id },
-      {
-        $inc: {
-          trashed_photo_count: 1,
-          trashed_count: 1,
-          trashed_bytes: payload.length,
-        },
+  await db.collection("weddings").updateOne(
+    { id: eventA.id },
+    {
+      $inc: {
+        trashed_photo_count: 1,
+        trashed_count: 1,
+        trashed_bytes: payload.length,
       },
-    );
+    },
+  );
   await call(
     "/admin/weddings/" + eventA.id + "/media",
     "PATCH",
@@ -728,14 +1465,15 @@ try {
     400,
   );
   assert.equal(
-    (await db.collection("weddings").findOne({ id: eventA.id })).reserved_upload_bytes,
+    (await db.collection("weddings").findOne({ id: eventA.id }))
+      .reserved_upload_bytes,
     0,
   );
   await call(
     `/admin/weddings/${eventA.id}/media`,
     "DELETE",
     { ids: [row.id] },
-    a,
+    owner,
   );
   await db
     .collection("media")
@@ -788,7 +1526,11 @@ try {
       .countDocuments({ weddingId: eventA.id }),
     0,
   );
-  assert.equal(objects.size, 1, "The partner logo must remain in R2");
+  assert.equal(
+    objects.size,
+    3,
+    "The partner logo, assigned print PDF and delivery proof must remain in R2",
+  );
   await call(
     `/admin/weddings/${eventA.id}/media`,
     "GET",

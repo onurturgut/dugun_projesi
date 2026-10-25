@@ -1,6 +1,18 @@
 import type { WeddingDesign } from "./design";
-import type { AddOnSelection, PackageCode, PackagePolicy, PriceSnapshot } from "./commercial-policy";
+import type { QrProductId } from "./qr-products";
+import type {
+  AddOnSelection,
+  PackageCode,
+  PackagePolicy,
+  PriceSnapshot,
+} from "./commercial-policy";
 export type Role = "platform" | "partner" | "owner";
+export type BusinessType =
+  | "venue"
+  | "planner"
+  | "photography"
+  | "print_vendor"
+  | "other";
 export type StaffRole =
   | "platform_admin"
   | "finance_manager"
@@ -10,6 +22,7 @@ export type StaffRole =
   | "partner_sales"
   | "partner_operations_design"
   | "photographer"
+  | "print_vendor"
   | "organization_owner"
   | "organization_editor"
   | "album_viewer";
@@ -25,6 +38,10 @@ export type Permission =
   | "album.view"
   | "album.download"
   | "album.manage"
+  | "media.upload_professional"
+  | "print_job.view_assigned"
+  | "print_job.manage"
+  | "print_job.update_status"
   | "design.select"
   | "design.request_revision"
   | "design.approve_for_print"
@@ -63,16 +80,29 @@ export type MediaPermissions = {
 export interface Partner {
   id: string;
   name: string;
+  phone?: string;
+  address?: string;
   logo_url: string;
   active: boolean;
   created_at: string;
+  business_types?: BusinessType[];
 }
 export type AgentName =
-  | "accounting-analyst" | "architecture-guardian" | "business-analyst" | "code-reviewer"
-  | "frontend-developer" | "marketing-strategist" | "orchestrator" | "qa-engineer"
-  | "security-reviewer" | "senior-backend" | "system-operator" | "ui-ux-designer";
+  | "accounting-analyst"
+  | "architecture-guardian"
+  | "business-analyst"
+  | "code-reviewer"
+  | "frontend-developer"
+  | "marketing-strategist"
+  | "orchestrator"
+  | "qa-engineer"
+  | "security-reviewer"
+  | "senior-backend"
+  | "system-operator"
+  | "ui-ux-designer";
 export type AgentReportStatus = "complete" | "needs-review" | "blocked";
-export type AgentReportReviewStatus = "pending" | "approved" | "changes_requested" | "rejected";
+export type AgentReportReviewStatus =
+  "pending" | "approved" | "changes_requested" | "rejected";
 export interface AgentReportReview {
   id: string;
   decision: Exclude<AgentReportReviewStatus, "pending">;
@@ -87,8 +117,16 @@ export interface AgentReport {
   task_title: string;
   status: AgentReportStatus;
   scope: string[];
-  findings: Array<{ severity: "critical" | "warning" | "info"; title: string; evidence: string }>;
-  verification: Array<{ check: string; result: "passed" | "failed" | "not_run"; evidence: string }>;
+  findings: Array<{
+    severity: "critical" | "warning" | "info";
+    title: string;
+    evidence: string;
+  }>;
+  verification: Array<{
+    check: string;
+    result: "passed" | "failed" | "not_run";
+    evidence: string;
+  }>;
   risks: string[];
   recommendation: "approve" | "revise" | "reject";
   handoff: { role: AgentName | "human-owner"; action: string };
@@ -129,6 +167,11 @@ export interface Wedding {
     display_name: string;
     email?: string;
     disabled: boolean;
+    delivery_due_at?: string | null;
+    expected_file_count?: number | null;
+    delivery_status?: "assigned" | "uploading" | "completed";
+    delivered_file_count?: number;
+    completed_at?: string | null;
   }>;
   design?: WeddingDesign;
   design_revision?: number;
@@ -144,7 +187,8 @@ export interface Wedding {
   package_code?: PackageCode;
   add_on_selections?: AddOnSelection[];
   price_snapshot?: PriceSnapshot;
-  approval_status?: "draft" | "submitted" | "changes_requested" | "approved" | "rejected";
+  approval_status?:
+    "draft" | "submitted" | "changes_requested" | "approved" | "rejected";
   submitted_at?: string | null;
   approved_at?: string | null;
   approved_by?: string | null;
@@ -152,6 +196,11 @@ export interface Wedding {
   id: string;
   slug: string;
   partner_id: string;
+  lead_partner_id?: string;
+  seller_partner_id?: string;
+  venue_partner_id?: string | null;
+  planner_partner_id?: string | null;
+  participant_partner_ids?: string[];
   owner_id: string | null;
   title: string;
   event_type: string;
@@ -194,6 +243,20 @@ export interface Wedding {
   size_bytes?: number;
   can_upload?: boolean;
 }
+export interface PhotographerAssignment {
+  id: string;
+  wedding_id: string;
+  photographer_account_id: string;
+  photographer_partner_id: string;
+  delivery_due_at: string | null;
+  expected_file_count: number | null;
+  delivery_status: "assigned" | "uploading" | "completed";
+  delivered_file_count: number;
+  assigned_at: string;
+  assigned_by: string;
+  completed_at: string | null;
+  completed_by: string | null;
+}
 export interface AddOnProduct {
   id: string;
   name: string;
@@ -214,6 +277,9 @@ export interface Media {
   size_bytes: number;
   duration_seconds?: number;
   uploader_session_id: string;
+  source?: "guest" | "photographer";
+  uploader_account_id?: string | null;
+  photographer_partner_id?: string | null;
   guest_name: string;
   guest_message: string;
   uploaded_at: string;
@@ -241,4 +307,85 @@ export interface MediaPage {
   nextCursor: string | null;
   total: number;
   summary: MediaSummary;
+}
+
+export type PrintJobStatus =
+  | "assigned"
+  | "downloaded"
+  | "printing"
+  | "ready"
+  | "received_by_shineqr"
+  | "quality_checked"
+  | "delivered_to_partner"
+  | "cancelled";
+
+export interface PrintJob {
+  id: string;
+  wedding_id: string;
+  wedding_title: string;
+  design_snapshot_id: string;
+  design_revision: number;
+  qr_product_id: QrProductId;
+  printer_account_id: string;
+  printer_partner_id: string;
+  printer_name: string;
+  product_description: string;
+  quantity: number;
+  due_date: string | null;
+  production_notes: string;
+  production_pdf?: {
+    storage_path: string;
+    file_name: string;
+    size_bytes: number;
+    uploaded_at: string;
+    uploaded_by: string;
+  };
+  pdf_preflight?: {
+    passed: boolean;
+    checked_at: string;
+    page_count: number;
+    checks: Array<{
+      id: string;
+      label: string;
+      status: "passed" | "failed" | "manual";
+      detail: string;
+    }>;
+  };
+  printer_preflight?: {
+    color_profile_confirmed: boolean;
+    fonts_confirmed: boolean;
+    resolution_confirmed: boolean;
+    bleed_and_trim_confirmed: boolean;
+    note: string;
+    confirmed_at: string;
+    confirmed_by: string;
+  };
+  fulfillment_records?: Array<{
+    status: PrintJobStatus;
+    note: string;
+    carrier?: string;
+    tracking_code?: string;
+    at: string;
+    by: string;
+  }>;
+  delivery_proof?: {
+    recipient_name: string;
+    file_name: string;
+    mime_type: "application/pdf" | "image/jpeg" | "image/png";
+    storage_path: string;
+    size_bytes: number;
+    uploaded_at: string;
+    uploaded_by: string;
+  };
+  status: PrintJobStatus;
+  status_version: number;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+  status_history: Array<{
+    status: PrintJobStatus;
+    at: string;
+    by: string;
+  }>;
 }

@@ -33,21 +33,39 @@ try {
     db.collection("weddings").createIndex({ slug: 1 }, { unique: true }),
     db.collection("weddings").createIndex({ id: 1 }, { unique: true }),
     db.collection("design_snapshots").createIndex({ id: 1 }, { unique: true }),
-    db.collection("design_snapshots").createIndex({ wedding_id: 1, revision: -1 }, { unique: true }),
-    db.collection("organization_approval_requests").createIndex({ wedding_id: 1 }, { unique: true }),
-    db.collection("organization_approval_requests").createIndex({ partner_id: 1, submitted_at: -1 }),
+    db
+      .collection("design_snapshots")
+      .createIndex({ wedding_id: 1, revision: -1 }, { unique: true }),
+    db
+      .collection("organization_approval_requests")
+      .createIndex({ wedding_id: 1 }, { unique: true }),
+    db
+      .collection("organization_approval_requests")
+      .createIndex({ partner_id: 1, submitted_at: -1 }),
     db.collection("sales").createIndex({ id: 1 }, { unique: true }),
-    db.collection("sales").createIndex({ idempotency_key: 1 }, { unique: true }),
-    db.collection("sales").createIndex({ partner_id: 1, period: 1, occurred_at: -1 }),
-    db.collection("monthly_sales_counters").createIndex({ partner_id: 1, period: 1 }, { unique: true }),
+    db
+      .collection("sales")
+      .createIndex({ idempotency_key: 1 }, { unique: true }),
+    db
+      .collection("sales")
+      .createIndex({ partner_id: 1, period: 1, occurred_at: -1 }),
+    db
+      .collection("monthly_sales_counters")
+      .createIndex({ partner_id: 1, period: 1 }, { unique: true }),
     db.collection("commission_ledger").createIndex({ id: 1 }, { unique: true }),
-    db.collection("commission_ledger").createIndex({ partner_id: 1, period: 1, created_at: -1 }),
+    db
+      .collection("commission_ledger")
+      .createIndex({ partner_id: 1, period: 1, created_at: -1 }),
     db.collection("add_on_products").createIndex({ id: 1 }, { unique: true }),
     db.collection("add_on_products").createIndex({ active: 1, name: 1 }),
     db.collection("agent_reports").createIndex({ id: 1 }, { unique: true }),
-    db.collection("agent_reports").createIndex({ run_id: 1, agent_name: 1 }, { unique: true }),
+    db
+      .collection("agent_reports")
+      .createIndex({ run_id: 1, agent_name: 1 }, { unique: true }),
     db.collection("agent_reports").createIndex({ created_at: -1 }),
-    db.collection("agent_reports").createIndex({ review_status: 1, status: 1, created_at: -1 }),
+    db
+      .collection("agent_reports")
+      .createIndex({ review_status: 1, status: 1, created_at: -1 }),
     db.collection("media").createIndex({ storage_path: 1 }, { unique: true }),
     db
       .collection("media")
@@ -75,7 +93,9 @@ try {
     db.collection("upload_tickets").createIndex({ token: 1 }, { unique: true }),
     db.collection("upload_tickets").createIndex({ expiresAt: 1 }),
     db.collection("upload_tickets").createIndex({ weddingId: 1, createdAt: 1 }),
-    db.collection("upload_tickets").createIndex({ weddingId: 1, reservation_released: 1, expiresAt: 1 }),
+    db
+      .collection("upload_tickets")
+      .createIndex({ weddingId: 1, reservation_released: 1, expiresAt: 1 }),
     db
       .collection("login_attempts")
       .createIndex({ createdAt: 1 }, { expireAfterSeconds: 900 }),
@@ -84,6 +104,21 @@ try {
     db.collection("audit_logs").createIndex({ at: -1 }),
     db.collection("audit_logs").createIndex({ actor_id: 1, at: -1 }),
     db.collection("audit_logs").createIndex({ partner_id: 1, at: -1 }),
+    db.collection("print_jobs").createIndex({ id: 1 }, { unique: true }),
+    db.collection("print_jobs").createIndex({ wedding_id: 1, created_at: -1 }),
+    db
+      .collection("print_jobs")
+      .createIndex({ printer_account_id: 1, status: 1, created_at: -1 }),
+    db
+      .collection("organization_participants")
+      .createIndex({ wedding_id: 1, account_id: 1 }, { unique: true }),
+    db
+      .collection("organization_participants")
+      .createIndex({ account_id: 1, active: 1, wedding_id: 1 }),
+    db
+      .collection("photographer_invitations")
+      .createIndex({ token_hash: 1 }, { unique: true }),
+    db.collection("photographer_invitations").createIndex({ expires_at: 1 }),
     db.collection("archive_jobs").createIndex({ id: 1 }, { unique: true }),
     db.collection("archive_jobs").createIndex({ status: 1, created_at: 1 }),
     db.collection("archive_jobs").createIndex({ expires_at: 1 }),

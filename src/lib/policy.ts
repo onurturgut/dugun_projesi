@@ -38,7 +38,7 @@ export function weddingScope(user: Account) {
   if (user.role === "partner") {
     const base = { partner_id: user.partner_id || "__unassigned__" };
     if (effectiveStaffRole(user) === "partner_owner") return base;
-    return { ...base, id: { $in: user.assigned_event_ids || [] } };
+    return { id: { $in: user.assigned_event_ids || [] } };
   }
   return { partner_id: user.partner_id || "__unassigned__", owner_id: user.id };
 }
@@ -50,8 +50,9 @@ export function canAccess(user: Account, event: Wedding) {
     (user.assigned_event_ids || []).includes(event.id);
   return (
     user.role === "platform" ||
+    assignedPartnerStaff ||
     (user.partner_id === event.partner_id &&
-      (user.role === "partner" ? (effectiveStaffRole(user) === "partner_owner" || assignedPartnerStaff) : event.owner_id === user.id))
+      (user.role === "partner" ? effectiveStaffRole(user) === "partner_owner" : event.owner_id === user.id))
   );
 }
 export function expired(

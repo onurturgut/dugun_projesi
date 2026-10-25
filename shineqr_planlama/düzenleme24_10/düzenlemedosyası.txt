@@ -1,0 +1,63 @@
+24.10
+*header alanındaki 3 noktaya tıklanınca sağ tarafta sidebar açılacak ve bu seçeneklerin içine giriş yap bağlnatısı da olucak 
+*hero alanındaki image alanına birden fazla tasarım eklenicek bu tasarımlar animasyon olarak kayıcak 
+*iş ortaklarının alanına partnerlerin logoları eklenicek 
+*tasarım koleksiyonu alanına 
+oluşturduğumuz gerçek tasarımlar eklenicek  bu alanda qr kod loading page ve wedding ekranalrı görüntülenicek yan yana ama bir tasarım görüntülenicek diğer tasarımlar tüm tasarımları keşfet yazısına tıklanınca gösterilecek 
+*özel dijital albümüne yönetim paneli eklenicek arka planına , 02 kişileştirebilir qr tasarımı eklenicek 
+*temalı karşılama alanına loading page videosu oynatılacak 
+*anasayfaya paketler alanı eklenicek 
+*footer alanının en altına  target_blank şeklinde https://www.onurturgut.com/ linki eklenicek ve bu site Aisurix.web tarafından tasarlanmıştır  yazılacak aisurixe tıklanınca bu linke yönlendirilecek 
+* sitenin anaayfasında scroll aşağıya inince içerikler yüklenicek  gsap animasyonları olucak 
+--------------
+nasıl çalışır ?
+**01 etkinliğini oluştur alanındaki görsel yönetim panelindeki yeni organizasyon alanın görseli olucak  *03 fotoğraf ve videoları yükleyin alanında wedding tasarımı olucak 
+*bu alanda da scrol aşağıya kayınca yazılar görseller yüklenicek gsap
+---------------
+özellikler 
+bu alanda da scrol aşağıya kayınca yazılar görseller yüklenicek gsap
+---------------
+temalar 
+bu alanında qr kodların loading pagelerin renk varyasyonları ve wedding tasarımları gösterilcek 
+------------
+paketler 
+paketler alanındaki mock-up görseller kaldırılacak 
+paketler tamamen güncellenicek  ve tasarımları değişicek 
+----------
+kulllanım alanları 
+bu alandaki görseller kalkıcak büyük başlık tipografileri kullanılacak 
+ve metinler genişletilecek 
+------------
+işletmeler için
+ alandaki görseller kaldırılacak ve partner paneline fotoğrafçı paneli de eklenicek bu alan için fotoğrafçılar için detaylı bir anlatım yapılacak 
+----------------
+sık sorulanlar 
+ alanındaki görsel  kaldırılacak 
+-------------
+iletişime geçin 
+bu alandaki görsel kaldırılığ aynı büyüklükte shine qr logosu kullanılacak 
+* iletişim fotmu alanında ui tasarımı prosfeyonel hale getirilecek 
+-----------
+YÖNETİM PANELİ 
+------
+*organizasyonların üsütndeki organizasyon isimleri renk fontu kırmızı bunu görünür olması için altın rengi  yap 
+*yönetim paneli alanındaki yeni organiasyon butonu çok büüyk bunu düzelt  bu butonu görünümü kaydet butonunun hemen altına yerleştir 
+*genel olarak sitedeki listboxların içindeki yazılar görüntülenmiyor tüm listboxları incele ve düzelt 
+*organizasyon oluştur alanında kaydet ve devam ete bastığımda hata veriyor 
+-------
+tasarım merkezi 
+*tasarım merkezi alanında qr tasarımlarına tıkladığımda açılsın tekrar kapanabilir olsun tüm seçeneklerin bu şekilde akışının olmasını istiyorum 
+----------
+işletmeler 
+*işletmeler alanında işletmelere tıkladığımda açılır bir page alanı olsun bu alada  
+oluşturduğu organizasyonları ve bilgilerini görüntüleyebileyim  
+*ek olarak eğer organizasyona fotoğrafçı atandaysa bunu da görmek istiyorum 
+-----------
+yetkili hesaplar 
+*bu alandaki yeni yetkili  butonunu küçült 
+---------
+medya ve saklama merkezi 
+*bu alandaki yennile butonu yerine yeni iconu olsun 
+----------
+agent raporları 
+*bu alandaki yennile butonu yerine yeni iconu olsun 
