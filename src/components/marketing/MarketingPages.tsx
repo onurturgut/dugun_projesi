@@ -28,6 +28,7 @@ import {
 } from "./MarketingShell";
 import { features, useCases } from "./data";
 import styles from "./marketing.module.css";
+import { HomePartnerStrip } from "./HomePartnerStrip";
 import { PACKAGE_CATALOG, type PackageCode } from "@/lib/commercial-policy";
 import albumDashboard from "../../../shineqr_planlama/düzenleme24_10/dijital_albüm.png";
 import uploadWedding from "../../../shineqr_planlama/düzenleme24_10/fotograf_ve_videolari_yukleyin.png";
@@ -119,10 +120,7 @@ export function HomePage() {
           <span className={styles.heroShadow} aria-hidden="true" />
         </div>
       </section>
-      <section className={styles.partnerStrip}>
-        <p className={styles.eyebrow}>İŞ ORTAKLARIMIZ</p>
-        <span>Doğrulanmış iş ortaklarımız yakında burada.</span>
-      </section>
+      <HomePartnerStrip />
       <section id="deneyim" className={`${styles.section} ${styles.launchSection}`}>
         <SectionHeading
           eyebrow="ÜÇ ADIMDA SHINEQR"

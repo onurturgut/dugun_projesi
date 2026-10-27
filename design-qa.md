@@ -510,3 +510,61 @@ Blocked. The rose-onyx crop, gold-vein scale, monogram, typography, translucent 
 None classified until a rendered comparison is available.
 
 final result: blocked
+# Velvet Flow Landscape Mini Burgundy — Visual QA (2026-10-27)
+
+- Source visual truth: `public/design-reference/02-velvet-flow.png` and the approved Velvet Flow portrait-mini burgundy composition.
+- Generated background: `public/design-center/templates/velvet-flow/burgundy/landscape-mini/velvet-flow-burgundy-landscape-mini-front-base-clean.png`.
+- Rendered implementation: `output/design-center/velvet-flow/burgundy/landscape-mini/velvet-flow-burgundy-landscape-mini-front-composed-preview.png`.
+- Intended format: 10 × 7.5 cm landscape mini card, 300 DPI, front-face preview.
+- State: draft preview with representative QR target and sample organization copy.
+
+## Visual comparison
+
+- Velvet Flow identity: passed — deep burgundy velvet, sculptural left fold and gold piping remain consistent with the selected reference.
+- Landscape composition: passed — the fold occupies the left third without stretching; editable content uses the calm right field.
+- Typography: passed — Cormorant Garamond, Allura and Cinzel reproduce the reference hierarchy.
+- Safe-area composition: passed — logo, copy, QR, icons and footer remain inside the 5 mm safe box.
+- QR presentation: passed for preview — high-contrast black/white QR with four-module quiet zone; production target and physical scan proof remain pending.
+- Text fit: passed — Turkish sample copy renders without clipping or overflow.
+
+## Result
+
+final result: passed
+
+## Reference-led front/back revision — 2026-10-27
+
+- Front reference: `C:/Users/onurt/Downloads/Bordo kadife dokulu QR düğün kartı.png`.
+- Back reference: `C:/Users/onurt/Downloads/Burgonya ve altın kurdeleli QR düğün kartı.png`.
+- Both references were treated as visual sources only.
+- Front: passed — headline, Allura script line, supporting copy, framed QR, three media icons, CTA, divider, names and date follow the supplied composition.
+- Back: passed — centered brand, large framed QR, CTA, divider, names and date follow the supplied composition.
+- QR framing: passed — both faces use a cream quiet-zone field with a gold rounded outline.
+- Print geometry: passed — 100 × 75 mm trim, 3 mm bleed, 106 × 81 mm PDF pages, 300 DPI source.
+- Physical print approval: pending — a real proof and multi-device scan test are still required.
+
+final result: passed
+
+# Velvet Flow 50 × 70 cm karşılama tabelası — 2026-10-27
+
+- Kapsam: yalnızca ön yüz; bordo, obsidyen siyah, gece laciverti, zümrüt ve klasik krem.
+- Net kesim: 500 × 700 mm; taşmalı PDF: 506 × 706 mm; taşma: 3 mm; içerik güvenliği: 15 mm.
+- Raster: 5976 × 8339 px, 300 DPI.
+- QR: 155,79 mm; H hata düzeltme; 4 modül sessiz alan; açık zemin ve altın/bordo dış çerçeve.
+- Otomatik kontrol: 5/5 raster ve PDF ölçüsü geçti; `yarn typecheck`, `yarn lint` ve 58/58 test geçti.
+- Görsel kontrol: tüm metinler, Türkçe karakterler, logo, QR çerçevesi ve ikonlar beş varyantta incelendi.
+- Baskı öncesi kalan onay: örnek QR hedefi gerçek etkinlik URL’siyle değiştirilmeli; matbaa renk profili ve fiziksel prova insan tarafından onaylanmalı.
+
+# Velvet Flow onaylı fiziksel ürün sunumları — 2026-10-27
+
+- Yatay mini QR: bordo, obsidyen siyah, gece laciverti, zümrüt ve klasik krem olmak üzere 5 fotogerçekçi ön/arka kart sunumu.
+- 50 × 70 cm karşılama tabelası: aynı 5 renk için siyah şövale üzerinde fotogerçekçi salon sunumu.
+- Tasarım Merkezi: Fiziksel QR Ürünleri içinde iki ayrı onaylı görsel galeri.
+- Sunum görselleri baskı dosyası değildir; baskı sanatları ve PDF’ler ayrı kaynak olarak korunur.
+
+# Velvet Flow dikey mini sunumları — 2026-10-27
+
+- 7,5 × 10 cm dikey mini kart için bordo, obsidyen siyah, gece laciverti, zümrüt ve klasik krem sunumları oluşturuldu.
+- Her sunum ön ve arka yüzü, fiziksel kart ayağı, masa gölgesi ve yansımasıyla gösterir.
+- Tasarım Merkezi > Fiziksel QR Ürünleri galerisine eklendi.
+- Sunum QR’ları görsel amaçlıdır; baskı ve tarama için üretim dosyaları kullanılmalıdır.
+

@@ -1,0 +1,35 @@
+{
+  "layoutId": "velvet-flow-welcome-sign-500x700-v1",
+  "coordinateSpace": { "canvas": { "width": 5976, "height": 8339, "dpi": 300 }, "print": { "trimMm": { "width": 500, "height": 700 }, "bleedMm": 3, "trimBox": { "x": 35, "y": 35, "width": 5906, "height": 8268 }, "safeBox": { "x": 212, "y": 212, "width": 5552, "height": 7914 } } },
+  "assets": {
+    "logo": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/shineqr-logo-gold.png",
+    "divider": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/decorative-divider.svg",
+    "camera": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/icon-camera.svg",
+    "video": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/icon-video.svg",
+    "gallery": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/icon-gallery.svg"
+  },
+  "variants": {
+    "burgundy": { "name": "Burgundy", "frontBase": "/design-center/templates/velvet-flow/burgundy/welcome-sign-500x700/velvet-flow-burgundy-welcome-sign-front-base-clean.png", "ink": "#F5D98A", "logoColor": "#F5D98A" },
+    "black": { "name": "Obsidian Black", "frontBase": "/design-center/templates/velvet-flow/obsidian-black/welcome-sign-500x700/velvet-flow-obsidian-black-welcome-sign-front-base-clean.png", "ink": "#F5D98A", "logoColor": "#F5D98A" },
+    "navy": { "name": "Midnight Navy", "frontBase": "/design-center/templates/velvet-flow/midnight-navy/welcome-sign-500x700/velvet-flow-midnight-navy-welcome-sign-front-base-clean.png", "ink": "#F5D98A", "logoColor": "#F5D98A" },
+    "emerald": { "name": "Emerald", "frontBase": "/design-center/templates/velvet-flow/emerald/welcome-sign-500x700/velvet-flow-emerald-welcome-sign-front-base-clean.png", "ink": "#F5D98A", "logoColor": "#F5D98A" },
+    "cream": { "name": "Classic Cream", "frontBase": "/design-center/templates/velvet-flow/classic-cream/welcome-sign-500x700/velvet-flow-classic-cream-welcome-sign-front-base-clean.png", "ink": "#5B1720", "logoColor": "#7A1F2A" }
+  },
+  "front": { "layers": [
+    { "id": "background", "type": "variant-image", "bounds": { "x": 0, "y": 0, "width": 5976, "height": 8339 }, "fit": "cover" },
+    { "id": "logo", "type": "image", "asset": "logo", "bounds": { "x": 2670, "y": 330, "width": 1060, "height": 880 }, "fit": "contain" },
+    { "id": "welcome", "type": "text", "binding": "welcomeTitle", "font": "welcomeDisplay", "fontSize": 285, "letterSpacing": 0, "lineHeight": 1, "uppercase": true, "maxLines": 1, "bounds": { "x": 1760, "y": 1190, "width": 3900, "height": 500 } },
+    { "id": "divider", "type": "image", "asset": "divider", "color": true, "bounds": { "x": 2510, "y": 1680, "width": 1900, "height": 105 }, "fit": "contain" },
+    { "id": "names", "type": "text", "binding": "names", "font": "smallCaps", "fontSize": 190, "letterSpacing": 14, "lineHeight": 1, "uppercase": true, "maxLines": 1, "bounds": { "x": 1930, "y": 1810, "width": 3560, "height": 360 } },
+    { "id": "date", "type": "text", "binding": "eventDate", "font": "smallCaps", "fontSize": 112, "letterSpacing": 18, "lineHeight": 1, "uppercase": true, "maxLines": 1, "bounds": { "x": 2250, "y": 2150, "width": 2920, "height": 260 } },
+    { "id": "hook", "type": "text", "binding": "qrHook", "font": "welcomeBody", "fontSize": 190, "letterSpacing": 0, "lineHeight": 1, "uppercase": true, "maxLines": 1, "bounds": { "x": 1730, "y": 2550, "width": 3970, "height": 430 } },
+    { "id": "description", "type": "text", "binding": "qrDescription", "font": "script", "fontSize": 330, "letterSpacing": 0, "lineHeight": 1, "maxLines": 1, "bounds": { "x": 1760, "y": 2940, "width": 3880, "height": 520 } },
+    { "id": "body", "type": "text", "binding": "qrBody", "font": "welcomeBody", "fontSize": 112, "letterSpacing": 0, "lineHeight": 1, "maxLines": 1, "bounds": { "x": 1950, "y": 3460, "width": 3500, "height": 320 } },
+    { "id": "qr-frame", "type": "qr-frame", "fill": "#FFF9E8", "strokeWidth": 30, "radius": 80, "bounds": { "x": 2500, "y": 3900, "width": 2040, "height": 2040 } },
+    { "id": "qr", "type": "qr", "binding": "permanentEventUrl", "errorCorrection": "H", "quietZoneModules": 4, "foreground": "#050505", "background": "#FFF9E8", "bounds": { "x": 2600, "y": 4000, "width": 1840, "height": 1840 } },
+    { "id": "cta", "type": "text", "binding": "qrCta", "font": "smallCaps", "fontSize": 145, "letterSpacing": 10, "lineHeight": 1, "uppercase": true, "maxLines": 1, "bounds": { "x": 1870, "y": 6080, "width": 3660, "height": 340 } },
+    { "id": "camera", "type": "image", "asset": "camera", "color": true, "bounds": { "x": 2670, "y": 6500, "width": 300, "height": 300 }, "fit": "contain" },
+    { "id": "video", "type": "image", "asset": "video", "color": true, "bounds": { "x": 3250, "y": 6500, "width": 300, "height": 300 }, "fit": "contain" },
+    { "id": "gallery", "type": "image", "asset": "gallery", "color": true, "bounds": { "x": 3830, "y": 6500, "width": 300, "height": 300 }, "fit": "contain" }
+  ] }
+}

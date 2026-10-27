@@ -63,34 +63,35 @@
     }
   },
   "typography": {
-    "display": { "family": "Cinzel", "weight": 600 },
-    "serif": { "family": "Cormorant Garamond", "weight": 500 },
-    "sans": { "family": "Manrope", "weight": 600 }
+    "display": { "family": "Cormorant Garamond Light", "weight": 500 },
+    "script": { "family": "Allura", "weight": 400 },
+    "smallCaps": { "family": "Cinzel", "weight": 600 },
+    "body": { "family": "Cormorant Garamond Light", "weight": 500 }
   },
   "front": {
     "layers": [
       { "id": "background", "type": "variant-image", "binding": "frontBase", "bounds": { "x": 0, "y": 0, "width": 957, "height": 1252 }, "fit": "cover", "editable": false },
       { "id": "logo", "type": "image", "asset": "logo", "bounds": { "x": 583, "y": 94, "width": 140, "height": 100 }, "fit": "contain", "editable": false },
-      { "id": "hook", "type": "text", "binding": "qrHook", "bounds": { "x": 444, "y": 218, "width": 418, "height": 190 }, "align": "center", "font": "display", "fontSize": 48, "lineHeight": 1.08, "maxLines": 4, "color": "variant.ink", "editable": true },
-      { "id": "description", "type": "text", "binding": "qrDescription", "bounds": { "x": 444, "y": 421, "width": 418, "height": 96 }, "align": "center", "font": "serif", "fontSize": 23, "lineHeight": 1.12, "maxLines": 3, "color": "variant.ink", "editable": true },
+      { "id": "hook", "type": "text", "binding": "qrHook", "bounds": { "x": 444, "y": 205, "width": 418, "height": 180 }, "align": "center", "font": "display", "fontSize": 44, "lineHeight": 1.02, "letterSpacing": 0.8, "uppercase": true, "maxLines": 4, "color": "variant.ink", "editable": true },
+      { "id": "description", "type": "text", "binding": "qrDescription", "bounds": { "x": 444, "y": 382, "width": 418, "height": 128 }, "align": "center", "font": "script", "fontSize": 39, "lineHeight": 0.98, "maxLines": 3, "color": "variant.ink", "editable": true },
       { "id": "qr", "type": "qr", "binding": "permanentEventUrl", "bounds": { "x": 537, "y": 539, "width": 231, "height": 231 }, "errorCorrection": "M", "quietZoneModules": 4, "foreground": "#111111", "background": "#FFFFFF", "editable": false },
       { "id": "camera", "type": "image", "asset": "cameraIcon", "bounds": { "x": 564, "y": 794, "width": 48, "height": 48 }, "color": "variant.ink", "editable": false },
       { "id": "video", "type": "image", "asset": "videoIcon", "bounds": { "x": 629, "y": 794, "width": 48, "height": 48 }, "color": "variant.ink", "editable": false },
       { "id": "gallery", "type": "image", "asset": "galleryIcon", "bounds": { "x": 694, "y": 794, "width": 48, "height": 48 }, "color": "variant.ink", "editable": false },
-      { "id": "cta", "type": "text", "binding": "qrCta", "bounds": { "x": 444, "y": 861, "width": 418, "height": 62 }, "align": "center", "font": "sans", "fontSize": 18, "lineHeight": 1.15, "letterSpacing": 1.9, "uppercase": true, "maxLines": 2, "color": "variant.ink", "editable": true },
+      { "id": "cta", "type": "text", "binding": "qrCta", "bounds": { "x": 444, "y": 861, "width": 418, "height": 62 }, "align": "center", "font": "smallCaps", "fontSize": 17, "lineHeight": 1.15, "letterSpacing": 2.2, "uppercase": true, "maxLines": 2, "color": "variant.ink", "editable": true },
       { "id": "divider", "type": "image", "asset": "divider", "bounds": { "x": 523, "y": 954, "width": 260, "height": 26 }, "color": "variant.ink", "editable": false },
-      { "id": "names", "type": "text", "binding": "names", "bounds": { "x": 444, "y": 1005, "width": 418, "height": 54 }, "align": "center", "font": "display", "fontSize": 26, "lineHeight": 1, "letterSpacing": 4.8, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": true },
-      { "id": "date", "type": "text", "binding": "eventDate", "bounds": { "x": 444, "y": 1074, "width": 418, "height": 32 }, "align": "center", "font": "sans", "fontSize": 14, "lineHeight": 1, "letterSpacing": 2.4, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": false }
+      { "id": "names", "type": "text", "binding": "names", "bounds": { "x": 444, "y": 1005, "width": 418, "height": 54 }, "align": "center", "font": "smallCaps", "fontSize": 24, "lineHeight": 1, "letterSpacing": 4.8, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": true },
+      { "id": "date", "type": "text", "binding": "eventDate", "bounds": { "x": 444, "y": 1074, "width": 418, "height": 32 }, "align": "center", "font": "smallCaps", "fontSize": 13, "lineHeight": 1, "letterSpacing": 2.4, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": false }
     ]
   },
   "back": {
     "layers": [
       { "id": "background", "type": "variant-image", "binding": "backBase", "bounds": { "x": 0, "y": 0, "width": 957, "height": 1252 }, "fit": "cover", "editable": false },
       { "id": "logo", "type": "image", "asset": "logo", "bounds": { "x": 583, "y": 94, "width": 140, "height": 100 }, "fit": "contain", "editable": false },
-      { "id": "message", "type": "text", "binding": "message", "bounds": { "x": 444, "y": 315, "width": 418, "height": 337 }, "align": "center", "font": "serif", "fontSize": 41, "lineHeight": 1.08, "maxLines": 8, "color": "variant.ink", "editable": true },
+      { "id": "message", "type": "text", "binding": "message", "bounds": { "x": 444, "y": 300, "width": 418, "height": 365 }, "align": "center", "font": "script", "fontSize": 48, "lineHeight": 0.98, "maxLines": 8, "color": "variant.ink", "editable": true },
       { "id": "divider", "type": "image", "asset": "divider", "bounds": { "x": 523, "y": 908, "width": 260, "height": 26 }, "color": "variant.ink", "editable": false },
-      { "id": "names", "type": "text", "binding": "names", "bounds": { "x": 444, "y": 967, "width": 418, "height": 54 }, "align": "center", "font": "display", "fontSize": 26, "lineHeight": 1, "letterSpacing": 4.8, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": true },
-      { "id": "date", "type": "text", "binding": "eventDate", "bounds": { "x": 444, "y": 1037, "width": 418, "height": 32 }, "align": "center", "font": "sans", "fontSize": 14, "lineHeight": 1, "letterSpacing": 2.4, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": false }
+      { "id": "names", "type": "text", "binding": "names", "bounds": { "x": 444, "y": 967, "width": 418, "height": 54 }, "align": "center", "font": "smallCaps", "fontSize": 24, "lineHeight": 1, "letterSpacing": 4.8, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": true },
+      { "id": "date", "type": "text", "binding": "eventDate", "bounds": { "x": 444, "y": 1037, "width": 418, "height": 32 }, "align": "center", "font": "smallCaps", "fontSize": 13, "lineHeight": 1, "letterSpacing": 2.4, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": false }
     ]
   },
   "contentLimits": {

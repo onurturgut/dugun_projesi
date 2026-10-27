@@ -300,6 +300,12 @@ try {
     logoUrl,
   );
   assert.equal((await fetch(base + logoUrl)).status, 200);
+  const publicPartners = (await call("/partners")).data;
+  assert.deepEqual(publicPartners, [
+    { id: partnerA, name: "A İşletmesi", logo_url: logoUrl },
+  ]);
+  assert.equal("phone" in publicPartners[0], false);
+  assert.equal("address" in publicPartners[0], false);
   const temporaryPartner = await db
     .collection("users")
     .findOne({ email: "partner-a@example.com" });

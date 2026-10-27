@@ -2715,6 +2715,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/opentype.js@npm:^1.3.10":
+  version: 1.3.10
+  resolution: "@types/opentype.js@npm:1.3.10"
+  checksum: 10c0/bf53bd1affd43d2f9f6f546a8256f652a8e22f7b96dc6b6a91177f8b503ec96f675f2cba7bd9ffc4ca813bf15053c1fa62857e939eea2b0718545bab67d2cf04
+  languageName: node
+  linkType: hard
+
 "@types/qrcode@npm:^1.5.6":
   version: 1.5.6
   resolution: "@types/qrcode@npm:1.5.6"
@@ -4719,6 +4726,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"opentype.js@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "opentype.js@npm:2.0.0"
+  bin:
+    ot: bin/ot
+  checksum: 10c0/85539aca7b99ec10019adcdd2bcc74d0ab2757277f775394826db0fb465c5e075fa67cff83ce30082c990640225c1c678ddd23c1ba1c9580d167335ad5300b91
+  languageName: node
+  linkType: hard
+
 "optionator@npm:^0.9.3":
   version: 0.9.4
   resolution: "optionator@npm:0.9.4"
@@ -5812,6 +5828,7 @@ __metadata:
     "@tanstack/react-query": "npm:^5.101.1"
     "@types/archiver": "npm:^8.0.0"
     "@types/node": "npm:^22.16.5"
+    "@types/opentype.js": "npm:^1.3.10"
     "@types/qrcode": "npm:^1.5.6"
     "@types/react": "npm:^19.2.0"
     "@types/react-dom": "npm:^19.2.0"
@@ -5833,6 +5850,7 @@ __metadata:
     lucide-react: "npm:^0.575.0"
     mongodb: "npm:^6.21.0"
     next: "npm:^16.1.0"
+    opentype.js: "npm:^2.0.0"
     pdf-lib: "npm:^1.17.1"
     prettier: "npm:^3.7.3"
     qrcode: "npm:^1.5.4"

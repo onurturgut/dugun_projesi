@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "layoutId": "velvet-flow-landscape-mini-v1",
+  "templateId": "velvet-flow",
+  "productId": "landscape-mini-100x75-duplex",
+  "status": "draft",
+  "units": "px",
+  "coordinateSpace": {
+    "origin": "top-left",
+    "canvas": { "width": 1252, "height": 957, "dpi": 300 },
+    "print": {
+      "trimWidthMm": 100,
+      "trimHeightMm": 75,
+      "bleedMm": 3,
+      "safeAreaMm": 5,
+      "trimBox": { "x": 35, "y": 35, "width": 1182, "height": 887 },
+      "safeBox": { "x": 94, "y": 94, "width": 1064, "height": 769 }
+    }
+  },
+  "assets": {
+    "logo": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/shineqr-logo-gold.png",
+    "cameraIcon": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/icon-camera.svg",
+    "videoIcon": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/icon-video.svg",
+    "galleryIcon": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/icon-gallery.svg",
+    "divider": "/design-center/templates/velvet-flow/burgundy/portrait-mini/assets/decorative-divider.svg"
+  },
+  "variants": {
+    "burgundy": {
+      "name": "Burgundy",
+      "ink": "#F3CF82",
+      "frontBase": "/design-center/templates/velvet-flow/burgundy/landscape-mini/velvet-flow-burgundy-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/velvet-flow/burgundy/landscape-mini/velvet-flow-burgundy-landscape-mini-back-base-clean.png"
+    },
+    "black": {
+      "name": "Obsidian Black",
+      "ink": "#E9C780",
+      "frontBase": "/design-center/templates/velvet-flow/obsidian-black/landscape-mini/velvet-flow-obsidian-black-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/velvet-flow/obsidian-black/landscape-mini/velvet-flow-obsidian-black-landscape-mini-back-base-clean.png"
+    },
+    "navy": {
+      "name": "Midnight Navy",
+      "ink": "#F3CF82",
+      "frontBase": "/design-center/templates/velvet-flow/midnight-navy/landscape-mini/velvet-flow-midnight-navy-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/velvet-flow/midnight-navy/landscape-mini/velvet-flow-midnight-navy-landscape-mini-back-base-clean.png"
+    },
+    "emerald": {
+      "name": "Emerald",
+      "ink": "#F3CF82",
+      "frontBase": "/design-center/templates/velvet-flow/emerald/landscape-mini/velvet-flow-emerald-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/velvet-flow/emerald/landscape-mini/velvet-flow-emerald-landscape-mini-back-base-clean.png"
+    },
+    "cream": {
+      "name": "Classic Cream",
+      "ink": "#33261D",
+      "logoColor": "#33261D",
+      "frontBase": "/design-center/templates/velvet-flow/classic-cream/landscape-mini/velvet-flow-classic-cream-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/velvet-flow/classic-cream/landscape-mini/velvet-flow-classic-cream-landscape-mini-back-base-clean.png"
+    }
+  },
+  "typography": {
+    "display": { "family": "Cormorant Garamond Light", "weight": 500 },
+    "script": { "family": "Allura", "weight": 400 },
+    "smallCaps": { "family": "Cinzel", "weight": 600 }
+  },
+  "front": {
+    "layers": [
+      { "id": "background", "type": "variant-image", "binding": "frontBase", "bounds": { "x": 0, "y": 0, "width": 1252, "height": 957 }, "fit": "cover", "editable": false },
+      { "id": "logo", "type": "image", "asset": "logo", "bounds": { "x": 724, "y": 65, "width": 142, "height": 102 }, "fit": "contain", "editable": false },
+      { "id": "hook", "type": "text", "binding": "qrHook", "bounds": { "x": 474, "y": 172, "width": 640, "height": 68 }, "align": "center", "font": "display", "fontSize": 51, "lineHeight": 1, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": true },
+      { "id": "description", "type": "text", "binding": "qrDescription", "bounds": { "x": 485, "y": 235, "width": 620, "height": 90 }, "align": "center", "font": "script", "fontSize": 52, "lineHeight": 1, "maxLines": 1, "color": "variant.ink", "editable": true },
+      { "id": "body", "type": "text", "binding": "qrBody", "bounds": { "x": 520, "y": 321, "width": 550, "height": 50 }, "align": "center", "font": "display", "fontSize": 28, "lineHeight": 1, "maxLines": 1, "color": "variant.ink", "editable": false },
+      { "id": "qrFrame", "type": "qr-frame", "bounds": { "x": 586, "y": 386, "width": 279, "height": 279 }, "radius": 18, "strokeWidth": 5, "fill": "#FFF9E8", "stroke": "#D6A94F", "editable": false },
+      { "id": "qr", "type": "qr", "binding": "permanentEventUrl", "bounds": { "x": 598, "y": 398, "width": 255, "height": 255 }, "errorCorrection": "M", "quietZoneModules": 4, "foreground": "#111111", "background": "#FFF9E8", "editable": false },
+      { "id": "camera", "type": "image", "asset": "cameraIcon", "bounds": { "x": 903, "y": 414, "width": 52, "height": 52 }, "color": "variant.ink", "editable": false },
+      { "id": "video", "type": "image", "asset": "videoIcon", "bounds": { "x": 980, "y": 414, "width": 52, "height": 52 }, "color": "variant.ink", "editable": false },
+      { "id": "gallery", "type": "image", "asset": "galleryIcon", "bounds": { "x": 1057, "y": 414, "width": 52, "height": 52 }, "color": "variant.ink", "editable": false },
+      { "id": "cta", "type": "text", "binding": "qrCta", "bounds": { "x": 871, "y": 485, "width": 270, "height": 95 }, "align": "center", "font": "smallCaps", "fontSize": 23, "lineHeight": 1.15, "letterSpacing": 1.4, "uppercase": true, "maxLines": 2, "color": "variant.ink", "editable": true },
+      { "id": "divider", "type": "image", "asset": "divider", "bounds": { "x": 594, "y": 685, "width": 520, "height": 25 }, "color": "variant.ink", "editable": false },
+      { "id": "names", "type": "text", "binding": "names", "bounds": { "x": 600, "y": 720, "width": 510, "height": 55 }, "align": "center", "font": "smallCaps", "fontSize": 27, "lineHeight": 1, "letterSpacing": 4.5, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": true },
+      { "id": "date", "type": "text", "binding": "eventDate", "bounds": { "x": 600, "y": 782, "width": 510, "height": 36 }, "align": "center", "font": "smallCaps", "fontSize": 17, "lineHeight": 1, "letterSpacing": 2.4, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": false }
+    ]
+  },
+  "back": {
+    "layers": [
+      { "id": "background", "type": "variant-image", "binding": "backBase", "bounds": { "x": 0, "y": 0, "width": 1252, "height": 957 }, "fit": "cover", "editable": false },
+      { "id": "logo", "type": "image", "asset": "logo", "bounds": { "x": 555, "y": 62, "width": 142, "height": 102 }, "fit": "contain", "editable": false },
+      { "id": "qrFrame", "type": "qr-frame", "bounds": { "x": 449, "y": 184, "width": 354, "height": 354 }, "radius": 22, "strokeWidth": 6, "fill": "#FFF9E8", "stroke": "#D6A94F", "editable": false },
+      { "id": "qr", "type": "qr", "binding": "permanentEventUrl", "bounds": { "x": 464, "y": 199, "width": 324, "height": 324 }, "errorCorrection": "M", "quietZoneModules": 4, "foreground": "#111111", "background": "#FFF9E8", "editable": false },
+      { "id": "cta", "type": "text", "binding": "qrCta", "bounds": { "x": 355, "y": 557, "width": 542, "height": 96 }, "align": "center", "font": "smallCaps", "fontSize": 32, "lineHeight": 1.12, "letterSpacing": 2.5, "uppercase": true, "maxLines": 2, "color": "variant.ink", "editable": true },
+      { "id": "divider", "type": "image", "asset": "divider", "bounds": { "x": 378, "y": 674, "width": 496, "height": 25 }, "color": "variant.ink", "editable": false },
+      { "id": "names", "type": "text", "binding": "names", "bounds": { "x": 376, "y": 714, "width": 500, "height": 56 }, "align": "center", "font": "smallCaps", "fontSize": 28, "lineHeight": 1, "letterSpacing": 4.8, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": true },
+      { "id": "date", "type": "text", "binding": "eventDate", "bounds": { "x": 376, "y": 780, "width": 500, "height": 36 }, "align": "center", "font": "smallCaps", "fontSize": 18, "lineHeight": 1, "letterSpacing": 2.4, "uppercase": true, "maxLines": 1, "color": "variant.ink", "editable": false }
+    ]
+  },
+  "contentLimits": {
+    "qrHook": 72,
+    "qrDescription": 110,
+    "qrCta": 48,
+    "names": 100,
+    "message": 240
+  }
+}

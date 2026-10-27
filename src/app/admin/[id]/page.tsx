@@ -50,6 +50,7 @@ import {
   storageBytesInUse,
 } from "@/lib/commercial-policy";
 import { accountHasPermission, effectiveStaffRole } from "@/lib/access-control";
+import { PhotographerBulkUpload } from "@/components/admin/PhotographerBulkUpload";
 
 const dateText = (s: string | null, time = false) =>
   s
@@ -84,6 +85,7 @@ export default function EventDetail() {
   const [photographerId, setPhotographerId] = useState("");
   const [photographerDueDate, setPhotographerDueDate] = useState("");
   const [expectedFileCount, setExpectedFileCount] = useState("");
+  const [photographerUploading, setPhotographerUploading] = useState(false);
   const [invite, setInvite] = useState({
     email: "",
     business_name: "",
@@ -668,16 +670,23 @@ export default function EventDetail() {
                     : ""}
                 </p>
               ) : null}
-              <Link
-                className="admin-button primary"
-                href={`/wedding/${w.slug}`}
-              >
-                Yükleme alanını aç
-              </Link>
+              <PhotographerBulkUpload
+                weddingId={w.id}
+                disabled={
+                  w.assigned_photographers?.find(
+                    (item) => item.id === me.data?.id,
+                  )?.delivery_status === "completed"
+                }
+                onUploadingChange={setPhotographerUploading}
+                onBatchComplete={() =>
+                  qc.invalidateQueries({ queryKey: ["admin-wedding", id] })
+                }
+              />
               <button
                 className="admin-button"
                 disabled={
                   busy ||
+                  photographerUploading ||
                   w.assigned_photographers?.find(
                     (item) => item.id === me.data?.id,
                   )?.delivery_status === "completed"

@@ -760,6 +760,13 @@ export async function handle(
             .toArray()
         ).map(publicEvent),
       );
+    if (route === "partners" && method === "GET")
+      return json(
+        await database.collection("partners").find(
+          { active: true, logo_url: { $type: "string", $ne: "" } },
+          { projection: { _id: 0, id: 1, name: 1, logo_url: 1 } },
+        ).sort({ name: 1 }).limit(24).toArray(),
+      );
     if (
       path.length === 3 &&
       path[0] === "weddings" &&

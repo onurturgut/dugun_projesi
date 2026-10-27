@@ -15,6 +15,7 @@ import { buildQrCards } from "../src/lib/qr-card";
 import { defaultQrProduct, qrProductEntitlement, qrProducts, validateQrProduct, withPrintMarks } from "../src/lib/qr-products";
 import { packageSnapshot } from "../src/lib/commercial-policy";
 import { resolvePhysicalQrBackground } from "../src/lib/qr-templates";
+import { landscapeMiniPresentations, portraitMiniPresentations, welcomeSignPresentations } from "../src/lib/qr-presentations";
 import { weddingImageBelongsToEvent, weddingTemplates } from "../src/lib/wedding-templates";
 
 test("existing invitations keep their original video and speed", () => {
@@ -232,6 +233,13 @@ test("Velvet Flow exposes every approved physical format and color base", () => 
     for (const face of ["front", "back"] as const) {
       assert.match(resolvePhysicalQrBackground("velvet-flow", variant, face) ?? "", /^\/design-center\/templates\/velvet-flow\//);
     }
+  }
+});
+
+test("approved Velvet Flow presentation galleries expose five color images", () => {
+  for (const gallery of [landscapeMiniPresentations, portraitMiniPresentations, welcomeSignPresentations]) {
+    assert.deepEqual(gallery.map((item) => item.id), ["burgundy", "black", "navy", "emerald", "cream"]);
+    assert.ok(gallery.every((item) => item.image.startsWith("/design-center/presentations/velvet-flow/") && item.image.endsWith("-presentation.png")));
   }
 });
 

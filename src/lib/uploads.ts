@@ -27,7 +27,10 @@ export function detectKind(file: File): MediaKind | null {
   return null;
 }
 
-export function validateFiles(files: File[]): ValidationResult {
+export function validateFiles(
+  files: File[],
+  options: { createPreviews?: boolean } = {},
+): ValidationResult {
   const accepted: SelectedItem[] = [];
   const errors: string[] = [];
 
@@ -55,7 +58,8 @@ export function validateFiles(files: File[]): ValidationResult {
       id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
       file,
       kind,
-      previewUrl: URL.createObjectURL(file),
+      previewUrl:
+        options.createPreviews === false ? "" : URL.createObjectURL(file),
     });
   }
 

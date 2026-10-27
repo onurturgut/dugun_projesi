@@ -15,6 +15,7 @@ Bu klasör, ShineQR'ı teknik ürün olarak değerlendirmek, fiyatlandırmak, pa
 6. [Operasyon, sözleşme, KPI ve kontrol listeleri](06-OPERASYON-SOZLESME-KPI.md)
 7. [PWA, fotoğrafçı çalışma alanı ve dijital davetiye](07-PWA-FOTOGRAF-CALISMA-ALANI-VE-DIJITAL-DAVETIYE.md)
 8. [Çok taraflı organizasyon, fotoğrafçı ve baskı akışı](08-COK-TARAFLI-ORGANIZASYON-FOTOGRAFCI-VE-BASKI-AKISI.md)
+9. [Ana sayfa pazarlama ve detaylı ürün anlatımı](09-ANASAYFA-PAZARLAMA-VE-DETAYLI-URUN-ANLATIMI.md)
 
 ## En kısa yönetici özeti
 

@@ -410,6 +410,9 @@
   font-size: 13px;
   letter-spacing: 0.04em;
 }
+.homePartnerLogos { display: flex; align-items: center; justify-content: center; gap: clamp(24px, 4vw, 56px); flex-wrap: wrap; }
+.homePartnerLogo { display: grid; place-items: center; width: clamp(170px, 18vw, 230px); min-height: 72px; }
+.homePartnerLogo img { display: block; width: 100%; height: 72px; object-fit: contain; }
 .launchSection {
   background: #f3eee7;
 }
@@ -2003,6 +2006,8 @@
   .premiumHero + .partnerStrip p {
     margin-bottom: 8px;
   }
+  .homePartnerLogos { margin-top: 16px; }
+  .homePartnerLogo { width: min(190px, 70vw); }
   .heroCopy {
     padding: 58px 20px 24px;
   }
