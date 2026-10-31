@@ -5,10 +5,15 @@ import {
   Building2,
   Camera,
   CheckCircle2,
+  Clock3,
   Download,
+  HardDrive,
   Heart,
   ImageIcon,
   LayoutDashboard,
+  Mail,
+  Palette,
+  Presentation,
   QrCode,
   ShieldCheck,
   Smartphone,
@@ -239,26 +244,100 @@ export function HomePage() {
       </section>
       <section className={`${styles.section} ${styles.homePricingSection}`}>
         <SectionHeading eyebrow="PAKETLER" title="Anılarınız için doğru kapsam." text="Fiyatlar KDV dahildir; paket hakkı ve fiyatı satış anında kayıt altına alınır." />
-        <div className={styles.pricing}>
+        <div className={`${styles.pricing} ${styles.homePricingGrid}`}>
           {(Object.keys(PACKAGE_CATALOG) as PackageCode[]).map((code, index) => {
             const plan = PACKAGE_CATALOG[code];
+            const packageFeatures = [
+              ...(plan.tableQrCount ? [`${plan.tableQrCount} masa QR kartı`] : []),
+              ...(plan.welcomeSignCount ? [`${plan.welcomeSignCount} karşılama panosu`] : []),
+              plan.uploadWindow === "event-day" ? "Etkinlik günü yükleme" : "7 gün yükleme süresi",
+              `${plan.includedEventCount} organizasyon kullanımı`,
+              ...(plan.secondEventPrintingIncluded ? ["İkinci organizasyon baskıları dahil"] : []),
+              ...(plan.digitalInvitationIncluded ? ["Dijital davetiye dahil"] : []),
+              "Uygulamasız misafir yüklemesi",
+              "Fotoğraf, video ve kişisel mesaj",
+              "Özel dijital albüm",
+              "Toplu indirme",
+            ];
             return <article className={styles.priceCard} key={code}>
               <p className={styles.eyebrow}>{index === 1 ? "EN ÇOK TERCİH EDİLEN" : `PLAN ${index + 1}`}</p>
               <h3>{plan.name}</h3>
-              <div className={styles.price}>{new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(plan.grossPriceCents / 100)}</div>
-              <ul>
-                <li>{plan.miniQrCount} mini QR kart</li>
-                {plan.tableQrCount ? <li>{plan.tableQrCount} masa QR kartı</li> : null}
-                {plan.welcomeSignCount ? <li>{plan.welcomeSignCount} karşılama panosu</li> : null}
-                <li>{(packageStorageLimit(plan) || 0) / GIB} GB depolama</li>
-                <li>{plan.digitalRetentionMonths} ay dijital saklama</li>
-                {plan.digitalInvitationIncluded ? <li>Dijital davetiye</li> : null}
+              <div className={styles.price}>{new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(plan.grossPriceCents / 100)} <small>KDV dahil</small></div>
+              <div className={styles.packageHighlights} aria-label={`${plan.name} öne çıkan özellikler`}>
+                <span><strong>{plan.miniQrCount}</strong> Mini QR</span>
+                <span><strong>{(packageStorageLimit(plan) || 0) / GIB} GB</strong> Depolama</span>
+                <span><strong>{plan.digitalRetentionMonths} ay</strong> Saklama</span>
+              </div>
+              <p className={styles.packageIncludesLabel}>Pakete dahil</p>
+              <ul className={styles.packageFeatureList}>
+                {packageFeatures.map((feature) => <li key={feature}>{feature}</li>)}
               </ul>
               <Link className={index === 1 ? styles.primary : styles.ghost} href="/iletisim">Paketi görüşelim</Link>
             </article>;
           })}
+          <article className={`${styles.priceCard} ${styles.photographerPriceCard}`}>
+            <div className={styles.photographerCardTop}>
+              <span className={styles.photographerCardIcon}><Camera size={22} aria-hidden="true" /></span>
+              <p className={styles.eyebrow}>BAĞIMSIZ PROFESYONEL HİZMET</p>
+            </div>
+            <h3>{PHOTOGRAPHER_PACKAGE.name}</h3>
+            <div className={styles.price}>
+              {new Intl.NumberFormat("tr-TR", {
+                style: "currency",
+                currency: "TRY",
+                maximumFractionDigits: 0,
+              }).format(PHOTOGRAPHER_PACKAGE.grossPriceCents / 100)}
+              <small>KDV dahil</small>
+            </div>
+            <p className={styles.packageIncludesLabel}>Hizmete dahil</p>
+            <ul>
+              <li>Profesyonel fotoğrafçı</li>
+              <li>Organizasyona özel çekim</li>
+              <li>Müşteri satın alma onayı</li>
+              <li>Kontrollü dijital teslim</li>
+              <li>Teslimat takibi ve onayı</li>
+              <li>Toplu indirme</li>
+              <li>{PHOTOGRAPHER_PACKAGE.digitalRetentionMonths} ay saklama</li>
+            </ul>
+            <Link className={styles.ghost} href="/fotografci-paketi">
+              Paketi incele <ArrowRight size={16} />
+            </Link>
+            <p className={styles.photographerCardNote}>QR paketlerinden bağımsız satın alınır.</p>
+          </article>
         </div>
-        <PhotographerPackageCard />
+        <div className={styles.extrasSection}>
+          <div className={styles.extrasIntro}>
+            <span aria-hidden="true" />
+            <h3>EK ÜRÜNLER</h3>
+            <span aria-hidden="true" />
+            <p>Paketinizi ihtiyacınıza göre genişletin.</p>
+          </div>
+          <div className={styles.extrasRow}>
+            <div className={styles.extrasGrid}>
+            {[
+              [QrCode, "Ek Mini QR Kart"],
+              [LayoutDashboard, "Masa QR Kartı"],
+              [Presentation, "Ek Karşılama Tabelası"],
+              [HardDrive, "Ek Depolama"],
+              [Clock3, "İlave Saklama"],
+              [Mail, "Dijital Davetiye Eklentisi"],
+              [Palette, "Özel Tasarım"],
+              [Users, "İkinci Organizasyon"],
+            ].map(([Icon, title]) => (
+              <article className={styles.extraCard} key={title as string}>
+                <span className={styles.extraIcon}>
+                  <Icon size={27} strokeWidth={1.55} aria-hidden="true" />
+                </span>
+                <h4>{title as string}</h4>
+              </article>
+            ))}
+            </div>
+            <Link className={styles.ghost} href="/iletisim">
+              Teklif Al
+            </Link>
+          </div>
+          <p className={styles.extrasNote}>Ek ürünler paket fiyatına dahil değildir. KDV dahil güncel fiyatlar teklif sırasında paylaşılır.</p>
+        </div>
         <div className={styles.centerAction}><Link className={styles.ghost} href="/paketler">Tüm paket detayları <ArrowRight size={16} /></Link></div>
       </section>
       <CtaBand />
@@ -423,26 +502,39 @@ export function PricingPage() {
         description="KDV dahil paket fiyatlarını ve kayıt altına alınan kullanım haklarını tek bakışta karşılaştırın."
         hideVisual
       />
-      <section className={styles.section}>
-        <div className={styles.pricing}>
+      <section className={`${styles.section} ${styles.pricingPageSection}`}>
+        <div className={`${styles.pricing} ${styles.pricingPageGrid}`}>
           {(Object.keys(PACKAGE_CATALOG) as PackageCode[]).map((code, i) => {
             const plan = PACKAGE_CATALOG[code];
+            const packageFeatures = [
+              ...(plan.tableQrCount ? [`${plan.tableQrCount} masa QR kartı`] : []),
+              ...(plan.welcomeSignCount ? [`${plan.welcomeSignCount} karşılama panosu`] : []),
+              plan.uploadWindow === "event-day" ? "Etkinlik günü yükleme" : "7 gün yükleme süresi",
+              `${plan.includedEventCount} organizasyon kullanımı`,
+              ...(plan.secondEventPrintingIncluded ? ["İkinci organizasyon baskıları dahil"] : []),
+              ...(plan.digitalInvitationIncluded ? ["Dijital davetiye dahil"] : []),
+              "Uygulamasız misafir yüklemesi",
+              "Fotoğraf, video ve kişisel mesaj",
+              "Özel dijital albüm ve toplu indirme",
+            ];
             return (
-            <article className={styles.priceCard} key={code}>
+            <article className={`${styles.priceCard} ${styles.pricingPageCard}`} key={code}>
               <p className={styles.eyebrow}>
                 {i === 1 ? "EN ÇOK TERCİH EDİLEN" : `PLAN ${i + 1}`}
               </p>
               <h3>{plan.name}</h3>
               <div className={styles.price}>
                 {new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(plan.grossPriceCents / 100)}
+                <small>KDV dahil</small>
               </div>
-              <ul>
-                <li>{plan.miniQrCount} mini QR kart</li>
-                {plan.tableQrCount ? <li>{plan.tableQrCount} masa QR kartı</li> : null}
-                {plan.welcomeSignCount ? <li>{plan.welcomeSignCount} karşılama panosu</li> : null}
-                <li>{(packageStorageLimit(plan) || 0) / GIB} GB depolama</li>
-                <li>{plan.digitalRetentionMonths} ay dijital saklama</li>
-                {plan.digitalInvitationIncluded ? <li>Dijital davetiye</li> : null}
+              <div className={styles.packageHighlights} aria-label={`${plan.name} öne çıkan özellikler`}>
+                <span><strong>{plan.miniQrCount}</strong> Mini QR</span>
+                <span><strong>{(packageStorageLimit(plan) || 0) / GIB} GB</strong> Depolama</span>
+                <span><strong>{plan.digitalRetentionMonths} ay</strong> Saklama</span>
+              </div>
+              <p className={styles.packageIncludesLabel}>Pakete dahil</p>
+              <ul className={styles.packageFeatureList}>
+                {packageFeatures.map((feature) => <li key={feature}>{feature}</li>)}
               </ul>
               <Link
                 className={i === 1 ? styles.primary : styles.ghost}
@@ -468,9 +560,14 @@ export function PricingPage() {
             <tbody>
               {[
                 ["Mini QR", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${plan.miniQrCount} adet`],
+                ["Masa QR", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.tableQrCount ? `${plan.tableQrCount} adet` : "Dahil değil"],
                 ["Karşılama tabelası", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.welcomeSignCount ? `${plan.welcomeSignCount} adet` : "Dahil değil"],
                 ["Depolama", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${(packageStorageLimit(plan) || 0) / GIB} GB`],
+                ["Yükleme süresi", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.uploadWindow === "event-day" ? "Etkinlik günü" : "7 gün"],
                 ["Dijital saklama", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${plan.digitalRetentionMonths} ay`],
+                ["Organizasyon", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${plan.includedEventCount} adet`],
+                ["İkinci organizasyon baskısı", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.secondEventPrintingIncluded ? "Dahil" : "Dahil değil"],
+                ["Dijital davetiye", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.digitalInvitationIncluded ? "Dahil" : "Dahil değil"],
                 ["Profesyonel çekim", () => "Dahil değil - bağımsız paket"],
               ].map(([label, value]) => (
                 <tr key={String(label)}>
@@ -493,7 +590,7 @@ export function PricingPage() {
         <div className={styles.pricingEditorial}>
           <div className={styles.pricingStatement}>
             <p className={styles.eyebrow}>KURUMSAL ETKİNLİKLER</p>
-            <h2 style={{ fontSize: "52px", color: "#650d1c" }}>
+            <h2 className={styles.pricingCorporateTitle}>
               Size özel fiyatlandırma
             </h2>
             <p className={styles.lead}>

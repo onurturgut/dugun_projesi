@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Printer } from "lucide-react";
+import { CircleCheck, Clock3, Download, PackageCheck, Printer, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Field, Notice, TextField } from "@/components/admin/Fields";
@@ -201,9 +201,32 @@ export default function PrintJobsPage() {
   }
 
   const actor = me.data?.role === "platform" ? "platform" : "printer";
+  const printJobs = jobs.data || [];
+  const operationSummary = [
+    {
+      label: "Aktif işler",
+      value: printJobs.filter((job) => !["delivered_to_partner", "cancelled"].includes(job.status)).length,
+      icon: Clock3,
+    },
+    {
+      label: "Baskıda",
+      value: printJobs.filter((job) => ["downloaded", "printing"].includes(job.status)).length,
+      icon: Printer,
+    },
+    {
+      label: "Teslim süreci",
+      value: printJobs.filter((job) => ["ready", "received_by_shineqr", "quality_checked"].includes(job.status)).length,
+      icon: Truck,
+    },
+    {
+      label: "Tamamlanan",
+      value: printJobs.filter((job) => job.status === "delivered_to_partner").length,
+      icon: CircleCheck,
+    },
+  ];
   return (
     <AdminShell>
-      <div className="admin-heading">
+      <div className="admin-heading print-operations-heading">
         <div>
           <p className="admin-kicker">BASKI VE TESLİMAT</p>
           <h1>Baskı operasyonu</h1>
@@ -212,9 +235,17 @@ export default function PrintJobsPage() {
           </p>
         </div>
       </div>
+      <section className="print-operation-summary" aria-label="Baskı operasyonu özeti">
+        {operationSummary.map(({ label, value, icon: Icon }) => (
+          <article key={label}>
+            <span><Icon size={18} aria-hidden="true" /></span>
+            <div><small>{label}</small><strong>{value}</strong></div>
+          </article>
+        ))}
+      </section>
       {jobs.error ? <Notice>{jobs.error.message}</Notice> : null}
       {me.data?.role === "platform" ? (
-        <section className="admin-panel detail-list">
+        <section className="admin-panel detail-list print-create-panel">
           <header>
             <Printer />
             <div>
@@ -222,7 +253,7 @@ export default function PrintJobsPage() {
               <h2>Baskı işi oluştur</h2>
             </div>
           </header>
-          <form className="finance-add-on-form" onSubmit={submit}>
+          <form className="finance-add-on-form print-create-form" onSubmit={submit}>
             <label className="form-field">
               <span>Baskı onaylı organizasyon</span>
               <select
@@ -293,15 +324,16 @@ export default function PrintJobsPage() {
           </form>
         </section>
       ) : null}
-      <section className="admin-panel detail-list">
+      <section className="admin-panel detail-list print-jobs-panel">
         <header>
-          <Printer />
+          <PackageCheck />
           <div>
             <span>İŞ TAKİBİ</span>
             <h2>
               {actor === "printer" ? "Bana atanan işler" : "Tüm baskı işleri"}
             </h2>
           </div>
+          <strong className="print-job-count">{printJobs.length} iş</strong>
         </header>
         {jobs.data?.map((job) => {
           const next = allowedPrintJobTransitions(job.status, actor);
@@ -313,26 +345,29 @@ export default function PrintJobsPage() {
             ["bleed", "Taşma, kesim ve güvenli alan kontrol edildi"],
           ] as const;
           return (
-            <div className="detail-static-row" key={job.id}>
-              <div>
-                <strong>
-                  {job.wedding_title} · {job.product_description} ·{" "}
-                  {job.quantity} adet
-                </strong>
-                <small>
-                  {job.printer_name} · Tasarım sürümü {job.design_revision}
-                  {job.due_date ? ` · Hedef ${job.due_date}` : ""}
-                </small>
+            <article className="detail-static-row print-job-card" key={job.id}>
+              <div className="print-job-main">
+                <div className="print-job-title-row">
+                  <div>
+                    <strong>{job.wedding_title}</strong>
+                    <small>{job.product_description} · {job.quantity} adet</small>
+                  </div>
+                  <span className={`print-job-status status-${job.status}`}>
+                    {PRINT_JOB_STATUS_LABELS[job.status]}
+                  </span>
+                </div>
+                <div className="print-job-meta">
+                  <span>{job.printer_name}</span>
+                  <span>Tasarım v{job.design_revision}</span>
+                  {job.due_date ? <span>Hedef {job.due_date}</span> : null}
+                </div>
                 {job.production_notes ? (
-                  <small>{job.production_notes}</small>
+                  <p className="print-job-note">{job.production_notes}</p>
                 ) : null}
                 {job.pdf_preflight ? (
-                  <small>
-                    PDF ön kontrolü:{" "}
-                    {job.pdf_preflight.passed
-                      ? "otomatik kontroller geçti"
-                      : "düzeltme gerekli"}
-                    .{" "}
+                  <div className={`print-preflight-summary ${job.pdf_preflight.passed ? "passed" : "failed"}`}>
+                    <strong>PDF ön kontrolü: {job.pdf_preflight.passed ? "kontroller geçti" : "düzeltme gerekli"}</strong>
+                    <small>
                     {job.pdf_preflight.checks
                       .map(
                         (check) =>
@@ -345,7 +380,8 @@ export default function PrintJobsPage() {
                           }`,
                       )
                       .join(" · ")}
-                  </small>
+                    </small>
+                  </div>
                 ) : null}
                 <details className="print-job-timeline">
                   <summary>Operasyon zaman çizelgesi</summary>
@@ -379,8 +415,7 @@ export default function PrintJobsPage() {
                   </ol>
                 </details>
               </div>
-              <div className="account-actions">
-                <span>{PRINT_JOB_STATUS_LABELS[job.status]}</span>
+              <div className="account-actions print-job-actions">
                 {me.data?.role === "platform" ? (
                   <label className="admin-button">
                     PDF yükle / değiştir
@@ -555,7 +590,7 @@ export default function PrintJobsPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            </article>
           );
         })}
         {jobs.data?.length === 0 ? (

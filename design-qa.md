@@ -55,6 +55,60 @@ final result: blocked
 
 ---
 
+# Anasayfa Ek Ürünler Şeridi — Visual QA (2026-10-31)
+
+- Source visual truth: user-provided conversation screenshot showing the horizontal “EK ÜRÜNLER” panel
+- Implementation: `HomePage` extras section in `src/components/marketing/MarketingPages.tsx`
+- Intended viewport: desktop reference crop, responsive tablet and mobile layouts
+- Source pixels: 1176 × 195
+- Implementation screenshot: not captured
+- CSS viewport and density: not measured because no browser surface was available
+- State: default extras panel with eight products and “Teklif Al” CTA
+
+## Full-view comparison evidence
+
+Blocked. The supplied screenshot was used as the visual target, but the computer-use inventory exposes no browser. The implementation could not be captured beside the source at a matching viewport.
+
+## Focused region comparison evidence
+
+Blocked. Header ornaments, icon-box dimensions, dividers, type wrapping, CTA radius, panel border, shadow, and spacing require browser-rendered evidence.
+
+## Findings
+
+- [P1] Browser-rendered extras panel evidence is missing.
+  - Location: homepage pricing section, `.extrasSection`.
+  - Evidence: source screenshot is available and code validates, but no implementation screenshot exists.
+  - Impact: exact spacing, wrapping and visual density may still differ from the supplied reference.
+  - Fix: capture the homepage extras section at the reference desktop width, compare it with the source in one view, then correct all P0/P1/P2 mismatches.
+
+## Required fidelity surfaces
+
+- Fonts and typography: serif heading and product labels are implemented; rendered optical size and wrapping remain unverified.
+- Spacing and layout rhythm: horizontal eight-item strip, separators and right-side CTA are implemented; exact reference measurements remain unverified.
+- Colors and visual tokens: ivory panel, burgundy copy, warm gold icons and border treatments are implemented; rendered sampling remains pending.
+- Image quality and asset fidelity: the reference uses line icons; matching library icons are used without raster assets. Rendered stroke-weight comparison remains pending.
+- Copy and content: eight reference product labels and “Teklif Al” are represented in the implementation.
+
+## Comparison history
+
+- Initial pass: blocked before rendered comparison because no browser was available.
+
+## Primary interactions pending browser verification
+
+- Extras card hover states
+- “Teklif Al” navigation
+- Package CTA focus and rounded-button treatment
+- Desktop, tablet and mobile wrapping
+- Browser console error review
+
+## Follow-up polish
+
+None classified until a rendered comparison is available.
+
+final result: blocked
+
+---
+
 # 11 Romantik Tören Wedding — Visual QA (2026-10-24)
 
 - Source visual truth: `public/wedding-designs/11_Romantik_Dugun.png`

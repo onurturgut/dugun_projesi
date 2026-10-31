@@ -55,6 +55,267 @@
   .photographer-file-progress { grid-column: 2; }
   .photographer-upload-queue li > button { grid-column: 3; grid-row: 1 / span 2; }
 }
+
+/* Print operations */
+.print-operations-heading { margin-bottom: 18px; }
+.print-operation-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.print-operation-summary article {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  background: var(--admin-surface);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.08);
+}
+.print-operation-summary article > span {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--admin-gold) 12%, transparent);
+  color: var(--admin-gold);
+}
+.print-operation-summary small,
+.print-operation-summary strong { display: block; }
+.print-operation-summary small { color: var(--admin-muted); font-size: 10px; }
+.print-operation-summary strong { margin-top: 3px; color: var(--admin-text); font-size: 24px; line-height: 1; }
+.print-create-panel,
+.print-jobs-panel { margin-bottom: 18px; }
+.print-create-panel > header,
+.print-jobs-panel > header {
+  min-height: 72px;
+  background: color-mix(in srgb, var(--admin-gold) 4%, var(--admin-surface));
+}
+.print-create-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
+}
+.print-create-form > button { align-self: end; min-height: 44px; border-radius: 11px; }
+.print-job-count {
+  margin-left: auto;
+  padding: 7px 11px;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  color: var(--admin-muted) !important;
+  background: var(--admin-raised);
+  font-size: 10px !important;
+  white-space: nowrap;
+}
+.print-jobs-panel > .print-job-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  background: var(--admin-surface);
+}
+.print-jobs-panel > .print-job-card:hover { background: color-mix(in srgb, var(--admin-gold) 2.5%, var(--admin-surface)); }
+.print-job-main { min-width: 0; padding: 20px; }
+.print-job-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.print-job-title-row > div { min-width: 0; }
+.print-job-title-row strong { font-size: 14px; line-height: 1.35; }
+.print-job-title-row small { margin-top: 5px; font-size: 11px; }
+.print-job-status {
+  flex: none;
+  padding: 6px 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  color: var(--admin-gold);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.print-job-status.status-downloaded { color: #7ba7d8; }
+.print-job-status.status-printing { color: #df9d58; }
+.print-job-status.status-ready,
+.print-job-status.status-quality_checked { color: #72b98f; }
+.print-job-status.status-received_by_shineqr { color: #aa8bd4; }
+.print-job-status.status-delivered_to_partner { color: #5fbd83; }
+.print-job-status.status-cancelled { color: #d97973; }
+.print-job-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.print-job-meta span {
+  padding: 5px 8px;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  color: var(--admin-muted);
+  background: var(--admin-raised);
+  font-size: 9px;
+}
+.print-job-note {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--admin-gold);
+  border-radius: 0 9px 9px 0;
+  background: color-mix(in srgb, var(--admin-gold) 5%, transparent);
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.print-preflight-summary {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 11px;
+  background: var(--admin-raised);
+}
+.print-preflight-summary strong { font-size: 10px; }
+.print-preflight-summary small { max-width: none; margin: 0; line-height: 1.45; }
+.print-preflight-summary.passed { border-color: color-mix(in srgb, #72b98f 45%, var(--admin-border)); }
+.print-preflight-summary.passed > strong { color: #72b98f; }
+.print-preflight-summary.failed { border-color: color-mix(in srgb, #d97973 45%, var(--admin-border)); }
+.print-preflight-summary.failed > strong { color: #d97973; }
+.print-job-main .print-job-timeline {
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid var(--admin-border);
+}
+.print-job-main .print-job-timeline summary { width: fit-content; font-size: 11px; }
+.print-job-main .print-job-timeline ol { margin-bottom: 0; }
+.print-job-actions {
+  align-content: center;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
+  border-left: 1px solid var(--admin-border);
+  background: color-mix(in srgb, var(--admin-raised) 70%, transparent);
+}
+.print-job-actions .admin-button {
+  width: 100%;
+  min-height: 38px;
+  justify-content: center;
+  border-radius: 10px;
+  text-align: center;
+}
+.print-job-actions > input { width: 100%; max-width: none; min-height: 40px; }
+.print-job-actions > span {
+  padding: 9px 10px;
+  border: 1px dashed var(--admin-border);
+  border-radius: 10px;
+  color: var(--admin-muted);
+  font-size: 10px;
+  text-align: center;
+}
+.print-job-actions .admin-preflight-confirmation { padding: 12px; }
+@media (max-width: 980px) {
+  .print-operation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .print-jobs-panel > .print-job-card { grid-template-columns: 1fr; }
+  .print-job-actions { border-top: 1px solid var(--admin-border); border-left: 0; }
+}
+@media (max-width: 640px) {
+  .print-operation-summary { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .print-operation-summary article { padding: 12px; }
+  .print-operation-summary article > span { width: 34px; height: 34px; }
+  .print-operation-summary strong { font-size: 20px; }
+  .print-create-form { grid-template-columns: 1fr; padding: 14px; }
+  .print-job-main { padding: 15px; }
+  .print-job-title-row { display: grid; }
+  .print-job-status { width: fit-content; white-space: normal; }
+  .print-job-actions { padding: 14px; }
+}
+
+/* Photographer directory */
+.photographer-directory > header {
+  min-height: 76px;
+  background: color-mix(in srgb, var(--admin-gold) 4%, var(--admin-surface));
+}
+.photographer-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  padding: 22px;
+}
+.photographer-directory-card {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  align-content: start;
+  padding: 18px 14px 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  background: var(--admin-raised);
+  text-align: center;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.photographer-directory-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--admin-gold) 52%, var(--admin-border));
+  box-shadow: 0 16px 34px rgb(0 0 0 / 0.12);
+}
+.photographer-directory-logo {
+  position: relative;
+  display: grid;
+  width: 132px;
+  height: 132px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--admin-gold) 34%, var(--admin-border));
+  border-radius: 22px;
+  background: var(--admin-surface);
+  box-shadow: inset 0 0 0 6px color-mix(in srgb, var(--admin-gold) 4%, transparent);
+  color: var(--admin-gold);
+}
+.photographer-directory-logo img {
+  object-fit: contain;
+  padding: 12px;
+}
+.photographer-directory-logo > span {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--admin-gold) 13%, transparent), transparent);
+  font-family: Georgia, serif;
+  font-size: 34px;
+  letter-spacing: 0.04em;
+}
+.photographer-directory-card h3 {
+  max-width: 100%;
+  margin: 14px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--admin-text);
+  font: 600 15px/1.3 inherit;
+}
+.photographer-directory-card p {
+  max-width: 100%;
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--admin-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+@media (max-width: 1050px) {
+  .photographer-directory-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .photographer-directory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px; }
+  .photographer-directory-card { padding: 14px 10px; }
+  .photographer-directory-logo { width: 104px; height: 104px; border-radius: 18px; }
+}
+@media (max-width: 420px) {
+  .photographer-directory-grid { grid-template-columns: 1fr; }
+  .photographer-directory-logo { width: 128px; height: 128px; }
+}
 .admin-app * {
   box-sizing: border-box;
 }

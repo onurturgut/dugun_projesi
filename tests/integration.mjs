@@ -955,6 +955,14 @@ try {
     disabled: false,
     must_change_password: false,
   });
+  const photographerDirectory = (
+    await call("/admin/photographers", "GET", undefined, platform)
+  ).data;
+  const secondPhotographerDirectoryEntry = photographerDirectory.find(
+    (item) => item.id === secondPhotographerId,
+  );
+  assert.equal(secondPhotographerDirectoryEntry.partner_name, "B İşletmesi");
+  assert.equal(secondPhotographerDirectoryEntry.logo_url, "");
   await call(
     `/admin/weddings/${eventA.id}/photographers`,
     "POST",

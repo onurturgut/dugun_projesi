@@ -1258,6 +1258,11 @@
   margin: auto;
   align-items: stretch;
 }
+.homePricingGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 1240px;
+  gap: 16px;
+}
 .priceCard {
   padding: 30px;
   display: flex;
@@ -1280,6 +1285,13 @@
   color: var(--burgundy);
   margin: 23px 0;
 }
+.price small {
+  display: block;
+  margin-top: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+}
 .priceCard ul {
   padding: 0;
   list-style: none;
@@ -1294,6 +1306,274 @@
 .priceCard li:before {
   content: "✓";
   color: var(--gold);
+}
+.homePricingGrid .priceCard {
+  position: relative;
+  min-width: 0;
+  padding: 28px 24px 24px;
+  border: 1px solid #dfcfbd;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #fffdf9, #fbf5ed);
+  box-shadow: 0 16px 38px rgb(77 42 24 / 0.07);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.homePricingGrid .priceCard:hover {
+  transform: translateY(-5px);
+  border-color: #c8a97d;
+  box-shadow: 0 24px 46px rgb(77 42 24 / 0.12);
+}
+.homePricingGrid .priceCard:nth-child(2) {
+  transform: translateY(-10px);
+  border: 2px solid var(--gold);
+  box-shadow: 0 24px 48px rgb(77 42 24 / 0.13);
+}
+.homePricingGrid .priceCard:nth-child(2):hover { transform: translateY(-15px); }
+.homePricingGrid .priceCard h3 {
+  min-height: 64px;
+  font-size: clamp(26px, 2.2vw, 32px);
+  line-height: 1.04;
+}
+.homePricingGrid .price {
+  margin: 20px 0;
+  font-size: clamp(29px, 2.6vw, 36px);
+}
+.packageHighlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 21px;
+}
+.packageHighlights span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 5px;
+  border: 1px solid #eadbca;
+  border-radius: 11px;
+  background: rgb(255 255 255 / 0.68);
+  color: #75695f;
+  font-size: 10px;
+  text-align: center;
+}
+.packageHighlights strong {
+  overflow-wrap: anywhere;
+  color: var(--burgundy);
+  font-family: Georgia, serif;
+  font-size: 14px;
+}
+.packageIncludesLabel {
+  margin: 1px 0 10px;
+  color: var(--burgundy);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.homePricingGrid .packageFeatureList,
+.homePricingGrid .photographerPriceCard ul {
+  align-content: start;
+  gap: 9px;
+  margin: 0 0 24px;
+}
+.homePricingGrid .priceCard li {
+  align-items: flex-start;
+  color: #62584f;
+  font-size: 13px;
+  line-height: 1.42;
+}
+.homePricingGrid .priceCard li:before {
+  flex: none;
+  font-weight: 800;
+}
+.homePricingGrid .priceCard > a { border-radius: 999px; }
+.photographerPriceCard {
+  overflow: hidden;
+  border-color: #785366 !important;
+  background:
+    radial-gradient(circle at 88% 4%, rgb(214 170 104 / 0.22), transparent 34%),
+    linear-gradient(145deg, #432630, #24151d 72%) !important;
+  box-shadow: 0 24px 52px rgb(35 18 27 / 0.24) !important;
+  color: #fff8f0;
+}
+.photographerPriceCard:hover { border-color: #d6aa68 !important; }
+.photographerPriceCard h3,
+.photographerPriceCard .price { color: #fff8f0 !important; }
+.photographerPriceCard .price small { color: #dccfc5; }
+.photographerPriceCard ul { color: #e7dbd2; }
+.photographerPriceCard .packageIncludesLabel { color: #d6aa68; }
+.homePricingGrid .photographerPriceCard li { color: #e7dbd2; }
+.photographerPriceCard li:before { color: #d6aa68; }
+.photographerPriceCard > a {
+  border-color: #fff8f0;
+  background: #fff8f0;
+  color: #2b1822 !important;
+}
+.photographerPriceCard > a:hover {
+  border-color: #ead9ca;
+  background: #ead9ca;
+  color: #2b1822 !important;
+}
+.photographerPriceCard > a:focus-visible {
+  outline: 3px solid #d6aa68;
+  outline-offset: 3px;
+}
+:global(html[data-marketing-theme="dark"]) .photographerPriceCard > a {
+  border-color: #fff8f0;
+  background: #fff8f0;
+  color: #2b1822 !important;
+}
+:global(html[data-marketing-theme="dark"]) .photographerPriceCard > a:hover {
+  border-color: #ead9ca;
+  background: #ead9ca;
+  color: #2b1822 !important;
+}
+.photographerCardTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.photographerCardTop .eyebrow { margin: 0; color: #d6aa68; font-size: 10px; }
+.photographerCardIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgb(214 170 104 / 0.42);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.07);
+  color: #d6aa68;
+}
+.photographerCardNote {
+  margin: 14px 0 0;
+  color: #d8c9c0;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+@media (max-width: 1050px) {
+  .homePricingGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .homePricingGrid { grid-template-columns: 1fr; }
+  .homePricingGrid .priceCard:nth-child(2),
+  .homePricingGrid .priceCard:nth-child(2):hover { transform: none; }
+}
+.extrasSection {
+  width: min(1240px, 100%);
+  margin: 54px auto 0;
+  padding: 14px 26px 18px;
+  border: 1px solid #ead7c2;
+  border-radius: 18px;
+  background: rgb(255 253 249 / 0.92);
+  box-shadow: 0 12px 32px rgb(89 48 29 / 0.06);
+}
+.extrasIntro {
+  display: grid;
+  grid-template-columns: minmax(40px, 110px) auto minmax(40px, 110px);
+  align-items: center;
+  justify-content: center;
+  column-gap: 12px;
+  text-align: center;
+}
+.extrasIntro h3 {
+  margin: 0;
+  color: var(--burgundy);
+  font-family: Georgia, serif;
+  font-size: 15px;
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
+.extrasIntro > span {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #d8b77f);
+}
+.extrasIntro > span:last-of-type { background: linear-gradient(90deg, #d8b77f, transparent); }
+.extrasIntro p {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  color: #8a7365;
+  font: 13px Georgia, serif;
+}
+.extrasRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 142px;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+}
+.extrasGrid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(82px, 1fr));
+  gap: 0;
+}
+.extraCard {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  min-width: 0;
+  padding: 0 9px;
+  background: transparent;
+  text-align: center;
+  transition: transform 180ms ease;
+}
+.extraCard:not(:last-child):after {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  width: 1px;
+  height: 55px;
+  background: linear-gradient(transparent, #eadac8, transparent);
+  content: "";
+}
+.extraCard:hover { transform: translateY(-2px); }
+.extraIcon {
+  display: grid;
+  width: 58px;
+  height: 49px;
+  place-items: center;
+  border: 1px solid #eee1d3;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #fffdf9, #f8f0e7);
+  box-shadow: 0 5px 14px rgb(99 55 29 / 0.05);
+  color: #a86d27;
+}
+.extraCard h4 {
+  margin: 8px 0 0;
+  color: var(--burgundy);
+  font-family: Georgia, serif;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+.extrasRow > a {
+  justify-content: center;
+  min-height: 48px;
+  border: 1px solid #c49145;
+  border-radius: 14px;
+  background: var(--burgundy);
+  color: #fffaf4;
+  box-shadow: 0 7px 18px rgb(91 27 37 / 0.16);
+  font-family: Georgia, serif;
+}
+.extrasRow > a:hover { background: #48121c; color: white; }
+.extrasNote {
+  margin: 12px 0 0;
+  color: #8a7365;
+  font-size: 11px;
+  text-align: center;
+}
+@media (max-width: 1050px) {
+  .extrasRow { grid-template-columns: 1fr; }
+  .extrasGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 20px; }
+  .extraCard:nth-child(4):after { display: none; }
+  .extrasRow > a { width: min(240px, 100%); justify-self: center; }
+}
+@media (max-width: 760px) {
+  .extrasSection { margin-top: 44px; }
+  .extrasGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .extraCard:nth-child(2n):after { display: none; }
 }
 .photographerPackage {
   display: grid;
@@ -1359,6 +1639,178 @@
 .packageComparison thead th { color: var(--wine); font-size: 13px; }
 .packageComparison tbody th { color: var(--text); font-weight: 700; }
 .packageComparison td { color: var(--muted); }
+.pricingPageSection {
+  background:
+    radial-gradient(circle at 50% 0, rgb(184 138 72 / 0.09), transparent 30%),
+    var(--ivory);
+}
+.pricingPageGrid {
+  max-width: 1180px;
+  gap: 24px;
+}
+.pricingPageGrid .pricingPageCard {
+  position: relative;
+  min-width: 0;
+  padding: 32px 28px 28px;
+  border: 1px solid #dfcfbd;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #fffdf9, #fbf5ed);
+  box-shadow: 0 18px 42px rgb(77 42 24 / 0.08);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.pricingPageGrid .pricingPageCard:hover {
+  transform: translateY(-5px);
+  border-color: #c9a66f;
+  box-shadow: 0 26px 52px rgb(77 42 24 / 0.13);
+}
+.pricingPageGrid .pricingPageCard:nth-child(2) {
+  transform: translateY(-10px);
+  border: 2px solid var(--gold);
+}
+.pricingPageGrid .pricingPageCard:nth-child(2):hover { transform: translateY(-15px); }
+.pricingPageGrid .pricingPageCard h3 {
+  color: var(--burgundy);
+  font-size: clamp(30px, 3vw, 38px);
+}
+.pricingPageGrid .price { margin: 22px 0; }
+.pricingPageGrid .packageHighlights { margin-bottom: 24px; }
+.pricingPageGrid .packageFeatureList {
+  align-content: start;
+  gap: 10px;
+  margin: 0 0 28px;
+}
+.pricingPageGrid .pricingPageCard li {
+  align-items: flex-start;
+  color: #62584f;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.pricingPageGrid .pricingPageCard li:before { flex: none; font-weight: 800; }
+.pricingPageGrid .pricingPageCard > a {
+  border-radius: 999px;
+}
+.pricingPageGrid .pricingPageCard > a:focus-visible,
+.pricingEditorial a:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+.pricingPageSection .packageComparisonWrap {
+  max-width: 1180px;
+  margin: 54px auto 0;
+  border: 1px solid #dfcfbd;
+  border-radius: 24px;
+  background: #fffdf9;
+  box-shadow: 0 18px 42px rgb(77 42 24 / 0.07);
+}
+.pricingPageSection .packageComparison { min-width: 760px; }
+.pricingPageSection .packageComparison caption {
+  padding: 26px 28px 20px;
+  color: var(--burgundy);
+  font-family: Georgia, serif;
+  font-size: 28px;
+}
+.pricingPageSection .packageComparison th,
+.pricingPageSection .packageComparison td {
+  padding: 15px 22px;
+  border-color: #eadfd2;
+}
+.pricingPageSection .packageComparison thead th {
+  color: var(--burgundy);
+  background: #f7eee3;
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.pricingPageSection .packageComparison tbody th { color: #3d3530; }
+.pricingPageSection .packageComparison td { color: #6d6259; }
+.pricingPageSection .packageComparison tbody tr:hover { background: #fcf6ee; }
+.pricingPageSection .photographerPackage {
+  border-color: #d3b184;
+  background: linear-gradient(135deg, #fffdf9, #f5e7d6);
+}
+.pricingPageSection .notice {
+  border-color: #d8bc98;
+  border-radius: 16px;
+  background: #fff7eb;
+  color: #685747;
+}
+.pricingCorporateTitle {
+  margin: 14px 0 20px;
+  color: var(--burgundy);
+  font-size: clamp(40px, 5vw, 52px);
+  line-height: 1;
+}
+:global(html[data-marketing-theme="dark"]) .pageHero {
+  background:
+    radial-gradient(circle at 15% 20%, rgb(208 169 104 / 0.1), transparent 35%),
+    #1b1815;
+}
+:global(html[data-marketing-theme="dark"]) .pageHero p { color: #bfb3a8; }
+:global(html[data-marketing-theme="dark"]) .pricingPageSection {
+  background:
+    radial-gradient(circle at 50% 0, rgb(208 169 104 / 0.08), transparent 30%),
+    #151311;
+}
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .pricingPageCard {
+  border-color: #44392f;
+  background: linear-gradient(180deg, #24201c, #1d1a17);
+  box-shadow: 0 20px 46px rgb(0 0 0 / 0.24);
+}
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .pricingPageCard:hover { border-color: #8f7048; }
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .pricingPageCard:nth-child(2) { border-color: var(--gold); }
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .pricingPageCard h3,
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .price { color: #f3e9dc; }
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .price small,
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .pricingPageCard li { color: #c7bbb0; }
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .packageIncludesLabel,
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .packageHighlights strong { color: #e1bd7d; }
+:global(html[data-marketing-theme="dark"]) .pricingPageGrid .packageHighlights span {
+  border-color: #4a3f35;
+  background: #2a241f;
+  color: #b9aca0;
+}
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .packageComparisonWrap {
+  border-color: #40362d;
+  background: #211d19;
+  box-shadow: 0 20px 46px rgb(0 0 0 / 0.22);
+}
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .packageComparison th,
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .packageComparison td { border-color: #3b332c; }
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .packageComparison thead th {
+  color: #e1bd7d;
+  background: #2a241f;
+}
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .packageComparison caption,
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .packageComparison tbody th { color: #f0e5d8; }
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .packageComparison td { color: #c4b8ad; }
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .packageComparison tbody tr:hover { background: #28231e; }
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .photographerPackage {
+  border-color: #5b4938;
+  background: linear-gradient(135deg, #27211c, #1d1916);
+  box-shadow: 0 24px 54px rgb(0 0 0 / 0.24);
+}
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .photographerPackage h3,
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .photographerPackagePrice { color: #f3e9dc; }
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .photographerPackagePrice small,
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .photographerPackageFeatures li { color: #c7bbb0; }
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .photographerPackageFeatures .photographerPackageNote {
+  border-color: #4c4035;
+  color: #e1bd7d;
+}
+:global(html[data-marketing-theme="dark"]) .pricingPageSection .notice {
+  border-color: #594838;
+  background: #241f1a;
+  color: #c9bdb1;
+}
+:global(html[data-marketing-theme="dark"]) .pricingNotes { border-color: #544536; }
+:global(html[data-marketing-theme="dark"]) .pricingNotes span { border-color: #544536; color: #e1bd7d; }
+@media (max-width: 760px) {
+  .pricingPageGrid .pricingPageCard:nth-child(2),
+  .pricingPageGrid .pricingPageCard:nth-child(2):hover { transform: none; }
+  .pricingPageGrid .pricingPageCard { padding: 28px 22px 24px; }
+  .pricingPageSection .packageComparisonWrap { margin-top: 38px; border-radius: 18px; }
+  .pricingPageSection .photographerPackage { margin-top: 38px; }
+}
 .photographerScopeGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 32px 0; }
 .photographerScopeGrid article { padding: 28px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); }
 .photographerScopeGrid h2 { margin: 0 0 16px; color: var(--wine); font-family: var(--font-serif); }

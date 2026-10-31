@@ -1344,15 +1344,38 @@ export async function handle(
     }
     if (route === "admin/photographers" && method === "GET" && user) {
       requireManager(user);
+      const photographers = await database
+        .collection("users")
+        .find(
+          { role: "partner", staff_role: "photographer", disabled: false },
+          { projection: { _id: 0, id: 1, display_name: 1, partner_id: 1 } },
+        )
+        .sort({ display_name: 1 })
+        .toArray();
+      const partnerIds = [
+        ...new Set(
+          photographers
+            .map((photographer) => photographer.partner_id)
+            .filter((id): id is string => typeof id === "string"),
+        ),
+      ];
+      const partners = await database
+        .collection("partners")
+        .find(
+          { id: { $in: partnerIds } },
+          { projection: { _id: 0, id: 1, name: 1, logo_url: 1 } },
+        )
+        .toArray();
+      const partnerById = new Map(partners.map((partner) => [partner.id, partner]));
       return json(
-        await database
-          .collection("users")
-          .find(
-            { role: "partner", staff_role: "photographer", disabled: false },
-            { projection: { _id: 0, id: 1, display_name: 1, partner_id: 1 } },
-          )
-          .sort({ display_name: 1 })
-          .toArray(),
+        photographers.map((photographer) => {
+          const partner = partnerById.get(photographer.partner_id);
+          return {
+            ...photographer,
+            partner_name: partner?.name || "",
+            logo_url: partner?.logo_url || "",
+          };
+        }),
       );
     }
     if (route === "admin/print-vendors" && method === "GET" && user) {
