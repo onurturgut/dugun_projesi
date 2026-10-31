@@ -110,6 +110,21 @@ export default function EventDetail() {
     queryKey: ["admin-wedding", id],
     queryFn: () => api<Wedding>(`/admin/weddings/${id}`),
   });
+  const photographerSale = useQuery({
+    queryKey: ["wedding-photographer-sale", id],
+    queryFn: () =>
+      api<{
+        id: string;
+        status: "pending_customer_consent" | "paid";
+        settlement_snapshot: { grossCents: number };
+        commercial_consent_version: 1;
+        commercial_consent_at?: string | null;
+        delivery_completed_at?: string | null;
+        customer_approval_status: "pending_delivery" | "pending" | "approved";
+        customer_approved_at?: string | null;
+      } | null>(`/admin/weddings/${id}/photographer-sale`),
+    enabled: me.data?.role === "owner" || me.data?.role === "platform",
+  });
   const photographers = useQuery({
     queryKey: ["photographers"],
     queryFn: () =>
@@ -252,6 +267,65 @@ export default function EventDetail() {
         qc.invalidateQueries({ queryKey: ["admin-notifications"] }),
       ]);
       toast.success("Profesyonel fotoğraf teslimatı tamamlandı.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function approvePhotographerDelivery() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/admin/weddings/${id}/photographer-sale/approve-delivery`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["wedding-photographer-sale", id] }),
+        qc.invalidateQueries({ queryKey: ["admin-notifications"] }),
+      ]);
+      toast.success("Fotoğrafçı teslimatı onaylandı.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function acceptPhotographerPackage() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/admin/weddings/${id}/photographer-sale/accept`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await qc.invalidateQueries({
+        queryKey: ["wedding-photographer-sale", id],
+      });
+      toast.success("Fotoğrafçı paketi satın alma onayı kaydedildi.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function createPhotographerPackageSale(photographerAccountId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api("/admin/photographer-sales", {
+        method: "POST",
+        body: JSON.stringify({
+          wedding_id: id,
+          photographer_account_id: photographerAccountId,
+          idempotency_key: `ui-${id}-${crypto.randomUUID()}`,
+        }),
+      });
+      await qc.invalidateQueries({
+        queryKey: ["wedding-photographer-sale", id],
+      });
+      toast.success("Fotoğrafçı paketi müşteri onayına gönderildi.");
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -409,14 +483,13 @@ export default function EventDetail() {
               </span>
               <span>
                 <strong>
-                  {w.design_revisions_used || 0}/
-                  {w.package_snapshot?.revisionLimit || 1}
+                  {w.design_revisions_used || 0}
                 </strong>
                 {w.design_status === "approved_for_print"
                   ? "baskı onaylı"
                   : w.design_status === "revision_requested"
                     ? "revizyon açık"
-                    : "revizyon hakkı"}
+                    : "tasarım güncellemesi"}
               </span>
             </div>
             <div
@@ -532,6 +605,29 @@ export default function EventDetail() {
                   </button>
                 </div>
               ) : null}
+              {me.data?.role === "platform" &&
+              !photographerSale.data &&
+              w.approval_status === "approved" &&
+              w.assigned_photographers?.length ? (
+                <div className="event-photographer-approval">
+                  <strong>Fotoğrafçı paketini satışa sun</strong>
+                  <p>
+                    4.000 TL KDV dâhil paket, organizasyon sahibinin ticari
+                    onayına gönderilir. Onay verilmeden hakediş oluşmaz.
+                  </p>
+                  <button
+                    className="admin-button primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void createPhotographerPackageSale(
+                        w.assigned_photographers![0].id,
+                      )
+                    }
+                  >
+                    Müşteri onayına gönder
+                  </button>
+                </div>
+              ) : null}
               {me.data?.role !== "owner" && !isPhotographer ? (
                 <details className="event-photographer-invite">
                   <summary>Kayıtlı olmayan fotoğrafçıyı davet et</summary>
@@ -610,6 +706,74 @@ export default function EventDetail() {
                   </div>
                 </details>
               ) : null}
+              {me.data?.role === "owner" && photographerSale.data ? (
+                <div className="event-photographer-approval">
+                  {photographerSale.data.status ===
+                  "pending_customer_consent" ? (
+                    <>
+                      <strong>Fotoğrafçı paketi satın alma onayı</strong>
+                      <p>
+                        Atanmış fotoğrafçının profesyonel çekim hizmeti için
+                        toplam fiyat 4.000 TL&apos;dir ve KDV dâhildir. Bu kayıt
+                        hukuki sözleşme yerine geçmez; onaylı ticari paket
+                        seçiminizi belgeler.
+                      </p>
+                      <label className="finance-check">
+                        <input type="checkbox" id="photographer-package-consent" />
+                        <span>4.000 TL KDV dâhil paket seçimini onaylıyorum.</span>
+                      </label>
+                      <button
+                        className="admin-button primary"
+                        disabled={busy}
+                        onClick={() => {
+                          const checkbox = document.querySelector<HTMLInputElement>(
+                            "#photographer-package-consent",
+                          );
+                          if (!checkbox?.checked) {
+                            toast.info("Devam etmek için paket seçimini onaylayın.");
+                            return;
+                          }
+                          void acceptPhotographerPackage();
+                        }}
+                      >
+                        Satın alma onayını kaydet
+                      </button>
+                    </>
+                  ) : photographerSale.data.customer_approval_status ===
+                  "pending" ? (
+                    <>
+                      <strong>Fotoğraf teslimat onayı</strong>
+                      <p>
+                        Fotoğrafçı teslimatı tamamladı. Albümü kontrol ettikten
+                        sonra onaylayın; bu işlem hakediş sürecini başlatır.
+                      </p>
+                      <button
+                        className="admin-button primary"
+                        disabled={busy}
+                        onClick={() => void approvePhotographerDelivery()}
+                      >
+                        Teslimatı onayla
+                      </button>
+                    </>
+                  ) : photographerSale.data.customer_approval_status ===
+                    "approved" ? (
+                    <>
+                      <strong>Fotoğraf teslimat onayı</strong>
+                      <p>
+                        Teslimat {dateText(
+                          photographerSale.data.customer_approved_at || null,
+                          true,
+                        )} tarihinde onaylandı.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <strong>Fotoğraf teslimat onayı</strong>
+                      <p>Fotoğrafçının teslimatı tamamlaması bekleniyor.</p>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </div>
           </section>
           <nav className="admin-tabs" aria-label="Organizasyon bölümleri">
@@ -618,6 +782,14 @@ export default function EventDetail() {
                 <Palette size={18} /> Tasarım
               </Link>
             )}
+            {!isPhotographer &&
+            w.package_snapshot?.version === 2 &&
+            w.package_snapshot.code === "plan-3" &&
+            w.package_snapshot.digitalInvitationIncluded ? (
+              <Link href={`/admin/${id}/invitation`}>
+                <Share2 size={18} /> Dijital davetiye
+              </Link>
+            ) : null}
             {canViewAlbum && (
               <button
                 aria-pressed={section === "album"}

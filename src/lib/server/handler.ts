@@ -54,6 +54,8 @@ import type {
   Media,
   Account,
   SaleRecord,
+  PhotographerSaleRecord,
+  ServicePayoutLedgerEntry,
   AddOnProduct,
   AgentReport,
   PrintJob,
@@ -71,6 +73,7 @@ import {
   packageStorageLimit,
   packageUploadDays,
   priceSnapshot,
+  photographerSettlementSnapshot,
   storageBytesInUse,
   type PackageCode,
   type PackagePolicy,
@@ -131,6 +134,12 @@ const publicEvent = (w: Wedding) => ({
   design: w.design,
   can_upload: uploadsOpenForRuntime(w),
   uploads_close_at: w.uploads_close_at,
+  ...(w.package_snapshot?.version === 2 &&
+  w.package_snapshot.code === "plan-3" &&
+  w.package_snapshot.digitalInvitationIncluded === true &&
+  w.digital_invitation?.status === "published"
+    ? { digital_invitation: w.digital_invitation }
+    : {}),
 });
 export async function handle(
   req: NextRequest,
@@ -233,6 +242,17 @@ export async function handle(
       const partnerId = randomUUID();
       const accountId = randomUUID();
       const now = new Date().toISOString();
+      if (
+        await database.collection("organization_participants").findOne({
+          wedding_id: invitation.wedding_id,
+          participant_role: "photographer",
+          active: true,
+        })
+      )
+        throw new HttpError(
+          409,
+          "Bu organizasyonda zaten aktif bir fotoğrafçı bulunuyor.",
+        );
       const transaction = (await mongoClient()).startSession();
       try {
         await transaction.withTransaction(async () => {
@@ -2472,6 +2492,967 @@ export async function handle(
       });
       return json(refunded);
     }
+    if (route === "admin/photographer-sales" && user) {
+      const photographerSales =
+        database.collection<PhotographerSaleRecord>("photographer_sales");
+      if (method === "GET") {
+        requirePermission(
+          user,
+          user.role === "platform" ? "finance.view_all" : "finance.view_own",
+        );
+        const filters = z
+          .object({
+            sale_status: z
+              .enum(["pending_customer_consent", "paid", "refunded"])
+              .optional(),
+            payout_status: z
+              .enum([
+                "pending_delivery",
+                "pending_customer_approval",
+                "payable",
+                "approved",
+                "paid",
+                "recognized",
+                "reversed",
+              ])
+              .optional(),
+          })
+          .parse({
+            sale_status: req.nextUrl.searchParams.get("sale_status") || undefined,
+            payout_status:
+              req.nextUrl.searchParams.get("payout_status") || undefined,
+          });
+        const tenantScope =
+          user.role === "platform"
+            ? {}
+            : {
+                $or: [
+                  { originating_partner_id: user.partner_id! },
+                  { photographer_partner_id: user.partner_id! },
+                ],
+              };
+        let payoutSaleIds: string[] | undefined;
+        if (filters.payout_status) {
+          payoutSaleIds = await database
+            .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
+            .distinct("sale_id", {
+              type: "accrual",
+              status: filters.payout_status,
+            });
+        }
+        const scope = {
+          ...tenantScope,
+          ...(filters.sale_status ? { status: filters.sale_status } : {}),
+          ...(payoutSaleIds ? { id: { $in: payoutSaleIds } } : {}),
+        };
+        const items = await photographerSales
+            .find(scope, { projection: { _id: 0 } })
+            .sort({ occurred_at: -1 })
+            .limit(250)
+            .toArray();
+        const [events, partners, accounts, payouts] = await Promise.all([
+          weddings
+            .find(
+              { id: { $in: [...new Set(items.map((item) => item.wedding_id))] } },
+              { projection: { _id: 0, id: 1, title: 1 } },
+            )
+            .toArray(),
+          database
+            .collection("partners")
+            .find(
+              {
+                id: {
+                  $in: [
+                    ...new Set(
+                      items.flatMap((item) => [
+                        item.photographer_partner_id,
+                        item.originating_partner_id,
+                      ]),
+                    ),
+                  ],
+                },
+              },
+              { projection: { _id: 0, id: 1, name: 1 } },
+            )
+            .toArray(),
+          database
+            .collection("users")
+            .find(
+              {
+                id: {
+                  $in: [...new Set(items.map((item) => item.photographer_account_id))],
+                },
+              },
+              { projection: { _id: 0, id: 1, display_name: 1 } },
+            )
+            .toArray(),
+          database
+            .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
+            .find(
+              { sale_id: { $in: items.map((item) => item.id) }, type: "accrual" },
+              { projection: { _id: 0 } },
+            )
+            .toArray(),
+        ]);
+        const eventNames = new Map(events.map((item) => [item.id, item.title]));
+        const partnerNames = new Map(partners.map((item) => [item.id, item.name]));
+        const accountNames = new Map(
+          accounts.map((item) => [item.id, item.display_name]),
+        );
+        return json(
+          items.map((item) => ({
+            ...item,
+            wedding_title: eventNames.get(item.wedding_id) || item.wedding_id,
+            photographer_name:
+              accountNames.get(item.photographer_account_id) ||
+              item.photographer_account_id,
+            photographer_partner_name:
+              partnerNames.get(item.photographer_partner_id) ||
+              item.photographer_partner_id,
+            originating_partner_name:
+              partnerNames.get(item.originating_partner_id) ||
+              item.originating_partner_id,
+            payouts: payouts.filter((payout) => payout.sale_id === item.id),
+          })),
+        );
+      }
+      if (method === "POST") {
+        requirePermission(user, "commission.manage");
+        const input = z
+          .object({
+            wedding_id: z.string().uuid(),
+            photographer_account_id: z.string().uuid(),
+            idempotency_key: z.string().trim().min(8).max(120),
+            occurred_at: z.string().datetime().optional(),
+          })
+          .parse(await req.json());
+        const existing = await photographerSales.findOne(
+          { idempotency_key: input.idempotency_key },
+          { projection: { _id: 0 } },
+        );
+        if (existing) return json(existing);
+        if (
+          await photographerSales.findOne({
+            wedding_id: input.wedding_id,
+            status: { $in: ["pending_customer_consent", "paid"] },
+          })
+        )
+          throw new HttpError(
+            409,
+            "Bu organizasyon için ödenmiş bir fotoğrafçı paketi zaten var.",
+          );
+        const event = await weddings.findOne({
+          id: input.wedding_id,
+          approval_status: "approved",
+        });
+        if (!event)
+          throw new HttpError(409, "Onaylı bir organizasyon gerekli.");
+        const assignment = await database
+          .collection("organization_participants")
+          .findOne({
+            wedding_id: event.id,
+            account_id: input.photographer_account_id,
+            participant_role: "photographer",
+            active: true,
+          });
+        if (!assignment?.partner_id)
+          throw new HttpError(
+            409,
+            "Fotoğrafçı organizasyona aktif olarak atanmış olmalı.",
+          );
+        const originatingPartnerId = event.lead_partner_id || event.partner_id;
+        const originatingPartner = await database.collection("partners").findOne({
+          id: originatingPartnerId,
+          active: true,
+        });
+        if (!originatingPartner)
+          throw new HttpError(
+            409,
+            "Organizasyonu oluşturan aktif işletme bulunamadı.",
+          );
+        const occurredAt = input.occurred_at || new Date().toISOString();
+        const now = new Date().toISOString();
+        const settlement = photographerSettlementSnapshot();
+        const transaction = (await mongoClient()).startSession();
+        let created: PhotographerSaleRecord | null = null;
+        try {
+          await transaction.withTransaction(async () => {
+            created = {
+              id: randomUUID(),
+              idempotency_key: input.idempotency_key,
+              wedding_id: event.id,
+              photographer_account_id: input.photographer_account_id,
+              photographer_partner_id: assignment.partner_id,
+              originating_partner_id: originatingPartnerId,
+              status: "pending_customer_consent",
+              occurred_at: occurredAt,
+              recorded_at: now,
+              recorded_by: user.id,
+              settlement_snapshot: settlement,
+              refunded_at: null,
+              refunded_by: null,
+              delivery_completed_at: null,
+              customer_approval_status: "pending_delivery",
+              customer_approved_at: null,
+              customer_approved_by: null,
+              commercial_consent_version: 1,
+              commercial_consent_at: null,
+              commercial_consent_by: null,
+            };
+            await photographerSales.insertOne(created, { session: transaction });
+          });
+        } catch (reason) {
+          if (
+            reason &&
+            typeof reason === "object" &&
+            "code" in reason &&
+            reason.code === 11000
+          ) {
+            const raced = await photographerSales.findOne(
+              { idempotency_key: input.idempotency_key },
+              { projection: { _id: 0 } },
+            );
+            if (raced) created = raced;
+            else
+              throw new HttpError(
+                409,
+                "Bu organizasyon için ödenmiş bir fotoğrafçı paketi zaten var.",
+              );
+          } else throw reason;
+        } finally {
+          await transaction.endSession();
+        }
+        await audit(req, "photographer_sale.recorded", user, {
+          sale_id: created!.id,
+          wedding_id: event.id,
+          photographer_account_id: input.photographer_account_id,
+          originating_partner_id: originatingPartnerId,
+        });
+        return json(created, 201);
+      }
+    }
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "photographer-sales" &&
+      path[3] === "refund" &&
+      method === "POST" &&
+      user
+    ) {
+      requirePermission(user, "commission.manage");
+      const reason = z
+        .object({ reason: z.string().trim().min(3).max(500) })
+        .parse(await req.json()).reason;
+      const photographerSales =
+        database.collection<PhotographerSaleRecord>("photographer_sales");
+      const payoutLedger =
+        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const transaction = (await mongoClient()).startSession();
+      let refunded: PhotographerSaleRecord | null = null;
+      try {
+        await transaction.withTransaction(async () => {
+          const now = new Date().toISOString();
+          const paidPayout = await payoutLedger.findOne(
+            { sale_id: path[2], type: "accrual", status: "paid" },
+            { session: transaction },
+          );
+          if (paidPayout)
+            throw new HttpError(
+              409,
+              "Ödenmiş hakediş bulunan fotoğrafçı satışı doğrudan iade edilemez.",
+            );
+          refunded = await photographerSales.findOneAndUpdate(
+            { id: path[2], status: "paid" },
+            {
+              $set: {
+                status: "refunded",
+                refunded_at: now,
+                refunded_by: user.id,
+                refund_reason: reason,
+              },
+            },
+            { returnDocument: "after", session: transaction },
+          );
+          if (!refunded)
+            throw new HttpError(
+              409,
+              "Fotoğrafçı paketi satışı bulunamadı veya daha önce iade edildi.",
+            );
+          const existingAccruals = await payoutLedger
+            .find(
+              { sale_id: refunded.id, type: "accrual" },
+              { session: transaction },
+            )
+            .toArray();
+          const reversals: ServicePayoutLedgerEntry[] = existingAccruals.map(
+            (entry) => ({
+              id: randomUUID(),
+              sale_id: entry.sale_id,
+              wedding_id: entry.wedding_id,
+              beneficiary_type: entry.beneficiary_type,
+              beneficiary_id: entry.beneficiary_id,
+              type: "reversal",
+              gross_cents: -entry.gross_cents,
+              status: "reversed",
+              created_at: now,
+              created_by: user.id,
+              reason,
+            }),
+          );
+          if (reversals.length)
+            await payoutLedger.insertMany(reversals, { session: transaction });
+        });
+      } finally {
+        await transaction.endSession();
+      }
+      await audit(req, "photographer_sale.refunded", user, {
+        sale_id: refunded!.id,
+        reason,
+      });
+      return json(refunded);
+    }
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "weddings" &&
+      path[3] === "photographer-sale" &&
+      method === "GET" &&
+      user
+    ) {
+      const event = await weddings.findOne({ id: path[2] });
+      if (!event || !canAccess(user, event))
+        throw new HttpError(404, "Organizasyon bulunamadı.");
+      const sale = await database
+        .collection<PhotographerSaleRecord>("photographer_sales")
+        .findOne(
+          {
+            wedding_id: event.id,
+            status: { $in: ["pending_customer_consent", "paid"] },
+          },
+          {
+            projection: {
+              _id: 0,
+              id: 1,
+              wedding_id: 1,
+              status: 1,
+              settlement_snapshot: 1,
+              commercial_consent_version: 1,
+              commercial_consent_at: 1,
+              delivery_completed_at: 1,
+              customer_approval_status: 1,
+              customer_approved_at: 1,
+            },
+          },
+        );
+      return json(sale);
+    }
+    if (
+      path.length === 5 &&
+      path[0] === "admin" &&
+      path[1] === "weddings" &&
+      path[3] === "photographer-sale" &&
+      path[4] === "accept" &&
+      method === "POST" &&
+      user
+    ) {
+      const event = await weddings.findOne({ id: path[2] });
+      if (!event || user.role !== "owner" || event.owner_id !== user.id)
+        throw new HttpError(403, "Satın alma onayını yalnızca organizasyon sahibi verebilir.");
+      const photographerSales =
+        database.collection<PhotographerSaleRecord>("photographer_sales");
+      const existing = await photographerSales.findOne({
+        wedding_id: event.id,
+        status: { $in: ["pending_customer_consent", "paid"] },
+      });
+      if (!existing)
+        throw new HttpError(404, "Fotoğrafçı paketi satın alma kaydı bulunamadı.");
+      if (existing.status === "paid") return json(existing);
+      const transaction = (await mongoClient()).startSession();
+      let accepted: PhotographerSaleRecord | null = null;
+      try {
+        await transaction.withTransaction(async () => {
+          const now = new Date().toISOString();
+          accepted = await photographerSales.findOneAndUpdate(
+            { id: existing.id, status: "pending_customer_consent" },
+            {
+              $set: {
+                status: "paid",
+                commercial_consent_at: now,
+                commercial_consent_by: user.id,
+              },
+            },
+            { returnDocument: "after", session: transaction },
+          );
+          if (!accepted)
+            throw new HttpError(409, "Satın alma başka bir oturumda işlendi.");
+          const settlement = accepted.settlement_snapshot;
+          await database
+            .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
+            .insertMany(
+              [
+                {
+                  id: randomUUID(),
+                  sale_id: accepted.id,
+                  wedding_id: event.id,
+                  beneficiary_type: "photographer",
+                  beneficiary_id: accepted.photographer_account_id,
+                  type: "accrual",
+                  gross_cents: settlement.photographerGrossCents,
+                  status: "pending_delivery",
+                  created_at: now,
+                  created_by: user.id,
+                },
+                {
+                  id: randomUUID(),
+                  sale_id: accepted.id,
+                  wedding_id: event.id,
+                  beneficiary_type: "originating_partner",
+                  beneficiary_id: accepted.originating_partner_id,
+                  type: "accrual",
+                  gross_cents: settlement.originatingPartnerGrossCents,
+                  status: "pending_delivery",
+                  created_at: now,
+                  created_by: user.id,
+                },
+                {
+                  id: randomUUID(),
+                  sale_id: accepted.id,
+                  wedding_id: event.id,
+                  beneficiary_type: "platform",
+                  beneficiary_id: "shineqr",
+                  type: "accrual",
+                  gross_cents: settlement.platformGrossCents,
+                  status: "recognized",
+                  created_at: now,
+                  created_by: user.id,
+                },
+              ],
+              { session: transaction },
+            );
+        });
+      } finally {
+        await transaction.endSession();
+      }
+      await audit(req, "photographer_sale.customer_consented", user, {
+        sale_id: accepted!.id,
+        wedding_id: event.id,
+        commercial_consent_version: 1,
+        gross_cents: accepted!.settlement_snapshot.grossCents,
+      });
+      return json(accepted);
+    }
+    if (
+      path.length === 5 &&
+      path[0] === "admin" &&
+      path[1] === "weddings" &&
+      path[3] === "photographer-sale" &&
+      path[4] === "approve-delivery" &&
+      method === "POST" &&
+      user
+    ) {
+      const event = await weddings.findOne({ id: path[2] });
+      if (!event || user.role !== "owner" || event.owner_id !== user.id)
+        throw new HttpError(403, "Teslimatı yalnızca organizasyon sahibi onaylayabilir.");
+      const photographerSales =
+        database.collection<PhotographerSaleRecord>("photographer_sales");
+      const payoutLedger =
+        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const transaction = (await mongoClient()).startSession();
+      let approved: PhotographerSaleRecord | null = null;
+      try {
+        await transaction.withTransaction(async () => {
+          const now = new Date().toISOString();
+          approved = await photographerSales.findOneAndUpdate(
+            {
+              wedding_id: event.id,
+              status: "paid",
+              customer_approval_status: "pending",
+              delivery_completed_at: { $type: "string" },
+            },
+            {
+              $set: {
+                customer_approval_status: "approved",
+                customer_approved_at: now,
+                customer_approved_by: user.id,
+              },
+            },
+            { returnDocument: "after", session: transaction },
+          );
+          if (!approved)
+            throw new HttpError(
+              409,
+              "Teslimat onay beklemiyor veya daha önce onaylandı.",
+            );
+          await payoutLedger.updateMany(
+            {
+              sale_id: approved.id,
+              type: "accrual",
+              status: "pending_customer_approval",
+              beneficiary_type: { $in: ["photographer", "originating_partner"] },
+            },
+            { $set: { status: "payable" } },
+            { session: transaction },
+          );
+        });
+      } finally {
+        await transaction.endSession();
+      }
+      await audit(req, "photographer_delivery.customer_approved", user, {
+        sale_id: approved!.id,
+        wedding_id: event.id,
+      });
+      return json(approved);
+    }
+    if (
+      path.length === 6 &&
+      path[0] === "admin" &&
+      path[1] === "photographer-sales" &&
+      path[3] === "payouts" &&
+      path[5] === "approve" &&
+      method === "POST" &&
+      user
+    ) {
+      requirePermission(user, "payout.approve");
+      const now = new Date().toISOString();
+      const payout = await database
+        .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
+        .findOneAndUpdate(
+          {
+            id: path[4],
+            sale_id: path[2],
+            type: "accrual",
+            status: "payable",
+            beneficiary_type: { $in: ["photographer", "originating_partner"] },
+          },
+          {
+            $set: {
+              status: "approved",
+              approved_at: now,
+              approved_by: user.id,
+            },
+          },
+          { returnDocument: "after", projection: { _id: 0 } },
+        );
+      if (!payout)
+        throw new HttpError(409, "Hakediş onaya uygun durumda değil.");
+      await audit(req, "photographer_payout.approved", user, {
+        sale_id: path[2],
+        payout_id: payout.id,
+        beneficiary_type: payout.beneficiary_type,
+        gross_cents: payout.gross_cents,
+      });
+      return json(payout);
+    }
+    if (
+      path.length === 6 &&
+      path[0] === "admin" &&
+      path[1] === "photographer-sales" &&
+      path[3] === "payouts" &&
+      path[5] === "proof" &&
+      user
+    ) {
+      requirePermission(user, "finance.view_all");
+      const payoutLedger =
+        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const payout = await payoutLedger.findOne({
+        id: path[4],
+        sale_id: path[2],
+        type: "accrual",
+        beneficiary_type: { $in: ["photographer", "originating_partner"] },
+      });
+      if (!payout) throw new HttpError(404, "Hakediş bulunamadı.");
+      if (method === "GET") {
+        if (!payout.payment_proof_storage_path)
+          throw new HttpError(404, "Ödeme belgesi bulunamadı.");
+        await audit(req, "photographer_payout.proof_viewed", user, {
+          sale_id: path[2],
+          payout_id: payout.id,
+          proof_id: payout.payment_proof_id,
+        });
+        return json({
+          file_name: payout.payment_proof_file_name,
+          url: await signedObjectUrl(payout.payment_proof_storage_path, 300),
+        });
+      }
+      if (method === "POST") {
+        requirePermission(user, "payout.mark_paid");
+        if (payout.status !== "approved")
+          throw new HttpError(409, "Ödeme belgesi yalnızca onaylı hakedişe eklenebilir.");
+        if (Number(req.headers.get("content-length")) > 6 * 1024 * 1024)
+          throw new HttpError(413, "Ödeme belgesi en fazla 5 MB olabilir.");
+        const form = await req.formData();
+        const file = form.get("file");
+        if (!(file instanceof File) || !file.size || file.size > 5 * 1024 * 1024)
+          throw new HttpError(400, "Geçerli bir ödeme belgesi seçin.");
+        const body = Buffer.from(await file.arrayBuffer());
+        const detectedType = body.subarray(0, 4).toString("ascii") === "%PDF"
+          ? "application/pdf"
+          : body.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
+            ? "image/jpeg"
+            : body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+              ? "image/png"
+              : null;
+        if (!detectedType || detectedType !== file.type)
+          throw new HttpError(400, "Yalnızca PDF, JPG veya PNG ödeme belgesi yüklenebilir.");
+        const proofId = randomUUID();
+        const storagePath = `payment-proofs/${path[2]}/${path[4]}/${proofId}`;
+        const { client, bucket } = storage();
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: storagePath,
+            Body: body,
+            ContentType: detectedType,
+          }),
+        );
+        const now = new Date().toISOString();
+        const updated = await payoutLedger.findOneAndUpdate(
+          { id: payout.id, status: "approved", payment_proof_id: { $exists: false } },
+          {
+            $set: {
+              payment_proof_id: proofId,
+              payment_proof_file_name: file.name.slice(0, 180),
+              payment_proof_mime_type: detectedType,
+              payment_proof_storage_path: storagePath,
+              payment_proof_uploaded_at: now,
+              payment_proof_uploaded_by: user.id,
+            },
+          },
+          { returnDocument: "after", projection: { _id: 0 } },
+        );
+        if (!updated) {
+          await deleteObject(storagePath);
+          throw new HttpError(409, "Ödeme belgesi daha önce yüklendi veya durum değişti.");
+        }
+        await audit(req, "photographer_payout.proof_uploaded", user, {
+          sale_id: path[2],
+          payout_id: payout.id,
+          proof_id: proofId,
+          mime_type: detectedType,
+        });
+        return json(updated, 201);
+      }
+    }
+    if (
+      path.length === 6 &&
+      path[0] === "admin" &&
+      path[1] === "photographer-sales" &&
+      path[3] === "payouts" &&
+      path[5] === "mark-paid" &&
+      method === "POST" &&
+      user
+    ) {
+      requirePermission(user, "payout.mark_paid");
+      const input = z
+        .object({ payment_reference: z.string().trim().min(3).max(120) })
+        .parse(await req.json());
+      const now = new Date().toISOString();
+      let payout: ServicePayoutLedgerEntry | null = null;
+      try {
+        payout = await database
+          .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
+          .findOneAndUpdate(
+            {
+              id: path[4],
+              sale_id: path[2],
+              type: "accrual",
+              status: "approved",
+              approved_by: { $ne: user.id },
+              payment_proof_id: { $type: "string" },
+              beneficiary_type: {
+                $in: ["photographer", "originating_partner"],
+              },
+            },
+            {
+              $set: {
+                status: "paid",
+                paid_at: now,
+                paid_by: user.id,
+                payment_reference: input.payment_reference,
+              },
+            },
+            { returnDocument: "after", projection: { _id: 0 } },
+          );
+      } catch (reason) {
+        if (
+          reason &&
+          typeof reason === "object" &&
+          "code" in reason &&
+          reason.code === 11000
+        )
+          throw new HttpError(409, "Bu ödeme referansı daha önce kullanıldı.");
+        throw reason;
+      }
+      if (!payout)
+        throw new HttpError(
+          409,
+          "Hakediş ödeme kaydına uygun değil veya aynı kullanıcı tarafından onaylandı.",
+        );
+      await audit(req, "photographer_payout.marked_paid", user, {
+        sale_id: path[2],
+        payout_id: payout.id,
+        payment_reference: input.payment_reference,
+        gross_cents: payout.gross_cents,
+      });
+      return json(payout);
+    }
+    if (
+      route === "admin/photographer-payout-export.csv" &&
+      method === "GET" &&
+      user
+    ) {
+      requirePermission(user, "finance.view_all");
+      const ledger =
+        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const exportFilters = z
+        .object({
+          from: z.string().date().optional(),
+          to: z.string().date().optional(),
+          status: z
+            .enum([
+              "pending_delivery",
+              "pending_customer_approval",
+              "payable",
+              "approved",
+              "paid",
+              "recognized",
+              "reversed",
+            ])
+            .optional(),
+          beneficiary_type: z
+            .enum(["photographer", "originating_partner", "platform"])
+            .optional(),
+        })
+        .refine(
+          (value) => !value.from || !value.to || value.from <= value.to,
+          "Başlangıç tarihi bitiş tarihinden sonra olamaz.",
+        )
+        .parse({
+          from: req.nextUrl.searchParams.get("from") || undefined,
+          to: req.nextUrl.searchParams.get("to") || undefined,
+          status: req.nextUrl.searchParams.get("status") || undefined,
+          beneficiary_type:
+            req.nextUrl.searchParams.get("beneficiary_type") || undefined,
+        });
+      const createdAtFilter = {
+        ...(exportFilters.from
+          ? { $gte: new Date(`${exportFilters.from}T00:00:00+03:00`).toISOString() }
+          : {}),
+        ...(exportFilters.to
+          ? {
+              $lt: new Date(
+                Date.parse(`${exportFilters.to}T00:00:00+03:00`) + 86_400_000,
+              ).toISOString(),
+            }
+          : {}),
+      };
+      const entries = await ledger
+        .find(
+          {
+            type: "accrual",
+            ...(exportFilters.status ? { status: exportFilters.status } : {}),
+            ...(exportFilters.beneficiary_type
+              ? { beneficiary_type: exportFilters.beneficiary_type }
+              : {}),
+            ...(Object.keys(createdAtFilter).length
+              ? { created_at: createdAtFilter }
+              : {}),
+          },
+          { projection: { _id: 0 } },
+        )
+        .sort({ created_at: -1, id: -1 })
+        .limit(10_000)
+        .toArray();
+      const saleIds = [...new Set(entries.map((entry) => entry.sale_id))];
+      const sales = await database
+        .collection<PhotographerSaleRecord>("photographer_sales")
+        .find(
+          { id: { $in: saleIds } },
+          {
+            projection: {
+              _id: 0,
+              id: 1,
+              wedding_id: 1,
+              photographer_account_id: 1,
+              originating_partner_id: 1,
+              occurred_at: 1,
+            },
+          },
+        )
+        .toArray();
+      const eventIds = [...new Set(sales.map((sale) => sale.wedding_id))];
+      const [events, accounts, partners] = await Promise.all([
+        weddings
+          .find(
+            { id: { $in: eventIds } },
+            { projection: { _id: 0, id: 1, title: 1 } },
+          )
+          .toArray(),
+        database
+          .collection("users")
+          .find(
+            {
+              id: {
+                $in: [
+                  ...new Set(sales.map((sale) => sale.photographer_account_id)),
+                ],
+              },
+            },
+            { projection: { _id: 0, id: 1, display_name: 1 } },
+          )
+          .toArray(),
+        database
+          .collection("partners")
+          .find(
+            {
+              id: {
+                $in: [
+                  ...new Set(sales.map((sale) => sale.originating_partner_id)),
+                ],
+              },
+            },
+            { projection: { _id: 0, id: 1, name: 1 } },
+          )
+          .toArray(),
+      ]);
+      const saleMap = new Map(sales.map((sale) => [sale.id, sale]));
+      const eventMap = new Map(events.map((event) => [event.id, event.title]));
+      const accountMap = new Map(
+        accounts.map((account) => [account.id, account.display_name]),
+      );
+      const partnerMap = new Map(
+        partners.map((partner) => [partner.id, partner.name]),
+      );
+      const csvCell = (value: unknown) => {
+        let text = String(value ?? "");
+        if (/^[=+\-@]/.test(text)) text = `'${text}`;
+        return `"${text.replaceAll('"', '""')}"`;
+      };
+      const header = [
+        "Hakediş ID",
+        "Satış ID",
+        "Organizasyon",
+        "Lehtar türü",
+        "Fotoğrafçı",
+        "Kaynak işletme",
+        "Tutar (TL)",
+        "Durum",
+        "Satış tarihi",
+        "Onay tarihi",
+        "Ödeme tarihi",
+        "Ödeme referansı",
+        "Belge var",
+      ];
+      const rows = entries.map((entry) => {
+        const sale = saleMap.get(entry.sale_id);
+        return [
+          entry.id,
+          entry.sale_id,
+          sale ? eventMap.get(sale.wedding_id) || sale.wedding_id : entry.wedding_id,
+          entry.beneficiary_type,
+          sale
+            ? accountMap.get(sale.photographer_account_id) ||
+              sale.photographer_account_id
+            : "",
+          sale
+            ? partnerMap.get(sale.originating_partner_id) ||
+              sale.originating_partner_id
+            : "",
+          (entry.gross_cents / 100).toFixed(2),
+          entry.status,
+          sale?.occurred_at || "",
+          entry.approved_at || "",
+          entry.paid_at || "",
+          entry.payment_reference || "",
+          entry.payment_proof_id ? "Evet" : "Hayır",
+        ];
+      });
+      const csv = `\uFEFF${[header, ...rows]
+        .map((row) => row.map(csvCell).join(","))
+        .join("\r\n")}`;
+      await audit(req, "photographer_payout.csv_exported", user, {
+        row_count: rows.length,
+        filters: exportFilters,
+      });
+      return new Response(csv, {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="shineqr-fotografci-hakedis-${new Date().toISOString().slice(0, 10)}.csv"`,
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+    if (
+      route === "admin/photographer-payout-reconciliation" &&
+      method === "GET" &&
+      user
+    ) {
+      requirePermission(user, "finance.view_all");
+      const ledger =
+        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const [statusRows, anomalyRows] = await Promise.all([
+        ledger
+          .aggregate<{
+            _id: ServicePayoutLedgerEntry["status"];
+            count: number;
+            gross_cents: number;
+          }>([
+            { $match: { type: "accrual" } },
+            {
+              $group: {
+                _id: "$status",
+                count: { $sum: 1 },
+                gross_cents: { $sum: "$gross_cents" },
+              },
+            },
+            { $sort: { _id: 1 } },
+          ])
+          .toArray(),
+        ledger
+          .find(
+            {
+              type: "accrual",
+              status: "paid",
+              $or: [
+                { payment_reference: { $exists: false } },
+                { payment_proof_id: { $exists: false } },
+                { paid_at: { $exists: false } },
+                { paid_by: { $exists: false } },
+              ],
+            },
+            {
+              projection: {
+                _id: 0,
+                id: 1,
+                sale_id: 1,
+                wedding_id: 1,
+                beneficiary_type: 1,
+                gross_cents: 1,
+                payment_reference: 1,
+                payment_proof_id: 1,
+                paid_at: 1,
+                paid_by: 1,
+              },
+            },
+          )
+          .limit(100)
+          .toArray(),
+      ]);
+      const statuses = Object.fromEntries(
+        statusRows.map((row) => [
+          row._id,
+          { count: row.count, gross_cents: row.gross_cents },
+        ]),
+      );
+      return json({
+        generated_at: new Date().toISOString(),
+        statuses,
+        anomalies: anomalyRows,
+        ready_to_pay: statuses.approved || { count: 0, gross_cents: 0 },
+        paid: statuses.paid || { count: 0, gross_cents: 0 },
+      });
+    }
     if (route === "admin/operations" && method === "GET" && user) {
       requirePlatform(user);
       const now = new Date().toISOString();
@@ -3503,12 +4484,107 @@ export async function handle(
     if (path[0] === "admin" && path[1] === "weddings" && path[2] && user) {
       const event = await eventFor(user, path[2]);
       const id = event.id;
+      if (path.length >= 4 && path[3] === "digital-invitation") {
+        const invitationEntitled =
+          event.package_snapshot?.version === 2 &&
+          event.package_snapshot.code === "plan-3" &&
+          event.package_snapshot.digitalInvitationIncluded === true;
+        if (!invitationEntitled)
+          throw new HttpError(
+            403,
+            "Dijital davetiye yalnızca Premium v2 paket hakkıyla kullanılabilir.",
+          );
+        if (path.length === 4 && method === "GET")
+          return json(event.digital_invitation || null);
+        if (path.length === 4 && method === "PUT") {
+          requirePermission(user, "organization.update");
+          const input = z
+            .object({
+              event_date: z.string().date(),
+              event_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+              venue: z.string().trim().min(2).max(200),
+              map_url: z
+                .string()
+                .trim()
+                .url()
+                .refine((value) => value.startsWith("https://"), {
+                  message: "Harita bağlantısı HTTPS olmalı.",
+                }),
+              message: z.string().trim().max(500).default(""),
+            })
+            .strict()
+            .parse(await req.json());
+          const now = new Date().toISOString();
+          const invitation: NonNullable<Wedding["digital_invitation"]> = {
+            template_version: 1,
+            status: "draft",
+            ...input,
+            updated_at: now,
+            updated_by: user.id,
+            published_at: null,
+            published_by: null,
+          };
+          await weddings.updateOne(
+            { id, ...weddingScope(user) },
+            { $set: { digital_invitation: invitation } },
+          );
+          await audit(req, "digital_invitation.draft_saved", user, {
+            wedding_id: id,
+            template_version: 1,
+          });
+          return json(invitation);
+        }
+        if (
+          path.length === 5 &&
+          path[4] === "publish" &&
+          method === "POST"
+        ) {
+          requirePermission(user, "organization.update");
+          if (!event.digital_invitation)
+            throw new HttpError(409, "Önce dijital davetiye taslağı oluşturun.");
+          const now = new Date().toISOString();
+          const published = await weddings.findOneAndUpdate(
+            {
+              id,
+              ...weddingScope(user),
+              "digital_invitation.updated_at":
+                event.digital_invitation.updated_at,
+            },
+            {
+              $set: {
+                "digital_invitation.status": "published",
+                "digital_invitation.published_at": now,
+                "digital_invitation.published_by": user.id,
+              },
+            },
+            { returnDocument: "after", projection: { _id: 0 } },
+          );
+          if (!published)
+            throw new HttpError(409, "Davetiye başka bir oturumda değiştirildi.");
+          await audit(req, "digital_invitation.published", user, {
+            wedding_id: id,
+            template_version: event.digital_invitation.template_version,
+          });
+          return json(published.digital_invitation);
+        }
+      }
       if (
         path.length === 4 &&
         path[3] === "photographer-invitations" &&
         method === "POST"
       ) {
         requirePermission(user, "organization.update");
+        if (
+          await database.collection("organization_participants").findOne({
+            wedding_id: id,
+            participant_role: "photographer",
+            active: true,
+          })
+        )
+          throw new HttpError(
+            409,
+            "Bu organizasyonda zaten aktif bir fotoğrafçı bulunuyor.",
+          );
         const input = z
           .object({
             email: z.string().trim().toLowerCase().email().max(254),
@@ -3583,6 +4659,19 @@ export async function handle(
         });
         if (method === "POST") {
           const data = input.parse(await req.json());
+          const activePhotographer = await database
+            .collection("organization_participants")
+            .findOne({
+              wedding_id: id,
+              participant_role: "photographer",
+              active: true,
+              account_id: { $ne: data.account_id },
+            });
+          if (activePhotographer)
+            throw new HttpError(
+              409,
+              "Bir organizasyona yalnızca bir aktif fotoğrafçı atanabilir.",
+            );
           const photographer = await database.collection("users").findOne({
             id: data.account_id,
             role: "partner",
@@ -3689,25 +4778,80 @@ export async function handle(
             "Teslimatı tamamlamak için en az bir dosya yükleyin.",
           );
         const now = new Date().toISOString();
-        const changed = await database
-          .collection("organization_participants")
-          .updateOne(
-            {
-              _id: assignment._id,
-              active: true,
-              delivery_status: { $ne: "completed" },
-            },
-            {
-              $set: {
-                delivery_status: "completed",
-                delivered_file_count: deliveredFileCount,
-                completed_at: now,
-                completed_by: user.id,
-              },
-            },
-          );
-        if (!changed.modifiedCount)
-          throw new HttpError(409, "Teslimat başka bir oturumda tamamlandı.");
+        const transaction = (await mongoClient()).startSession();
+        try {
+          await transaction.withTransaction(async () => {
+            const changed = await database
+              .collection("organization_participants")
+              .updateOne(
+                {
+                  _id: assignment._id,
+                  active: true,
+                  delivery_status: { $ne: "completed" },
+                },
+                {
+                  $set: {
+                    delivery_status: "completed",
+                    delivered_file_count: deliveredFileCount,
+                    completed_at: now,
+                    completed_by: user.id,
+                  },
+                },
+                { session: transaction },
+              );
+            if (!changed.modifiedCount)
+              throw new HttpError(
+                409,
+                "Teslimat başka bir oturumda tamamlandı.",
+              );
+            const photographerSale = await database
+              .collection<PhotographerSaleRecord>("photographer_sales")
+              .findOne(
+                {
+                  wedding_id: id,
+                  photographer_account_id: user.id,
+                  status: "paid",
+                },
+                { session: transaction },
+              );
+            if (photographerSale) {
+              await database
+                .collection<PhotographerSaleRecord>("photographer_sales")
+                .updateOne(
+                  {
+                    id: photographerSale.id,
+                    $or: [
+                      { customer_approval_status: "pending_delivery" },
+                      { customer_approval_status: { $exists: false } },
+                    ],
+                  },
+                  {
+                    $set: {
+                      delivery_completed_at: now,
+                      customer_approval_status: "pending",
+                    },
+                  },
+                  { session: transaction },
+                );
+              await database
+                .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
+                .updateMany(
+                  {
+                    sale_id: photographerSale.id,
+                    type: "accrual",
+                    beneficiary_type: {
+                      $in: ["photographer", "originating_partner"],
+                    },
+                    status: "pending_delivery",
+                  },
+                  { $set: { status: "pending_customer_approval" } },
+                  { session: transaction },
+                );
+            }
+          });
+        } finally {
+          await transaction.endSession();
+        }
         await audit(req, "photographer.delivery_completed", user, {
           wedding_id: id,
           delivered_file_count: deliveredFileCount,
@@ -4104,7 +5248,7 @@ export async function handle(
         const limit = (event.package_snapshot || packageSnapshot(knownCode))
           .revisionLimit;
         const used = event.design_revisions_used || 0;
-        if (used >= limit)
+        if (limit !== null && used >= limit)
           throw new HttpError(
             409,
             `Bu paketin ${limit} revizyon hakkı kullanıldı.`,
@@ -4926,6 +6070,20 @@ export async function handle(
           403,
           "Bu organizasyona profesyonel çekim yükleme yetkiniz yok.",
         );
+      if (
+        professionalUpload &&
+        !(await database
+          .collection<PhotographerSaleRecord>("photographer_sales")
+          .findOne({
+            wedding_id: event.id,
+            photographer_account_id: user.id,
+            status: "paid",
+          }))
+      )
+        throw new HttpError(
+          402,
+          "Profesyonel yükleme için müşteri tarafından onaylanmış fotoğrafçı paketi gerekli.",
+        );
       const mediaType = data.mime_type.startsWith("image/") ? "photo" : "video";
       const fileLimit =
         mediaType === "photo"
@@ -5041,6 +6199,24 @@ export async function handle(
         .findOne({ token: hash(ticket), expiresAt: { $gt: new Date() } });
       if (!t) throw new HttpError(400, "Yükleme süresi dolmuş.");
       const event = await weddings.findOne({ id: t.weddingId });
+      if (
+        event &&
+        t.source === "photographer" &&
+        (!t.uploader_account_id ||
+          !(await database
+            .collection<PhotographerSaleRecord>("photographer_sales")
+            .findOne({
+              wedding_id: event.id,
+              photographer_account_id: t.uploader_account_id,
+              status: "paid",
+            })))
+      ) {
+        await deleteObject(t.storage_path);
+        throw new HttpError(
+          402,
+          "Fotoğrafçı paketi aktif olmadığı için yükleme tamamlanamadı.",
+        );
+      }
       if (!event || !uploadsOpenForRuntime(event))
         throw new HttpError(410, "Yükleme kapalı.");
       if (

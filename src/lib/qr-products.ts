@@ -7,8 +7,9 @@ export type QrProduct = { id: QrProductId; name: string; shortName: string; trim
 
 const allTemplates = ["the-editorial", "velvet-flow", "botanical", "modern-arch", "aurora"] as const;
 const velvetFlowOnly = ["velvet-flow"] as const;
+const portraitMiniTemplates = ["velvet-flow", "botanical"] as const;
 export const qrProducts: readonly QrProduct[] = [
-  { id: "portrait-mini-75x100-duplex", name: "7,5 × 10 cm Dikey Mini Kart", shortName: "Dikey mini kart", trimWidthMm: 75, trimHeightMm: 100, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: velvetFlowOnly, artworkReady: true },
+  { id: "portrait-mini-75x100-duplex", name: "7,5 × 10 cm Dikey Mini Kart", shortName: "Dikey mini kart", trimWidthMm: 75, trimHeightMm: 100, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: portraitMiniTemplates, artworkReady: true },
   { id: "landscape-mini-100x75-duplex", name: "10 × 7,5 cm Yatay Mini Kart", shortName: "Yatay mini kart", trimWidthMm: 100, trimHeightMm: 75, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: velvetFlowOnly, artworkReady: false },
   { id: "table-card-150x200-duplex", name: "15 × 20 cm Çift Taraflı Masa Kartı", shortName: "Masa kartı", trimWidthMm: 150, trimHeightMm: 200, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: allTemplates, artworkReady: false },
   { id: "welcome-sign-500x700-duplex", name: "50 × 70 cm Karşılama Tabelası", shortName: "Karşılama tabelası", trimWidthMm: 500, trimHeightMm: 700, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: velvetFlowOnly, artworkReady: false },

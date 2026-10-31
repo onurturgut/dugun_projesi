@@ -29,7 +29,13 @@ import {
 import { features, useCases } from "./data";
 import styles from "./marketing.module.css";
 import { HomePartnerStrip } from "./HomePartnerStrip";
-import { PACKAGE_CATALOG, type PackageCode } from "@/lib/commercial-policy";
+import {
+  GIB,
+  PACKAGE_CATALOG,
+  PHOTOGRAPHER_PACKAGE,
+  packageStorageLimit,
+  type PackageCode,
+} from "@/lib/commercial-policy";
 import albumDashboard from "../../../shineqr_planlama/düzenleme24_10/dijital_albüm.png";
 import uploadWedding from "../../../shineqr_planlama/düzenleme24_10/fotograf_ve_videolari_yukleyin.png";
 import qrCollection from "../../../shineqr_planlama/düzenleme24_10/kisilestirilebilir_qr_tasarımları.png";
@@ -47,6 +53,41 @@ const featureIcons = [
   ShieldCheck,
   LayoutDashboard,
 ];
+
+function PhotographerPackageCard() {
+  return (
+    <section className={styles.photographerPackage}>
+      <div className={styles.photographerPackageCopy}>
+        <p className={styles.eyebrow}>PROFESYONEL ÇEKİM</p>
+        <h3>{PHOTOGRAPHER_PACKAGE.name}</h3>
+        <p className={styles.lead}>
+          Özel gününüz profesyonelce çekilsin, fotoğraflarınız ShineQR
+          üzerinden güvenle teslim edilsin.
+        </p>
+        <div className={styles.photographerPackagePrice}>
+          {new Intl.NumberFormat("tr-TR", {
+            style: "currency",
+            currency: "TRY",
+            maximumFractionDigits: 0,
+          }).format(PHOTOGRAPHER_PACKAGE.grossPriceCents / 100)}
+          <small>KDV dahil</small>
+        </div>
+        <Link className={styles.primary} href="/fotografci-paketi">
+          Fotoğrafçı Paketini İncele <ArrowRight size={17} />
+        </Link>
+      </div>
+      <ul className={styles.photographerPackageFeatures}>
+        <li><Camera size={18} />Profesyonel fotoğrafçı</li>
+        <li><Sparkles size={18} />Organizasyona özel çekim</li>
+        <li><ImageIcon size={18} />Dijital teslim</li>
+        <li><CheckCircle2 size={18} />Teslimat takibi</li>
+        <li><Download size={18} />Toplu indirme</li>
+        <li><ShieldCheck size={18} />12 ay saklama</li>
+        <li className={styles.photographerPackageNote}>Bağımsız olarak satın alınır.</li>
+      </ul>
+    </section>
+  );
+}
 
 export function HomePage() {
   const launchSteps = [
@@ -209,13 +250,15 @@ export function HomePage() {
                 <li>{plan.miniQrCount} mini QR kart</li>
                 {plan.tableQrCount ? <li>{plan.tableQrCount} masa QR kartı</li> : null}
                 {plan.welcomeSignCount ? <li>{plan.welcomeSignCount} karşılama panosu</li> : null}
+                <li>{(packageStorageLimit(plan) || 0) / GIB} GB depolama</li>
                 <li>{plan.digitalRetentionMonths} ay dijital saklama</li>
-                <li>{plan.revisionLimit} revizyon hakkı</li>
+                {plan.digitalInvitationIncluded ? <li>Dijital davetiye</li> : null}
               </ul>
               <Link className={index === 1 ? styles.primary : styles.ghost} href="/iletisim">Paketi görüşelim</Link>
             </article>;
           })}
         </div>
+        <PhotographerPackageCard />
         <div className={styles.centerAction}><Link className={styles.ghost} href="/paketler">Tüm paket detayları <ArrowRight size={16} /></Link></div>
       </section>
       <CtaBand />
@@ -397,8 +440,9 @@ export function PricingPage() {
                 <li>{plan.miniQrCount} mini QR kart</li>
                 {plan.tableQrCount ? <li>{plan.tableQrCount} masa QR kartı</li> : null}
                 {plan.welcomeSignCount ? <li>{plan.welcomeSignCount} karşılama panosu</li> : null}
+                <li>{(packageStorageLimit(plan) || 0) / GIB} GB depolama</li>
                 <li>{plan.digitalRetentionMonths} ay dijital saklama</li>
-                <li>{plan.revisionLimit} revizyon hakkı</li>
+                {plan.digitalInvitationIncluded ? <li>Dijital davetiye</li> : null}
               </ul>
               <Link
                 className={i === 1 ? styles.primary : styles.ghost}
@@ -410,6 +454,36 @@ export function PricingPage() {
             );
           })}
         </div>
+        <div className={styles.packageComparisonWrap}>
+          <table className={styles.packageComparison}>
+            <caption>Paket hakları karşılaştırması</caption>
+            <thead>
+              <tr>
+                <th scope="col">Hak</th>
+                {(Object.keys(PACKAGE_CATALOG) as PackageCode[]).map((code) => (
+                  <th scope="col" key={code}>{PACKAGE_CATALOG[code].name}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["Mini QR", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${plan.miniQrCount} adet`],
+                ["Karşılama tabelası", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.welcomeSignCount ? `${plan.welcomeSignCount} adet` : "Dahil değil"],
+                ["Depolama", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${(packageStorageLimit(plan) || 0) / GIB} GB`],
+                ["Dijital saklama", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${plan.digitalRetentionMonths} ay`],
+                ["Profesyonel çekim", () => "Dahil değil - bağımsız paket"],
+              ].map(([label, value]) => (
+                <tr key={String(label)}>
+                  <th scope="row">{String(label)}</th>
+                  {(Object.keys(PACKAGE_CATALOG) as PackageCode[]).map((code) => (
+                    <td key={code}>{(value as (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => string)(PACKAGE_CATALOG[code])}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <PhotographerPackageCard />
         <div className={styles.notice}>
           <strong>Not:</strong> Gösterilen fiyatlar KDV dahildir. Satış anındaki
           paket ve fiyat bilgileri organizasyon kaydında saklanır.
@@ -437,6 +511,52 @@ export function PricingPage() {
           </div>
         </div>
       </section>
+    </MarketingShell>
+  );
+}
+
+export function PhotographerPackagePage() {
+  return (
+    <MarketingShell>
+      <PageHero
+        eyebrow="BAĞIMSIZ HİZMET"
+        title={PHOTOGRAPHER_PACKAGE.name}
+        description="Ana QR paketlerinden bağımsız profesyonel çekim ve kontrollü dijital teslimat akışı."
+        hideVisual
+      />
+      <section className={styles.section}>
+        <PhotographerPackageCard />
+        <div className={styles.photographerScopeGrid}>
+          <article>
+            <h2>Pakete dahil</h2>
+            <ul>
+              <li>Organizasyona atanmış profesyonel fotoğrafçı</li>
+              <li>Müşteri satın alma onayı</li>
+              <li>Profesyonel dosyaların kontrollü yüklenmesi</li>
+              <li>Müşteri teslimat onayı</li>
+              <li>ShineQR üzerinden dijital teslim</li>
+            </ul>
+          </article>
+          <article>
+            <h2>Pakete dahil değil</h2>
+            <ul>
+              <li>Mini QR veya masa QR baskısı</li>
+              <li>Karşılama tabelası</li>
+              <li>Dijital davetiye</li>
+              <li>Ana QR paketlerinin depolama kapasitesini artırma</li>
+              <li>Onaylanmamış ek çekim veya baskı hizmetleri</li>
+            </ul>
+          </article>
+        </div>
+        <div className={styles.notice}>
+          <strong>{new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(PHOTOGRAPHER_PACKAGE.grossPriceCents / 100)} KDV dahil.</strong>{" "}
+          Paket bağımsız satın alınır ve müşteri onayı verilmeden profesyonel yükleme açılmaz.
+        </div>
+        <div className={styles.centerAction}>
+          <Link className={styles.primary} href="/iletisim">Fotoğrafçı Paketi hakkında görüşelim</Link>
+        </div>
+      </section>
+      <CtaBand />
     </MarketingShell>
   );
 }

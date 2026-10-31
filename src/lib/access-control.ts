@@ -30,6 +30,8 @@ const allPermissions: Permission[] = [
   "finance.view_all",
   "commission.view_own",
   "commission.manage",
+  "payout.approve",
+  "payout.mark_paid",
   "account.impersonate_readonly",
   "agent.report.view",
   "agent.report.manage",
@@ -37,7 +39,12 @@ const allPermissions: Permission[] = [
 
 export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
   platform_admin: allPermissions,
-  finance_manager: ["finance.view_all", "commission.manage"],
+  finance_manager: [
+    "finance.view_all",
+    "commission.manage",
+    "payout.approve",
+    "payout.mark_paid",
+  ],
   operations_manager: [
     "organization.update",
     "organization.approve",

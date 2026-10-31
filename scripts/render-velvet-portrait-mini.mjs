@@ -5,14 +5,15 @@ import QRCode from "qrcode";
 import sharp from "sharp";
 
 const root = process.cwd();
+const templateId = process.argv.find((argument) => argument.startsWith("--template="))?.split("=")[1] ?? "velvet-flow";
 const formatId = process.argv.find((argument) => argument.startsWith("--format="))?.split("=")[1] ?? "portrait-mini";
-const layoutPath = path.join(root, `public/design-center/templates/velvet-flow/${formatId}/layout.json`);
+const layoutPath = path.join(root, `public/design-center/templates/${templateId}/${formatId}/layout.json`);
 const layout = JSON.parse(await fs.readFile(layoutPath, "utf8"));
 const variantId = process.argv.find((argument) => argument.startsWith("--variant="))?.split("=")[1] ?? "burgundy";
 const variant = layout.variants[variantId];
-if (!variant) throw new Error(`Bilinmeyen Velvet Flow renk varyantı: ${variantId}`);
+if (!variant) throw new Error(`Bilinmeyen ${templateId} renk varyantı: ${variantId}`);
 
-const outputDirectory = path.join(root, "output/design-center/velvet-flow", variantId, formatId);
+const outputDirectory = path.join(root, "output/design-center", templateId, variantId, formatId);
 await fs.mkdir(outputDirectory, { recursive: true });
 
 const values = {
@@ -139,8 +140,8 @@ async function renderFace(face) {
   const basePublicPath = variant[face === "front" ? "frontBase" : "backBase"];
   const baseDiskPath = path.join(root, "public", basePublicPath.replace(/^\//, ""));
   const overlaySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${foregroundLayers.join("")}</svg>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Velvet Flow ${variant.name} ${formatId} ${face === "front" ? "ön" : "arka"} yüz önizlemesi"><image href="${basePublicPath}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>${foregroundLayers.join("")}</svg>`;
-  const baseName = `velvet-flow-${variantId}-${formatId}-${face}-composed-preview`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${templateId} ${variant.name} ${formatId} ${face === "front" ? "ön" : "arka"} yüz önizlemesi"><image href="${basePublicPath}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>${foregroundLayers.join("")}</svg>`;
+  const baseName = `${templateId}-${variantId}-${formatId}-${face}-composed-preview`;
   await fs.writeFile(path.join(outputDirectory, `${baseName}.svg`), svg);
   await sharp(baseDiskPath)
     .resize(width, height, { fit: "fill" })
@@ -159,4 +160,4 @@ for (const face of faces) {
   rendered.push(await renderFace(face));
 }
 await fs.writeFile(path.join(outputDirectory, "preview-manifest.json"), `${JSON.stringify({ layoutId: layout.layoutId, status: "preview-only", variant: variantId, usesProductionQr: false, qrTarget: values.permanentEventUrl, files: rendered.flatMap((name) => [`${name}.svg`, `${name}.png`]) }, null, 2)}\n`);
-console.log(`Rendered ${rendered.length} Velvet Flow ${variantId} ${formatId} face(s) to ${path.relative(root, outputDirectory)}`);
+console.log(`Rendered ${rendered.length} ${templateId} ${variantId} ${formatId} face(s) to ${path.relative(root, outputDirectory)}`);

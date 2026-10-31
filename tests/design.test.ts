@@ -15,7 +15,7 @@ import { buildQrCards } from "../src/lib/qr-card";
 import { defaultQrProduct, qrProductEntitlement, qrProducts, validateQrProduct, withPrintMarks } from "../src/lib/qr-products";
 import { packageSnapshot } from "../src/lib/commercial-policy";
 import { resolvePhysicalQrBackground } from "../src/lib/qr-templates";
-import { landscapeMiniPresentations, portraitMiniPresentations, welcomeSignPresentations } from "../src/lib/qr-presentations";
+import { botanicalPortraitMiniPresentations, landscapeMiniPresentations, portraitMiniPresentations, welcomeSignPresentations } from "../src/lib/qr-presentations";
 import { weddingImageBelongsToEvent, weddingTemplates } from "../src/lib/wedding-templates";
 
 test("existing invitations keep their original video and speed", () => {
@@ -241,6 +241,18 @@ test("approved Velvet Flow presentation galleries expose five color images", () 
     assert.deepEqual(gallery.map((item) => item.id), ["burgundy", "black", "navy", "emerald", "cream"]);
     assert.ok(gallery.every((item) => item.image.startsWith("/design-center/presentations/velvet-flow/") && item.image.endsWith("-presentation.png")));
   }
+});
+
+test("Botanical portrait mini exposes five physical backgrounds and presentations", () => {
+  assert.deepEqual(botanicalPortraitMiniPresentations.map((item) => item.id), ["sage", "cream", "blush", "blue", "black"]);
+  assert.ok(botanicalPortraitMiniPresentations.every((item) => item.image.startsWith("/design-center/presentations/botanical/portrait-mini/")));
+  for (const variant of ["sage", "cream", "blush", "blue", "black"] as const) {
+    for (const face of ["front", "back"] as const) {
+      assert.match(resolvePhysicalQrBackground("botanical", variant, face) ?? "", /^\/design-center\/templates\/botanical\//);
+    }
+  }
+  const portrait = qrProducts.find((product) => product.id === "portrait-mini-75x100-duplex")!;
+  assert.equal(portrait.compatibleTemplates.includes("botanical"), true);
 });
 
 test("every physical format exports exact trim plus bleed dimensions", () => {

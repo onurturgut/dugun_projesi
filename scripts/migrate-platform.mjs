@@ -258,6 +258,46 @@ try {
     db
       .collection("sales")
       .createIndex({ partner_id: 1, period: 1, occurred_at: -1 }),
+    db.collection("photographer_sales").createIndex({ id: 1 }, { unique: true }),
+    db
+      .collection("photographer_sales")
+      .createIndex({ idempotency_key: 1 }, { unique: true }),
+    db
+      .collection("photographer_sales")
+      .createIndex({ originating_partner_id: 1, occurred_at: -1 }),
+    db
+      .collection("photographer_sales")
+      .createIndex({ photographer_partner_id: 1, occurred_at: -1 }),
+    db
+      .collection("photographer_sales")
+      .createIndex(
+        { wedding_id: 1 },
+        { unique: true, partialFilterExpression: { status: "paid" } },
+      ),
+    db.collection("photographer_sales").createIndex(
+      { wedding_id: 1, status: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { status: "pending_customer_consent" },
+      },
+    ),
+    db.collection("service_payout_ledger").createIndex({ id: 1 }, { unique: true }),
+    db
+      .collection("service_payout_ledger")
+      .createIndex(
+        { sale_id: 1, beneficiary_type: 1, type: 1 },
+        { unique: true },
+      ),
+    db
+      .collection("service_payout_ledger")
+      .createIndex({ beneficiary_id: 1, status: 1, created_at: -1 }),
+    db.collection("service_payout_ledger").createIndex(
+      { payment_reference: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { payment_reference: { $type: "string" } },
+      },
+    ),
     db
       .collection("monthly_sales_counters")
       .createIndex({ partner_id: 1, period: 1 }, { unique: true }),
@@ -281,6 +321,16 @@ try {
     db
       .collection("organization_participants")
       .createIndex({ account_id: 1, active: 1, wedding_id: 1 }),
+    db.collection("organization_participants").createIndex(
+      { wedding_id: 1, participant_role: 1 },
+      {
+        unique: true,
+        partialFilterExpression: {
+          participant_role: "photographer",
+          active: true,
+        },
+      },
+    ),
     db
       .collection("agent_reports")
       .createIndex({ review_status: 1, status: 1, created_at: -1 }),

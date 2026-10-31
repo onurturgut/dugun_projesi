@@ -4,7 +4,7 @@ export type PackageCode = "plan-1" | "plan-2" | "plan-3";
 
 export type PackagePolicy = {
   code: PackageCode;
-  version: 1;
+  version: 1 | 2;
   name: string;
   grossPriceCents: number;
   miniQrCount: number;
@@ -15,14 +15,17 @@ export type PackagePolicy = {
   uploadWindow: "event-day" | "seven-days";
   digitalRetentionMonths: number;
   physicalRetentionMonths: number;
-  revisionLimit: number;
+  revisionLimit: number | null;
   includedEventCount: number;
   secondEventPrintingIncluded: boolean;
   qualifiesForVolumeCommission: boolean;
+  digitalInvitationIncluded?: boolean;
 };
 
-export const PACKAGE_CATALOG: Readonly<Record<PackageCode, Readonly<PackagePolicy>>> = Object.freeze({
-  "plan-1": {
+export const PACKAGE_CATALOG_V1: Readonly<
+  Record<PackageCode, Readonly<PackagePolicy>>
+> = Object.freeze({
+  "plan-1": Object.freeze({
     code: "plan-1",
     version: 1,
     name: "Başlangıç",
@@ -39,8 +42,8 @@ export const PACKAGE_CATALOG: Readonly<Record<PackageCode, Readonly<PackagePolic
     includedEventCount: 1,
     secondEventPrintingIncluded: false,
     qualifiesForVolumeCommission: false,
-  },
-  "plan-2": {
+  }),
+  "plan-2": Object.freeze({
     code: "plan-2",
     version: 1,
     name: "Davet",
@@ -57,8 +60,8 @@ export const PACKAGE_CATALOG: Readonly<Record<PackageCode, Readonly<PackagePolic
     includedEventCount: 1,
     secondEventPrintingIncluded: false,
     qualifiesForVolumeCommission: true,
-  },
-  "plan-3": {
+  }),
+  "plan-3": Object.freeze({
     code: "plan-3",
     version: 1,
     name: "Premium Hikâye",
@@ -75,9 +78,132 @@ export const PACKAGE_CATALOG: Readonly<Record<PackageCode, Readonly<PackagePolic
     includedEventCount: 2,
     secondEventPrintingIncluded: true,
     qualifiesForVolumeCommission: true,
+  }),
+});
+
+export const PACKAGE_CATALOG_V2: Readonly<Record<PackageCode, Readonly<PackagePolicy>>> = Object.freeze({
+  "plan-1": {
+    code: "plan-1",
+    version: 2,
+    name: "Başlangıç",
+    grossPriceCents: 350_000,
+    miniQrCount: 30,
+    tableQrCount: 0,
+    welcomeSignCount: 0,
+    hardStorageBytes: 30 * GIB,
+    fairUseSoftCapBytes: null,
+    uploadWindow: "event-day",
+    digitalRetentionMonths: 12,
+    physicalRetentionMonths: 0,
+    revisionLimit: null,
+    includedEventCount: 1,
+    secondEventPrintingIncluded: false,
+    qualifiesForVolumeCommission: false,
+  },
+  "plan-2": {
+    code: "plan-2",
+    version: 2,
+    name: "Davet",
+    grossPriceCents: 500_000,
+    miniQrCount: 50,
+    tableQrCount: 0,
+    welcomeSignCount: 1,
+    hardStorageBytes: 50 * GIB,
+    fairUseSoftCapBytes: null,
+    uploadWindow: "seven-days",
+    digitalRetentionMonths: 12,
+    physicalRetentionMonths: 0,
+    revisionLimit: null,
+    includedEventCount: 1,
+    secondEventPrintingIncluded: false,
+    qualifiesForVolumeCommission: true,
+  },
+  "plan-3": {
+    code: "plan-3",
+    version: 2,
+    name: "Premium Hikâye",
+    grossPriceCents: 1_000_000,
+    miniQrCount: 70,
+    tableQrCount: 10,
+    welcomeSignCount: 1,
+    hardStorageBytes: 100 * GIB,
+    fairUseSoftCapBytes: null,
+    uploadWindow: "seven-days",
+    digitalRetentionMonths: 12,
+    physicalRetentionMonths: 12,
+    revisionLimit: null,
+    includedEventCount: 2,
+    secondEventPrintingIncluded: true,
+    qualifiesForVolumeCommission: true,
+    digitalInvitationIncluded: true,
   },
 });
-for (const policy of Object.values(PACKAGE_CATALOG)) Object.freeze(policy);
+for (const policy of Object.values(PACKAGE_CATALOG_V2)) Object.freeze(policy);
+
+export const PACKAGE_CATALOG_VERSIONS = Object.freeze({
+  1: PACKAGE_CATALOG_V1,
+  2: PACKAGE_CATALOG_V2,
+});
+
+export const PACKAGE_CATALOG = PACKAGE_CATALOG_V2;
+
+export type PhotographerPackagePolicy = {
+  code: "photographer-plan";
+  version: 1;
+  name: string;
+  grossPriceCents: 400_000;
+  vatRateBps: 2000;
+  settlementPolicy: "fixed-photographer-distribution";
+  digitalRetentionMonths: 12;
+};
+
+export const PHOTOGRAPHER_PACKAGE: Readonly<PhotographerPackagePolicy> =
+  Object.freeze({
+    code: "photographer-plan",
+    version: 1,
+    name: "Profesyonel Anı Çekimi",
+    grossPriceCents: 400_000,
+    vatRateBps: 2000,
+    settlementPolicy: "fixed-photographer-distribution",
+    digitalRetentionMonths: 12,
+  });
+
+export type PhotographerSettlementSnapshot = {
+  packageCode: "photographer-plan";
+  packageVersion: 1;
+  grossCents: 400_000;
+  vatRateBps: 2000;
+  netCents: number;
+  vatCents: number;
+  photographerGrossCents: 300_000;
+  originatingPartnerGrossCents: 50_000;
+  platformGrossCents: 50_000;
+};
+
+export function photographerSettlementSnapshot(): PhotographerSettlementSnapshot {
+  const netCents = netCentsFromVatIncluded(
+    PHOTOGRAPHER_PACKAGE.grossPriceCents,
+    PHOTOGRAPHER_PACKAGE.vatRateBps,
+  );
+  const snapshot: PhotographerSettlementSnapshot = {
+    packageCode: PHOTOGRAPHER_PACKAGE.code,
+    packageVersion: PHOTOGRAPHER_PACKAGE.version,
+    grossCents: PHOTOGRAPHER_PACKAGE.grossPriceCents,
+    vatRateBps: PHOTOGRAPHER_PACKAGE.vatRateBps,
+    netCents,
+    vatCents: PHOTOGRAPHER_PACKAGE.grossPriceCents - netCents,
+    photographerGrossCents: 300_000,
+    originatingPartnerGrossCents: 50_000,
+    platformGrossCents: 50_000,
+  };
+  const allocatedGross =
+    snapshot.photographerGrossCents +
+    snapshot.originatingPartnerGrossCents +
+    snapshot.platformGrossCents;
+  if (allocatedGross !== snapshot.grossCents)
+    throw new Error("Fotoğrafçı paketi dağılımı satış toplamına eşit olmalı.");
+  return snapshot;
+}
 
 export const FAIR_USE_POLICY = {
   maxPhotoBytes: 25 * 1024 ** 2,
@@ -196,6 +322,13 @@ export function packageUploadDays(code: PackageCode) {
 
 export function packageSnapshot(code: PackageCode): PackagePolicy {
   return structuredClone(PACKAGE_CATALOG[code]);
+}
+
+export function packageSnapshotAtVersion(
+  code: PackageCode,
+  version: 1 | 2,
+): PackagePolicy {
+  return structuredClone(PACKAGE_CATALOG_VERSIONS[version][code]);
 }
 
 export function resolvePackageSnapshot(

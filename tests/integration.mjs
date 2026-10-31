@@ -123,6 +123,45 @@ try {
     db.collection("weddings").createIndex({ slug: 1 }, { unique: true }),
     db.collection("media").createIndex({ storage_path: 1 }, { unique: true }),
     db.collection("print_jobs").createIndex({ id: 1 }, { unique: true }),
+    db
+      .collection("photographer_sales")
+      .createIndex({ idempotency_key: 1 }, { unique: true }),
+    db
+      .collection("photographer_sales")
+      .createIndex(
+        { wedding_id: 1 },
+        { unique: true, partialFilterExpression: { status: "paid" } },
+      ),
+    db.collection("photographer_sales").createIndex(
+      { wedding_id: 1, status: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { status: "pending_customer_consent" },
+      },
+    ),
+    db
+      .collection("service_payout_ledger")
+      .createIndex(
+        { sale_id: 1, beneficiary_type: 1, type: 1 },
+        { unique: true },
+      ),
+    db.collection("service_payout_ledger").createIndex(
+      { payment_reference: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { payment_reference: { $type: "string" } },
+      },
+    ),
+    db.collection("organization_participants").createIndex(
+      { wedding_id: 1, participant_role: 1 },
+      {
+        unique: true,
+        partialFilterExpression: {
+          participant_role: "photographer",
+          active: true,
+        },
+      },
+    ),
   ]);
   const salt = randomBytes(16).toString("hex");
   await db.collection("users").insertOne({
@@ -133,6 +172,18 @@ try {
     role: "platform",
     partner_id: null,
     display_name: "Test Platform",
+    disabled: false,
+    must_change_password: false,
+  });
+  await db.collection("users").insertOne({
+    id: randomUUID(),
+    email: "finance-test",
+    salt,
+    passwordHash: scryptSync(initial, salt, 64).toString("hex"),
+    role: "platform",
+    staff_role: "finance_manager",
+    partner_id: null,
+    display_name: "Test Finans",
     disabled: false,
     must_change_password: false,
   });
@@ -193,6 +244,7 @@ try {
   // Allow the browser verification to inspect the running server as well.
   await new Promise((r) => setTimeout(r, 15000));
   const platform = await login("platform-test");
+  const finance = await login("finance-test");
   const partnerA = (
     await call(
       "/admin/partners",
@@ -501,6 +553,82 @@ try {
   );
   const eventB = await approvedEvent("event-b", b, "owner-b");
   const eventA2 = await approvedEvent("event-a-2", a, "owner-a2", "plan-1");
+  const premiumInvitationEvent = await approvedEvent(
+    "premium-invitation",
+    a,
+    "owner-premium",
+    "plan-3",
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/digital-invitation`,
+    "PUT",
+    {
+      event_date: today,
+      event_time: "19:30",
+      venue: "Test Davet Alanı",
+      map_url: "https://maps.example.com/test",
+      message: "Davetlisiniz.",
+    },
+    platform,
+    403,
+  );
+  const invitationDraft = (
+    await call(
+      `/admin/weddings/${premiumInvitationEvent.id}/digital-invitation`,
+      "PUT",
+      {
+        event_date: today,
+        event_time: "19:30",
+        venue: "Test Davet Alanı",
+        map_url: "https://maps.example.com/test",
+        message: "Davetlisiniz.",
+      },
+      platform,
+    )
+  ).data;
+  assert.equal(invitationDraft.status, "draft");
+  assert.equal(invitationDraft.template_version, 1);
+  const publishedInvitation = (
+    await call(
+      `/admin/weddings/${premiumInvitationEvent.id}/digital-invitation/publish`,
+      "POST",
+      {},
+      platform,
+    )
+  ).data;
+  assert.equal(publishedInvitation.status, "published");
+  assert.equal(
+    (
+      await call(
+        `/weddings/slug/${premiumInvitationEvent.slug}`,
+        "GET",
+      )
+    ).data.digital_invitation.status,
+    "published",
+  );
+  await db
+    .collection("weddings")
+    .updateOne(
+      { id: premiumInvitationEvent.id },
+      { $unset: { package_snapshot: "" } },
+    );
+  await call(
+    `/admin/weddings/${premiumInvitationEvent.id}/digital-invitation`,
+    "GET",
+    undefined,
+    platform,
+    403,
+  );
+  assert.equal(
+    "digital_invitation" in
+      (
+        await call(
+          `/weddings/slug/${premiumInvitationEvent.slug}`,
+          "GET",
+        )
+      ).data,
+    false,
+  );
   const recordedSale = (
     await call(
       "/admin/sales",
@@ -514,9 +642,9 @@ try {
       201,
     )
   ).data;
-  assert.equal(recordedSale.net_cents, 333_333);
-  assert.equal(recordedSale.gross_cents, 400_000);
-  assert.equal(recordedSale.commission_cents, 100_000);
+  assert.equal(recordedSale.net_cents, 416_667);
+  assert.equal(recordedSale.gross_cents, 500_000);
+  assert.equal(recordedSale.commission_cents, 125_000);
   assert.equal(recordedSale.qualifying_ordinal, 1);
   assert.equal(
     (
@@ -553,11 +681,11 @@ try {
       platform,
     )
   ).data;
-  assert.equal(capacity.effective_limit_bytes, 105 * 1024 ** 3);
+  assert.equal(capacity.effective_limit_bytes, 55 * 1024 ** 3);
   assert.equal(
     (await db.collection("weddings").findOne({ id: eventA.id }))
       .storage_limit_override_bytes,
-    105 * 1024 ** 3,
+    55 * 1024 ** 3,
   );
   await call(
     `/admin/weddings/${eventA.id}/storage-limit`,
@@ -724,7 +852,7 @@ try {
     )
   ).data;
   assert.equal(revision.design_revisions_used, 1);
-  assert.equal(revision.design_revision_limit, 2);
+  assert.equal(revision.design_revision_limit, null);
   await call(
     `/admin/weddings/${eventA.id}/design`,
     "PUT",
@@ -758,18 +886,33 @@ try {
     undefined,
     owner,
   );
+  revision = (
+    await call(
+      `/admin/weddings/${eventA.id}/design/request-revision`,
+      "POST",
+      { reason: "Üçüncü tasarım güncellemesi yapılsın." },
+      owner,
+    )
+  ).data;
+  assert.equal(revision.design_revisions_used, 3);
+  assert.equal(revision.design_revision_limit, null);
   await call(
-    `/admin/weddings/${eventA.id}/design/request-revision`,
-    "POST",
-    { reason: "Paket sınırını aşan talep." },
+    `/admin/weddings/${eventA.id}/design`,
+    "PUT",
+    { ...design, theme: "ivory" },
     owner,
-    409,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/design/approve`,
+    "POST",
+    undefined,
+    owner,
   );
   const revisionEvent = (
     await call(`/admin/weddings/${eventA.id}`, "GET", undefined, owner)
   ).data;
   assert.equal(revisionEvent.design_status, "approved_for_print");
-  assert.equal(revisionEvent.design_revisions_used, 2);
+  assert.equal(revisionEvent.design_revisions_used, 3);
   const invitation = (
     await call(
       `/admin/weddings/${eventA.id}/photographer-invitations`,
@@ -799,6 +942,26 @@ try {
     "invited-photographer@example.com",
     changed,
   );
+  const secondPhotographerId = randomUUID();
+  await db.collection("users").insertOne({
+    id: secondPhotographerId,
+    email: "second-photographer@example.com",
+    salt: printerSalt,
+    passwordHash: scryptSync(changed, printerSalt, 64).toString("hex"),
+    role: "partner",
+    staff_role: "photographer",
+    partner_id: partnerB,
+    display_name: "İkinci Fotoğrafçı",
+    disabled: false,
+    must_change_password: false,
+  });
+  await call(
+    `/admin/weddings/${eventA.id}/photographers`,
+    "POST",
+    { account_id: secondPhotographerId },
+    platform,
+    409,
+  );
   const photographerEvent = (
     await call(
       `/admin/weddings/${eventA.id}`,
@@ -810,6 +973,114 @@ try {
   assert.equal(
     photographerEvent.assigned_photographers[0].expected_file_count,
     250,
+  );
+  const photographerAccountId =
+    photographerEvent.assigned_photographers[0].id;
+  const photographerSale = (
+    await call(
+      "/admin/photographer-sales",
+      "POST",
+      {
+        wedding_id: eventA.id,
+        photographer_account_id: photographerAccountId,
+        idempotency_key: `photographer-${eventA.id}`,
+      },
+      platform,
+      201,
+    )
+  ).data;
+  assert.equal(photographerSale.settlement_snapshot.grossCents, 400_000);
+  assert.equal(
+    photographerSale.settlement_snapshot.photographerGrossCents,
+    300_000,
+  );
+  assert.equal(
+    photographerSale.settlement_snapshot.originatingPartnerGrossCents,
+    50_000,
+  );
+  assert.equal(photographerSale.settlement_snapshot.platformGrossCents, 50_000);
+  assert.equal(photographerSale.originating_partner_id, partnerA);
+  assert.equal(photographerSale.status, "pending_customer_consent");
+  await call(
+    "/uploads/sign",
+    "POST",
+    {
+      weddingId: eventA.id,
+      file_name: "odeme-oncesi.png",
+      mime_type: "image/png",
+      size_bytes: 10,
+      uploader_session_id: randomUUID(),
+      guest_name: "",
+      guest_message: "",
+    },
+    invitedPhotographer,
+    402,
+  );
+  assert.equal(
+    (
+      await call(
+        "/admin/photographer-sales",
+        "POST",
+        {
+          wedding_id: eventA.id,
+          photographer_account_id: photographerAccountId,
+          idempotency_key: `photographer-${eventA.id}`,
+        },
+        platform,
+      )
+    ).data.id,
+    photographerSale.id,
+  );
+  await call(
+    "/admin/photographer-sales",
+    "POST",
+    {
+      wedding_id: eventA.id,
+      photographer_account_id: photographerAccountId,
+      idempotency_key: `photographer-duplicate-${eventA.id}`,
+    },
+    platform,
+    409,
+  );
+  assert.equal(
+    await db
+      .collection("service_payout_ledger")
+      .countDocuments({ sale_id: photographerSale.id }),
+    0,
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/photographer-sale/accept`,
+    "POST",
+    {},
+    a,
+    403,
+  );
+  const consentedPhotographerSale = (
+    await call(
+      `/admin/weddings/${eventA.id}/photographer-sale/accept`,
+      "POST",
+      {},
+      owner,
+    )
+  ).data;
+  assert.equal(consentedPhotographerSale.status, "paid");
+  assert.equal(consentedPhotographerSale.commercial_consent_version, 1);
+  const initialPayouts = await db
+    .collection("service_payout_ledger")
+    .find({ sale_id: photographerSale.id, type: "accrual" })
+    .toArray();
+  assert.equal(initialPayouts.length, 3);
+  assert.equal(
+    initialPayouts.filter((entry) => entry.status === "pending_delivery").length,
+    2,
+  );
+  assert.equal(
+    initialPayouts.filter((entry) => entry.status === "recognized").length,
+    1,
+  );
+  assert.equal(
+    (await call("/admin/photographer-sales", "GET", undefined, a)).data.length,
+    1,
   );
   await call(
     `/admin/weddings/${eventA.id}/media`,
@@ -870,11 +1141,218 @@ try {
     )
   ).data;
   assert.equal(completedPhotography.delivered_file_count, 1);
+  const pendingApprovalPayouts = await db
+    .collection("service_payout_ledger")
+    .find({ sale_id: photographerSale.id, type: "accrual" })
+    .toArray();
+  assert.equal(
+    pendingApprovalPayouts.filter(
+      (entry) => entry.status === "pending_customer_approval",
+    ).length,
+    2,
+  );
+  assert.equal(
+    pendingApprovalPayouts.filter((entry) => entry.status === "recognized")
+      .length,
+    1,
+  );
+  assert.equal(
+    (
+      await call(
+        `/admin/weddings/${eventA.id}/photographer-sale`,
+        "GET",
+        undefined,
+        owner,
+      )
+    ).data.customer_approval_status,
+    "pending",
+  );
+  await call(
+    `/admin/weddings/${eventA.id}/photographer-sale/approve-delivery`,
+    "POST",
+    {},
+    a,
+    403,
+  );
+  const customerApprovedSale = (
+    await call(
+      `/admin/weddings/${eventA.id}/photographer-sale/approve-delivery`,
+      "POST",
+      {},
+      owner,
+    )
+  ).data;
+  assert.equal(customerApprovedSale.customer_approval_status, "approved");
+  const payablePayouts = await db
+    .collection("service_payout_ledger")
+    .find({
+      sale_id: photographerSale.id,
+      type: "accrual",
+      status: "payable",
+    })
+    .toArray();
+  assert.equal(payablePayouts.length, 2);
+  await call(
+    `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/approve`,
+    "POST",
+    {},
+    a,
+    403,
+  );
+  const approvedPayout = (
+    await call(
+      `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/approve`,
+      "POST",
+      {},
+      platform,
+    )
+  ).data;
+  assert.equal(approvedPayout.status, "approved");
+  const paymentProof = new FormData();
+  paymentProof.append(
+    "file",
+    new Blob([Buffer.from("%PDF-1.4\nShineQR test proof")], {
+      type: "application/pdf",
+    }),
+    "odeme-belgesi.pdf",
+  );
+  const paymentProofUpload = await fetch(
+    `${base}/api/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/proof`,
+    { method: "POST", headers: { cookie: platform }, body: paymentProof },
+  );
+  assert.equal(paymentProofUpload.status, 201);
+  await call(
+    `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/mark-paid`,
+    "POST",
+    { payment_reference: "AYNI-KISI-ENGELI" },
+    platform,
+    409,
+  );
+  const paidPayout = (
+    await call(
+      `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/mark-paid`,
+      "POST",
+      { payment_reference: "BANKA-TEST-0001" },
+      finance,
+    )
+  ).data;
+  assert.equal(paidPayout.status, "paid");
+  assert.equal(paidPayout.payment_reference, "BANKA-TEST-0001");
+  await call(
+    `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[1].id}/approve`,
+    "POST",
+    {},
+    platform,
+  );
+  const secondPaymentProof = new FormData();
+  secondPaymentProof.append(
+    "file",
+    new Blob([Buffer.from("%PDF-1.4\nShineQR second proof")], {
+      type: "application/pdf",
+    }),
+    "ikinci-odeme-belgesi.pdf",
+  );
+  assert.equal(
+    (
+      await fetch(
+        `${base}/api/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[1].id}/proof`,
+        { method: "POST", headers: { cookie: platform }, body: secondPaymentProof },
+      )
+    ).status,
+    201,
+  );
+  await call(
+    `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[1].id}/mark-paid`,
+    "POST",
+    { payment_reference: "BANKA-TEST-0001" },
+    finance,
+    409,
+  );
+  const reconciliation = (
+    await call(
+      "/admin/photographer-payout-reconciliation",
+      "GET",
+      undefined,
+      finance,
+    )
+  ).data;
+  assert.equal(reconciliation.paid.count, 1);
+  assert.equal(reconciliation.paid.gross_cents, paidPayout.gross_cents);
+  assert.equal(reconciliation.anomalies.length, 0);
+  const proofView = await call(
+    `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/proof`,
+    "GET",
+    undefined,
+    finance,
+  );
+  assert.match(proofView.data.url, /^http:/);
+  await call(
+    `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/proof`,
+    "GET",
+    undefined,
+    a,
+    403,
+  );
+  const csvExport = await fetch(
+    `${base}/api/admin/photographer-payout-export.csv`,
+    { headers: { cookie: finance } },
+  );
+  assert.equal(csvExport.status, 200);
+  assert.match(csvExport.headers.get("content-type"), /^text\/csv/);
+  const csvText = await csvExport.text();
+  assert.match(csvText, /Hakediş ID/);
+  assert.match(csvText, /BANKA-TEST-0001/);
+  const paidCsv = await fetch(
+    `${base}/api/admin/photographer-payout-export.csv?status=paid&beneficiary_type=${paidPayout.beneficiary_type}`,
+    { headers: { cookie: finance } },
+  );
+  assert.equal(paidCsv.status, 200);
+  const paidCsvText = await paidCsv.text();
+  assert.match(paidCsvText, /BANKA-TEST-0001/);
+  assert.match(paidCsvText, new RegExp(paidPayout.beneficiary_type));
+  assert.equal(
+    (
+      await fetch(
+        `${base}/api/admin/photographer-payout-export.csv?from=2026-12-31&to=2026-01-01`,
+        { headers: { cookie: finance } },
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await call(
+        "/admin/photographer-sales?sale_status=paid&payout_status=paid",
+        "GET",
+        undefined,
+        finance,
+      )
+    ).data.length,
+    1,
+  );
+  assert.equal(
+    (
+      await fetch(`${base}/api/admin/photographer-payout-export.csv`, {
+        headers: { cookie: a },
+      })
+    ).status,
+    403,
+  );
   assert.ok(
     (
       await call("/admin/notifications", "GET", undefined, owner)
     ).data.items.some((item) => item.id === "photography-delivered"),
   );
+  const refundedPhotographerSale = (
+    await call(
+      `/admin/photographer-sales/${photographerSale.id}/refund`,
+      "POST",
+      { reason: "Entegrasyon iade kontrolü" },
+      platform,
+      409,
+    )
+  ).data;
+  assert.equal(refundedPhotographerSale.error !== undefined, true);
   const printJob = (
     await call(
       "/admin/print-jobs",
@@ -1192,7 +1670,7 @@ try {
     { id: eventA2.id },
     {
       $set: {
-        media_bytes: 3 * 1024 ** 3 - 10,
+        media_bytes: 30 * 1024 ** 3 - 10,
         trashed_bytes: 0,
         reserved_upload_bytes: 0,
       },
@@ -1534,8 +2012,8 @@ try {
   );
   assert.equal(
     objects.size,
-    3,
-    "The partner logo, assigned print PDF and delivery proof must remain in R2",
+    5,
+    "The partner logo, assigned print PDF, delivery proof and two payment proofs must remain in R2",
   );
   await call(
     `/admin/weddings/${eventA.id}/media`,

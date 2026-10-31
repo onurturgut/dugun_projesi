@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import { ChevronDown, GitBranch, History, MonitorSmartphone, PackageOpen, Palette, QrCode, Sparkles, Type } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { QrThemeAccordion } from "@/components/admin/QrThemeAccordion";
 import { qrCollectionReferences } from "@/lib/design";
-import { landscapeMiniPresentations, portraitMiniPresentations, welcomeSignPresentations } from "@/lib/qr-presentations";
 import { session } from "@/lib/server/auth";
 import "./design-center.css";
 
@@ -45,26 +45,11 @@ export default async function DesignCenterPage() {
               <Image src={item.image} alt={`${item.name} ZIP ürün mockup'ı`} width={768} height={768}/>
               <div><span>{item.number}</span><h3>{item.name}</h3><p>{item.tagline}</p></div><b>ZIP REFERANSI</b>
             </article>)}</div>
-          </> : id === "physical" ? <>
-            <PresentationGallery title="10 × 7,5 cm Yatay Mini QR" detail="Onaylı ön/arka kart sunumları" items={landscapeMiniPresentations}/>
-            <PresentationGallery title="7,5 × 10 cm Dikey Mini QR" detail="Onaylı ön/arka kart sunumları" items={portraitMiniPresentations}/>
-            <PresentationGallery title="50 × 70 cm Karşılama Tabelası" detail="Onaylı şövale sunumları" items={welcomeSignPresentations}/>
-          </> : <div className="design-center__empty-state"><Icon size={22}/><span>{detail}</span></div>}
+          </> : id === "physical" ? <QrThemeAccordion/> : <div className="design-center__empty-state"><Icon size={22}/><span>{detail}</span></div>}
         </div>
       </details>)}
     </div>
 
     <aside className="design-center__note"><strong>Sürüm güvenliği</strong><p>Organizasyonlar şablon kimliği ve sürümüyle sabitlenir. Yeni bir yayın mevcut organizasyonların görünümünü kendiliğinden değiştirmez.</p></aside>
   </section></AdminShell>;
-}
-
-function PresentationGallery({ title, detail, items }: { title: string; detail: string; items: readonly { id: string; name: string; image: string }[] }) {
-  const isWelcomeSign = title.startsWith("50");
-  return <section className="design-center__presentation-section" data-format={isWelcomeSign ? "welcome-sign" : "mini-card"}>
-    <div className="design-center__collection-head"><div><span>VELVET FLOW · ONAYLI SUNUMLAR</span><h3>{title}</h3></div><small>{detail} · 5 renk</small></div>
-    <div className="design-center__presentation-grid">{items.map((item) => <article key={item.id}>
-      <Image src={item.image} alt={`${item.name} ${title} fotogerçekçi sunumu`} width={isWelcomeSign ? 1060 : 1536} height={isWelcomeSign ? 1484 : 1024}/>
-      <div><strong>{item.name}</strong><span>ONAYLI SUNUM</span></div>
-    </article>)}</div>
-  </section>;
 }

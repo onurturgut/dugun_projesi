@@ -376,11 +376,13 @@ export function EventWizard({
                     set("package_code", value as PackageCode)
                   }
                 >
-                  <option value="plan-1">Plan 1 · Başlangıç · 2.500 TL</option>
-                  <option value="plan-2">Plan 2 · Davet · 4.000 TL</option>
-                  <option value="plan-3">
-                    Plan 3 · Premium Hikâye · 10.000 TL
-                  </option>
+                  {(Object.entries(PACKAGE_CATALOG) as Array<
+                    [PackageCode, (typeof PACKAGE_CATALOG)[PackageCode]]
+                  >).map(([code, plan], index) => (
+                    <option key={code} value={code}>
+                      Plan {index + 1} · {plan.name} · {money(plan.grossPriceCents)}
+                    </option>
+                  ))}
                 </SelectField>
               </label>
               {user.role === "platform" && !event ? (

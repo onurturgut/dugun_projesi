@@ -178,7 +178,20 @@ const velvetPhysicalVariantFolders: Partial<Record<QrColorVariantId, string>> = 
   emerald: "emerald",
 };
 
+const botanicalPhysicalVariantFolders: Partial<Record<QrColorVariantId, string>> = {
+  sage: "sage",
+  cream: "cream",
+  blush: "blush",
+  blue: "blue",
+  black: "black",
+};
+
 export function resolvePhysicalQrBackground(templateId: QrCollectionId, variantId: QrColorVariantId, face: "front" | "back") {
+  if (templateId === "botanical") {
+    const folder = botanicalPhysicalVariantFolders[variantId];
+    if (!folder) return null;
+    return `/design-center/templates/botanical/${folder}/portrait-mini/botanical-${folder}-portrait-mini-${face}-base-clean.png`;
+  }
   if (templateId !== "velvet-flow") return null;
   const folder = velvetPhysicalVariantFolders[variantId];
   if (!folder) return null;

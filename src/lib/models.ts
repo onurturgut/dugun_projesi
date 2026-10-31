@@ -5,6 +5,7 @@ import type {
   PackageCode,
   PackagePolicy,
   PriceSnapshot,
+  PhotographerSettlementSnapshot,
 } from "./commercial-policy";
 export type Role = "platform" | "partner" | "owner";
 export type BusinessType =
@@ -49,6 +50,8 @@ export type Permission =
   | "finance.view_all"
   | "commission.view_own"
   | "commission.manage"
+  | "payout.approve"
+  | "payout.mark_paid"
   | "agent.report.view"
   | "agent.report.manage"
   | "account.impersonate_readonly";
@@ -161,7 +164,74 @@ export interface SaleRecord {
   refunded_by?: string | null;
   refund_reason?: string | null;
 }
+export interface PhotographerSaleRecord {
+  id: string;
+  idempotency_key: string;
+  wedding_id: string;
+  photographer_account_id: string;
+  photographer_partner_id: string;
+  originating_partner_id: string;
+  status: "pending_customer_consent" | "paid" | "refunded";
+  occurred_at: string;
+  recorded_at: string;
+  recorded_by: string;
+  settlement_snapshot: PhotographerSettlementSnapshot;
+  refunded_at?: string | null;
+  refunded_by?: string | null;
+  refund_reason?: string | null;
+  delivery_completed_at?: string | null;
+  customer_approval_status: "pending_delivery" | "pending" | "approved";
+  customer_approved_at?: string | null;
+  customer_approved_by?: string | null;
+  commercial_consent_version: 1;
+  commercial_consent_at?: string | null;
+  commercial_consent_by?: string | null;
+}
+export interface ServicePayoutLedgerEntry {
+  id: string;
+  sale_id: string;
+  wedding_id: string;
+  beneficiary_type: "photographer" | "originating_partner" | "platform";
+  beneficiary_id: string;
+  type: "accrual" | "reversal";
+  gross_cents: number;
+  status:
+    | "pending_delivery"
+    | "pending_customer_approval"
+    | "payable"
+    | "approved"
+    | "paid"
+    | "recognized"
+    | "reversed";
+  created_at: string;
+  created_by: string;
+  reason?: string;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  paid_at?: string | null;
+  paid_by?: string | null;
+  payment_reference?: string | null;
+  payment_proof_id?: string | null;
+  payment_proof_file_name?: string | null;
+  payment_proof_mime_type?: string | null;
+  payment_proof_storage_path?: string | null;
+  payment_proof_uploaded_at?: string | null;
+  payment_proof_uploaded_by?: string | null;
+}
 export interface Wedding {
+  digital_invitation?: {
+    template_version: 1;
+    status: "draft" | "published";
+    event_date: string;
+    event_time: string;
+    venue: string;
+    map_url: string;
+    message: string;
+    updated_at: string;
+    updated_by: string;
+    published_at?: string | null;
+    published_by?: string | null;
+  };
   assigned_photographers?: Array<{
     id: string;
     display_name: string;

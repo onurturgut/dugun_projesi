@@ -93,6 +93,32 @@ function WeddingContent({
       title={data.title}
       date={data.wedding_date}
     >
+      {data.digital_invitation?.status === "published" ? (
+        <section className="mx-auto mb-10 max-w-xl rounded-3xl border border-white/40 bg-white/10 p-7 text-center text-white backdrop-blur-sm">
+          <p className="text-xs uppercase tracking-[0.22em] text-white/70">Dijital davetiye</p>
+          <h2 className="mt-3 text-2xl font-light">{data.digital_invitation.venue}</h2>
+          <p className="mt-3 text-sm text-white/80">
+            {new Date(`${data.digital_invitation.event_date}T12:00:00+03:00`).toLocaleDateString("tr-TR", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+              timeZone: "Europe/Istanbul",
+            })}{" "}
+            · {data.digital_invitation.event_time}
+          </p>
+          {data.digital_invitation.message ? (
+            <p className="mt-4 text-sm leading-6 text-white/75">{data.digital_invitation.message}</p>
+          ) : null}
+          <a
+            className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-white/60 px-5 text-sm"
+            href={data.digital_invitation.map_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Haritada görüntüle
+          </a>
+        </section>
+      ) : null}
       {data.can_upload ? (
         <ShareMemories
           weddingId={data.id}

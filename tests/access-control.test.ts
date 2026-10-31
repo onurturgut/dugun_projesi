@@ -48,6 +48,13 @@ test("photographers can upload professional files but cannot access albums", () 
   assert.equal(hasPermission("photographer", "finance.view_own"), false);
 });
 
+test("finance managers can approve and record payouts", () => {
+  assert.equal(hasPermission("finance_manager", "payout.approve"), true);
+  assert.equal(hasPermission("finance_manager", "payout.mark_paid"), true);
+  assert.equal(hasPermission("partner_owner", "payout.approve"), false);
+  assert.equal(hasPermission("partner_owner", "payout.mark_paid"), false);
+});
+
 test("print vendors can operate assigned jobs but cannot access albums", () => {
   assert.equal(hasPermission("print_vendor", "print_job.view_assigned"), true);
   assert.equal(hasPermission("print_vendor", "print_job.update_status"), true);
