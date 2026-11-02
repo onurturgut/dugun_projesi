@@ -15,10 +15,9 @@ export const themeIds = [
 ] as const;
 export type ThemeId = (typeof themeIds)[number];
 export type TemplateSurface = "wedding" | "loading" | "qr";
-export const qrCollectionIds = ["the-editorial", "velvet-flow", "botanical", "modern-arch", "aurora"] as const;
+export const qrCollectionIds = ["velvet-flow", "botanical", "modern-arch", "aurora"] as const;
 export type QrCollectionId = (typeof qrCollectionIds)[number];
 export const qrCollectionReferences: ReadonlyArray<{ id: QrCollectionId; number: string; name: string; tagline: string; image: string }> = [
-  { id: "the-editorial", number: "01", name: "THE EDITORIAL", tagline: "Zamansız ve zarif", image: "/design-reference/01-the-editorial.png" },
   { id: "velvet-flow", number: "02", name: "VELVET FLOW", tagline: "Modern lüks ve etkileyici", image: "/design-reference/02-velvet-flow.png" },
   { id: "botanical", number: "03", name: "BOTANICAL", tagline: "Doğal ve modern", image: "/design-reference/03-botanical.png" },
   { id: "modern-arch", number: "04", name: "MINIMAL", tagline: "Sade ve çağdaş", image: "/qr-templates/modern-arch/01_Krem_On_Yuz.webp" },
@@ -192,7 +191,7 @@ export const cardPresets = [
   {
     id: "satin-babys-breath",
     name: "Saten & Cipso",
-    image: "/qr-templates/the-editorial/01_Krem_On_Yuz.webp",
+    image: "/qr-templates/botanical/Botanical_Krem_On_Yuz.webp",
     template: "ribbon",
     theme: "ivory",
     primary: "#F1E5D4",
@@ -326,7 +325,7 @@ export const designSchema = z
     names: z.string().trim().max(100),
     monogram: z.string().trim().max(8),
     message: z.string().trim().max(240),
-    qrTemplateId: z.enum(qrCollectionIds).default("the-editorial"),
+    qrTemplateId: z.enum(qrCollectionIds).default("botanical"),
     qrColorVariant: z.enum(qrColorVariantIds).default("cream"),
     qrTemplateVersion: z.number().int().min(1).default(1),
     qrProductId: z.enum(qrProductIds).default("portrait-mini-75x100-duplex"),
@@ -424,7 +423,7 @@ export const defaultDesign: WeddingDesign = {
   names: "",
   monogram: "",
   message: "Bu özel günümüzü bizimle paylaştığınız için teşekkür ederiz.",
-  qrTemplateId: "the-editorial",
+  qrTemplateId: "botanical",
   qrColorVariant: "cream",
   qrTemplateVersion: 1,
   qrProductId: "portrait-mini-75x100-duplex",
@@ -450,7 +449,10 @@ export const defaultDesign: WeddingDesign = {
   uploadPrompt: "Fotoğraf veya video seçin",
 };
 export function resolveDesign(value?: WeddingDesign | Record<string, unknown>): WeddingDesign {
-  const parsed = designSchema.safeParse({ ...defaultDesign, ...value, version: 2 });
+  const migrated = { ...value } as Record<string, unknown>;
+  if (migrated.qrTemplateId === "the-editorial") migrated.qrTemplateId = "botanical";
+  if (migrated.qrProductId === "table-card-150x200-duplex") migrated.qrProductId = "portrait-mini-75x100-duplex";
+  const parsed = designSchema.safeParse({ ...defaultDesign, ...migrated, version: 2 });
   return parsed.success ? parsed.data : { ...defaultDesign };
 }
 export function designNames(design: WeddingDesign, title: string) {

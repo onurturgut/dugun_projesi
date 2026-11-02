@@ -97,6 +97,7 @@ try {
       .collection("commission_ledger")
       .createIndex({ partner_id: 1, period: 1, created_at: -1 }),
     db.collection("add_on_products").createIndex({ id: 1 }, { unique: true }),
+    db.collection("add_on_products").createIndex({ code: 1 }, { unique: true, sparse: true }),
     db.collection("add_on_products").createIndex({ active: 1, name: 1 }),
     db.collection("agent_reports").createIndex({ id: 1 }, { unique: true }),
     db

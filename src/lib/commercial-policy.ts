@@ -8,7 +8,8 @@ export type PackagePolicy = {
   name: string;
   grossPriceCents: number;
   miniQrCount: number;
-  tableQrCount: number;
+  /** Historical package snapshots only. New catalogs do not offer table cards. */
+  tableQrCount?: number;
   welcomeSignCount: number;
   hardStorageBytes: number | null;
   fairUseSoftCapBytes: number | null;
@@ -88,7 +89,6 @@ export const PACKAGE_CATALOG_V2: Readonly<Record<PackageCode, Readonly<PackagePo
     name: "Başlangıç",
     grossPriceCents: 350_000,
     miniQrCount: 30,
-    tableQrCount: 0,
     welcomeSignCount: 0,
     hardStorageBytes: 30 * GIB,
     fairUseSoftCapBytes: null,
@@ -106,7 +106,6 @@ export const PACKAGE_CATALOG_V2: Readonly<Record<PackageCode, Readonly<PackagePo
     name: "Davet",
     grossPriceCents: 500_000,
     miniQrCount: 50,
-    tableQrCount: 0,
     welcomeSignCount: 1,
     hardStorageBytes: 50 * GIB,
     fairUseSoftCapBytes: null,
@@ -124,7 +123,6 @@ export const PACKAGE_CATALOG_V2: Readonly<Record<PackageCode, Readonly<PackagePo
     name: "Premium Hikâye",
     grossPriceCents: 1_000_000,
     miniQrCount: 70,
-    tableQrCount: 10,
     welcomeSignCount: 1,
     hardStorageBytes: 100 * GIB,
     fairUseSoftCapBytes: null,
@@ -241,6 +239,11 @@ export type AddOnSnapshot = AddOnSelection & {
   unit_gross_cents: number;
   line_gross_cents: number;
   commissionable: boolean;
+  pricing_type?: "fixed" | "package_percentage_discount";
+  percentage_bps?: number;
+  effect_type?: string;
+  effect_value?: number;
+  print_format?: "vertical_mini" | "table_card";
 };
 
 export type PriceSnapshot = {
@@ -254,30 +257,59 @@ export type PriceSnapshot = {
 export function priceSnapshot(
   code: PackageCode,
   selections: AddOnSelection[],
-  products: Array<{ id: string; name: string; gross_price_cents: number; commissionable: boolean }>,
+  products: Array<{
+    id: string;
+    name: string;
+    gross_price_cents: number;
+    commissionable: boolean;
+    pricing_type?: "fixed" | "package_percentage_discount";
+    percentage_bps?: number;
+    effect_type?: string;
+    effect_value?: number;
+    print_format?: "vertical_mini" | "table_card";
+  }>,
 ): PriceSnapshot {
   const byId = new Map(products.map((product) => [product.id, product]));
+  if (new Set(selections.map((selection) => selection.product_id)).size !== selections.length)
+    throw new Error("Aynı ek ürün satışa birden fazla satır olarak eklenemez.");
+  const packageGross = PACKAGE_CATALOG[code].grossPriceCents;
   const addOns = selections.map((selection) => {
     const product = byId.get(selection.product_id);
     if (!product) throw new Error("Ek ürün bulunamadı veya satışa kapalı.");
     if (!Number.isInteger(selection.quantity) || selection.quantity < 1 || selection.quantity > 100)
       throw new Error("Ek ürün adedi 1 ile 100 arasında olmalı.");
+    if (product.pricing_type === "package_percentage_discount" && selection.quantity !== 1)
+      throw new Error("Yüzde indirimli ek ürün yalnızca bir kez seçilebilir.");
+    if (
+      product.pricing_type === "package_percentage_discount" &&
+      (!Number.isInteger(product.percentage_bps) || product.percentage_bps! < 1 || product.percentage_bps! > 9000)
+    )
+      throw new Error("Yüzde indirimli ek ürün için geçerli bir indirim oranı gerekli.");
+    const unitGross = product.pricing_type === "package_percentage_discount"
+      ? -Math.round((packageGross * (product.percentage_bps || 0)) / 10_000)
+      : product.gross_price_cents;
     return {
       ...selection,
       name: product.name,
-      unit_gross_cents: product.gross_price_cents,
-      line_gross_cents: product.gross_price_cents * selection.quantity,
-      commissionable: product.commissionable,
+      unit_gross_cents: unitGross,
+      line_gross_cents: unitGross * selection.quantity,
+      commissionable: true,
+      pricing_type: product.pricing_type || "fixed",
+      percentage_bps: product.percentage_bps,
+      effect_type: product.effect_type,
+      effect_value: product.effect_value,
+      print_format: product.print_format,
     };
   });
-  const packageGross = PACKAGE_CATALOG[code].grossPriceCents;
   const addOnGross = addOns.reduce((sum, item) => sum + item.line_gross_cents, 0);
+  const gross = packageGross + addOnGross;
+  if (gross < 0) throw new Error("Ek ürünler satış toplamını sıfırın altına düşüremez.");
   return {
     package_gross_cents: packageGross,
     add_ons: addOns,
     add_on_gross_cents: addOnGross,
-    gross_cents: packageGross + addOnGross,
-    commissionable_gross_cents: packageGross + addOns.filter((item) => item.commissionable).reduce((sum, item) => sum + item.line_gross_cents, 0),
+    gross_cents: gross,
+    commissionable_gross_cents: gross,
   };
 }
 

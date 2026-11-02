@@ -36,7 +36,7 @@ test("package catalog reflects approved commercial rules", () => {
   assert.equal(PACKAGE_CATALOG["plan-2"].hardStorageBytes, 50 * GIB);
   assert.equal(PACKAGE_CATALOG["plan-3"].hardStorageBytes, 100 * GIB);
   assert.equal(PACKAGE_CATALOG["plan-3"].welcomeSignCount, 1);
-  assert.equal(PACKAGE_CATALOG["plan-3"].tableQrCount, 10);
+  assert.equal(PACKAGE_CATALOG["plan-3"].tableQrCount, undefined);
   assert.equal(PACKAGE_CATALOG["plan-3"].includedEventCount, 2);
   assert.equal(PACKAGE_CATALOG["plan-3"].secondEventPrintingIncluded, true);
   assert.equal(PACKAGE_CATALOG["plan-3"].digitalInvitationIncluded, true);
@@ -108,19 +108,69 @@ test("legacy organizations resolve a conservative package without replacing a hi
   assert.equal(resolvePackageSnapshot(undefined, undefined).code, "plan-1");
 });
 
-test("add-ons update the frozen customer total and only eligible items earn commission", () => {
+test("all add-ons update the frozen customer total and earn commission", () => {
   const pricing = priceSnapshot("plan-2", [
     { product_id: "print", quantity: 2 },
     { product_id: "shipping", quantity: 1 },
   ], [
-    { id: "print", name: "Ek baskı", gross_price_cents: 25_000, commissionable: true },
+    { id: "print", name: "Ek baskı", gross_price_cents: 25_000, commissionable: true, effect_type: "print_quantity", effect_value: 20, print_format: "vertical_mini" },
     { id: "shipping", name: "Özel teslimat", gross_price_cents: 30_000, commissionable: false },
   ]);
   assert.equal(pricing.add_on_gross_cents, 80_000);
   assert.equal(pricing.gross_cents, 580_000);
-  assert.equal(pricing.commissionable_gross_cents, 550_000);
+  assert.equal(pricing.commissionable_gross_cents, 580_000);
+  assert.equal(pricing.add_ons[0].print_format, "vertical_mini");
 
   const commission = commissionSnapshot("plan-2", 1, 2000, pricing);
   assert.equal(commission.netCents, 483_333);
-  assert.equal(commission.commissionCents, 137_500);
+  assert.equal(commission.commissionCents, 145_000);
+});
+
+test("second organization discount reduces both sale total and commission base", () => {
+  const pricing = priceSnapshot(
+    "plan-2",
+    [{ product_id: "second-event", quantity: 1 }],
+    [{
+      id: "second-event",
+      name: "İkinci organizasyon",
+      gross_price_cents: 0,
+      commissionable: true,
+      pricing_type: "package_percentage_discount",
+      percentage_bps: 1000,
+      effect_type: "second_event",
+      effect_value: 1,
+    }],
+  );
+  assert.equal(pricing.add_ons[0].unit_gross_cents, -50_000);
+  assert.equal(pricing.gross_cents, 450_000);
+  assert.equal(pricing.commissionable_gross_cents, 450_000);
+
+  const commission = commissionSnapshot("plan-2", 1, 2000, pricing);
+  assert.equal(commission.netCents, 375_000);
+  assert.equal(commission.commissionCents, 112_500);
+  assert.throws(
+    () => priceSnapshot("plan-2", [{ product_id: "second-event", quantity: 2 }], [{
+      id: "second-event",
+      name: "İkinci organizasyon",
+      gross_price_cents: 0,
+      commissionable: true,
+      pricing_type: "package_percentage_discount",
+      percentage_bps: 1000,
+    }]),
+    /yalnızca bir kez/,
+  );
+  assert.throws(
+    () => priceSnapshot("plan-2", [
+      { product_id: "second-event", quantity: 1 },
+      { product_id: "second-event", quantity: 1 },
+    ], [{
+      id: "second-event",
+      name: "İkinci organizasyon",
+      gross_price_cents: 0,
+      commissionable: true,
+      pricing_type: "package_percentage_discount",
+      percentage_bps: 1000,
+    }]),
+    /birden fazla satır/,
+  );
 });

@@ -6,6 +6,7 @@ import {
   Check,
   CheckCircle2,
   FileCheck2,
+  Download,
   Gift,
   LayoutTemplate,
   LoaderCircle,
@@ -30,6 +31,8 @@ import {
   type WeddingDesign,
 } from "@/lib/design";
 import { buildQrCards, svgDataUrl } from "@/lib/qr-card";
+import { downloadMinimalCreamPrintPdf } from "@/lib/minimal-cream-pdf";
+import { downloadMinimalCreamLandscapePrintPdf } from "@/lib/minimal-cream-landscape-pdf";
 import {
   defaultQrProduct,
   qrProductEntitlement,
@@ -111,13 +114,19 @@ export function QrDesignWorkspace({ event }: { event: Wedding }) {
   const variant = resolveQrVariant(design.qrTemplateId, design.qrColorVariant);
   const template = qrTemplates[design.qrTemplateId];
   const usesFlatBackground = design.qrColorVariant === template.defaultVariant;
-  const frontBackground = resolvePhysicalQrBackground(design.qrTemplateId, design.qrColorVariant, "front") ?? (usesFlatBackground ? template.flatBackground : variant.front);
-  const backBackground = resolvePhysicalQrBackground(design.qrTemplateId, design.qrColorVariant, "back") ?? (usesFlatBackground ? template.flatBackground : variant.back);
+  const frontBackground = resolvePhysicalQrBackground(design.qrTemplateId, design.qrColorVariant, "front", selectedProduct.id) ?? (usesFlatBackground ? template.flatBackground : variant.front);
+  const backBackground = resolvePhysicalQrBackground(design.qrTemplateId, design.qrColorVariant, "back", selectedProduct.id) ?? (usesFlatBackground ? template.flatBackground : variant.back);
   const dirty = JSON.stringify(design) !== JSON.stringify(savedDesign) || JSON.stringify(selectedAddOns) !== JSON.stringify(savedAddOns);
   const validation = useMemo(() => validateQrProduct(selectedProduct, design, url), [design, selectedProduct, url]);
   const canComplete = Boolean(cards && productAccess.allowed && validation.passed && design.qrHook.trim() && design.qrDescription.trim() && design.qrCta.trim());
+  const minimalPortraitReady = design.qrTemplateId === "modern-arch" && selectedProduct.id === "portrait-mini-75x100-duplex";
+  const minimalLandscapeCreamReady = design.qrTemplateId === "modern-arch" && design.qrColorVariant === "cream" && selectedProduct.id === "landscape-mini-100x75-duplex";
+  const minimalPrintReady = minimalPortraitReady || minimalLandscapeCreamReady;
 
   useEffect(() => setUrl(`${window.location.origin}/q/${event.id}`), [event.id]);
+  useEffect(() => {
+    if (!selectedProduct.sides.includes(face)) setFace("front");
+  }, [face, selectedProduct]);
   useEffect(() => {
     if (!url) return;
     let live = true;
@@ -129,8 +138,16 @@ export function QrDesignWorkspace({ event }: { event: Wedding }) {
       assetAsDataUrl("/fonts/qr/cinzel-600.ttf"),
       assetAsDataUrl("/fonts/qr/allura-400.ttf"),
       assetAsDataUrl("/fonts/qr/manrope-400.ttf"),
-    ]).then(([front, back, cormorant, cormorantItalic, cinzel, allura, manrope]) => {
-      if (live) setCards(buildQrCards(design, event.title, event.wedding_date, url, { front, back, fonts: { cormorant, cormorantItalic, cinzel, allura, manrope } }));
+      assetAsDataUrl("/fonts/qr/montserrat-light.ttf"),
+      assetAsDataUrl("/fonts/qr/montserrat-regular.ttf"),
+      assetAsDataUrl("/fonts/qr/montserrat-bold.ttf"),
+      assetAsDataUrl("/brand/vector/shineqr-logo-metallic-gold.svg"),
+    ]).then(([front, back, cormorant, cormorantItalic, cinzel, allura, manrope, montserratLight, montserrat, montserratBold, logo]) => {
+      if (live) setCards(buildQrCards(design, event.title, event.wedding_date, url, {
+        front, back, logo,
+        fonts: { cormorant, cormorantItalic, cinzel, allura, manrope },
+        minimalFonts: { montserratLight, montserrat, montserratBold, allura },
+      }));
     }).catch((reason: Error) => live && setError(reason.message));
     return () => { live = false; };
   }, [backBackground, design, event.title, event.wedding_date, frontBackground, url]);
@@ -166,11 +183,26 @@ export function QrDesignWorkspace({ event }: { event: Wedding }) {
   }
   function chooseTemplate(id: WeddingDesign["qrTemplateId"]) {
     const nextProduct = qrProducts.find((product) => product.compatibleTemplates.includes(id) && qrProductEntitlement(product, packagePolicy).allowed);
+    const minimalDefaults = id === "modern-arch" ? {
+      qrHook: design.qrHook === "Bu günün bir karesi de senden olsun." ? "HER KARE BİR HİKÂYE." : design.qrHook,
+      qrDescription: design.qrDescription === "Fotoğraf ve videolarını bizimle paylaş." ? "Fotoğraf ve videolarını paylaş." : design.qrDescription,
+      qrCta: design.qrCta === "QR kodu okut ve anılarını yükle." ? "TARAT VE PAYLAŞ" : design.qrCta,
+      message: design.message === "Bu özel günümüzü bizimle paylaştığınız için teşekkür ederiz." ? "Bu özel günde yanımızda olduğun için teşekkür ederiz." : design.message,
+    } : {};
     replaceDesign({
       ...design,
+      ...minimalDefaults,
       qrTemplateId: id,
       qrColorVariant: qrTemplates[id].defaultVariant,
       qrProductId: nextProduct?.id || design.qrProductId,
+    });
+    setFace("front");
+  }
+  function chooseProduct(id: QrProductId) {
+    replaceDesign({
+      ...design,
+      qrProductId: id,
+      qrColorVariant: design.qrTemplateId === "modern-arch" && id === "landscape-mini-100x75-duplex" ? "cream" : design.qrColorVariant,
     });
     setFace("front");
   }
@@ -254,7 +286,9 @@ export function QrDesignWorkspace({ event }: { event: Wedding }) {
           <div className={styles.canvasToolbar}>
             <div className={styles.segmented}>
               <button type="button" aria-pressed={face === "front"} onClick={() => setFace("front")}>Ön yüz</button>
-              <button type="button" aria-pressed={face === "back"} onClick={() => setFace("back")}>Arka yüz</button>
+              {selectedProduct.sides.includes("back") ? (
+                <button type="button" aria-pressed={face === "back"} onClick={() => setFace("back")}>Arka yüz</button>
+              ) : null}
             </div>
             <div className={styles.canvasTools}>
               <button type="button" onClick={() => setZoom((value) => Math.max(70, value - 10))} aria-label="Uzaklaştır">−</button>
@@ -265,7 +299,12 @@ export function QrDesignWorkspace({ event }: { event: Wedding }) {
             </div>
           </div>
           <div className={styles.canvasStage}>
-            <div className={styles.cardFrame} style={{ "--card-zoom": zoom / 100, aspectRatio: `${selectedProduct.trimWidthMm} / ${selectedProduct.trimHeightMm}` } as React.CSSProperties}>
+            <div className={styles.cardFrame} style={{
+              "--card-zoom": zoom / 100,
+              "--safe-inset-x": minimalPortraitReady ? "9.876%" : minimalLandscapeCreamReady ? "7.547%" : "4.8%",
+              "--safe-inset-y": minimalPortraitReady ? "7.547%" : minimalLandscapeCreamReady ? "9.876%" : "4.8%",
+              aspectRatio: minimalPortraitReady ? "75 / 100" : minimalLandscapeCreamReady ? "100 / 75" : `${selectedProduct.trimWidthMm} / ${selectedProduct.trimHeightMm}`,
+            } as React.CSSProperties}>
               {cards ? <img src={svgDataUrl(cards[face])} alt={face === "front" ? "QR kartı ön yüz canlı önizlemesi" : "QR kartı arka yüz canlı önizlemesi"} /> : <LoaderCircle className={styles.spinner} />}
               {safeArea ? <span className={styles.safeArea} aria-hidden="true" /> : null}
             </div>
@@ -289,7 +328,7 @@ export function QrDesignWorkspace({ event }: { event: Wedding }) {
             validation={validation}
             productAccess={productAccess}
             onTemplate={chooseTemplate}
-            onProduct={(id) => update("qrProductId", id)}
+            onProduct={chooseProduct}
             onAddOn={toggleAddOn}
             onAddOnQuantity={setAddOnQuantity}
             onColor={(id) => update("qrColorVariant", id)}
@@ -299,7 +338,10 @@ export function QrDesignWorkspace({ event }: { event: Wedding }) {
           <footer className={styles.inspectorFooter}>
             {activeStepIndex > 0 ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => setActiveStep(stepDefinitions[activeStepIndex - 1].id)}>Geri</button> : <span />}
             {activeStep === "save" ? (
-              <button type="button" className={styles.primary} disabled={busy || !canComplete} onClick={() => void save(true)}>{busy ? <LoaderCircle className={styles.spinnerSmall} /> : <FileCheck2 size={17} />} QR aşamasını tamamla</button>
+              <div>
+                {minimalPrintReady ? <button type="button" className={styles.secondary} disabled={busy || !canComplete} onClick={() => void (minimalLandscapeCreamReady ? downloadMinimalCreamLandscapePrintPdf(design, event.title, event.wedding_date, url) : downloadMinimalCreamPrintPdf(design, event.title, event.wedding_date, url)).catch((reason: Error) => toast.error(reason.message))}><Download size={17} /> Baskı PDF'ini indir</button> : null}
+                <button type="button" className={styles.primary} disabled={busy || !canComplete} onClick={() => void save(true)}>{busy ? <LoaderCircle className={styles.spinnerSmall} /> : <FileCheck2 size={17} />} QR aşamasını tamamla</button>
+              </div>
             ) : (
               <button type="button" className={styles.primary} disabled={busy} onClick={advance}>Devam et</button>
             )}
@@ -368,15 +410,15 @@ function InspectorContent({
     <div className={styles.extraList}>{activeAddOns.map((product) => {
       const selection = selectedAddOns.find((item) => item.product_id === product.id);
       return <div key={product.id} data-selected={Boolean(selection)}>
-        <label><input type="checkbox" checked={Boolean(selection)} onChange={() => onAddOn(product.id)} /><span><strong>{product.name}</strong><small>{product.description}</small></span><b>{money(product.gross_price_cents)}</b></label>
-        {selection ? <label className={styles.quantity}>Adet <input type="number" min="1" max="100" value={selection.quantity} onChange={(event) => onAddOnQuantity(product.id, Number(event.target.value))} /></label> : null}
+        <label><input type="checkbox" checked={Boolean(selection)} onChange={() => onAddOn(product.id)} /><span><strong>{product.name}</strong><small>{product.description}{product.print_format === "vertical_mini" ? " · Dikey Mini QR" : ""}</small></span><b>{product.pricing_type === "package_percentage_discount" ? `-%${(product.percentage_bps || 0) / 100}` : money(product.gross_price_cents)}</b></label>
+        {selection && product.effect_type === "storage_gib" ? <label className={styles.quantity}>Adet <input type="number" min="1" max="100" value={selection.quantity} onChange={(event) => onAddOnQuantity(product.id, Number(event.target.value))} /></label> : null}
       </div>;
     })}</div>
   </>;
 
   if (step === "color") return <>
     <InspectorHeading eyebrow="4. ADIM" title="Renk seçin" text={`${qrTemplates[design.qrTemplateId].name} için hazırlanan renk varyasyonlarından birini seçin.`} />
-    <div className={styles.colorList}>{qrTemplates[design.qrTemplateId].variants.map((variant) => <button type="button" key={variant.id} aria-pressed={design.qrColorVariant === variant.id} onClick={() => onColor(variant.id)}>
+    <div className={styles.colorList}>{qrTemplates[design.qrTemplateId].variants.filter((variant) => design.qrTemplateId !== "modern-arch" || selectedProductId !== "landscape-mini-100x75-duplex" || variant.id === "cream").map((variant) => <button type="button" key={variant.id} aria-pressed={design.qrColorVariant === variant.id} onClick={() => onColor(variant.id)}>
       <span style={{ background: variant.swatch }} /> <strong>{variant.name}</strong>{design.qrColorVariant === variant.id ? <Check size={16} /> : null}
     </button>)}</div>
   </>;
@@ -387,7 +429,7 @@ function InspectorContent({
     <label className={styles.field}>Açıklama<textarea rows={3} maxLength={110} value={design.qrDescription} onChange={(event) => onUpdate("qrDescription", event.target.value)} /><small>{design.qrDescription.length}/110</small></label>
     <label className={styles.field}>CTA metni<textarea rows={2} maxLength={48} value={design.qrCta} onChange={(event) => onUpdate("qrCta", event.target.value)} /><small>{design.qrCta.length}/48</small></label>
     <label className={styles.field}>Görünen isimler<input maxLength={100} value={design.names} placeholder={event.title} onChange={(event) => onUpdate("names", event.target.value)} /></label>
-    <label className={styles.rangeField}>QR kod boyutu <strong>{Math.round(design.qrLayout.qr.width)} px</strong><input type="range" min="140" max="300" value={design.qrLayout.qr.width} onChange={(event) => { const size = Number(event.target.value); onUpdate("qrLayout", { ...design.qrLayout, qr: { ...design.qrLayout.qr, width: size, height: size } }); }} /></label>
+    {design.qrTemplateId === "modern-arch" ? <p className={styles.notice}>Minimal serisinde QR alanı {selectedProductId === "landscape-mini-100x75-duplex" ? "27,2 × 27,2 mm" : "30,5 × 30,5 mm"} (4 modül sessiz alan dahil) sabittir.</p> : <label className={styles.rangeField}>QR kod boyutu <strong>{Math.round(design.qrLayout.qr.width)} px</strong><input type="range" min="140" max="300" value={design.qrLayout.qr.width} onChange={(event) => { const size = Number(event.target.value); onUpdate("qrLayout", { ...design.qrLayout, qr: { ...design.qrLayout.qr, width: size, height: size } }); }} /></label>}
   </>;
 
   return <>

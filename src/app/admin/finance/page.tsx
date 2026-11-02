@@ -17,6 +17,15 @@ const money = (cents: number) =>
   new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(
     cents / 100,
   );
+const effectOptions: Record<NonNullable<AddOnProduct["effect_type"]>, Array<{ value: string; label: string }>> = {
+  print_quantity: [10, 20, 30, 50].map((value) => ({ value: String(value), label: `${value} adet` })),
+  welcome_sign: [{ value: "1", label: "1 adet" }],
+  storage_gib: [{ value: "10", label: "+10 GB" }],
+  retention_months: [3, 6, 12].map((value) => ({ value: String(value), label: `${value} ay` })),
+  digital_invitation: [{ value: "1", label: "1 hizmet" }],
+  custom_design: [{ value: "1", label: "1 hizmet" }],
+  second_event: [{ value: "1", label: "1 organizasyon" }],
+};
 type SalesResponse = {
   items: Array<SaleRecord & { partner_name?: string; wedding_title?: string }>;
   totals: {
@@ -46,7 +55,15 @@ export default function FinancePage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [commissionable, setCommissionable] = useState(true);
+  const [code, setCode] = useState("");
+  const [category, setCategory] = useState<NonNullable<AddOnProduct["category"]>>("qr_print");
+  const [unit, setUnit] = useState<NonNullable<AddOnProduct["unit"]>>("item");
+  const [effectType, setEffectType] = useState<NonNullable<AddOnProduct["effect_type"]>>("print_quantity");
+  const [effectValue, setEffectValue] = useState("10");
+  const [printFormat, setPrintFormat] = useState<NonNullable<AddOnProduct["print_format"]>>("vertical_mini");
+  const [pricingType, setPricingType] = useState<NonNullable<AddOnProduct["pricing_type"]>>("fixed");
+  const [percentage, setPercentage] = useState("10");
+  const [editPrices, setEditPrices] = useState<Record<string, string>>({});
   const [proofUploading, setProofUploading] = useState<string | null>(null);
   const [saleStatus, setSaleStatus] = useState("");
   const [payoutStatus, setPayoutStatus] = useState("");
@@ -172,6 +189,7 @@ export default function FinancePage() {
       setName("");
       setDescription("");
       setPrice("");
+      setCode("");
       queryClient.invalidateQueries({ queryKey: ["add-ons"] });
     },
   });
@@ -185,20 +203,30 @@ export default function FinancePage() {
   });
   function submit(event: FormEvent) {
     event.preventDefault();
-    const grossPriceCents = Math.round(
-      Number(price.trim().replace(",", ".")) * 100,
-    );
+    const grossPriceCents = pricingType === "fixed" ? Math.round(Number(price.trim().replace(",", ".")) * 100) : 0;
+    const percentageBps = Math.round(Number(percentage.trim().replace(",", ".")) * 100);
+    const parsedEffectValue = Number(effectValue);
     if (
       !name.trim() ||
       !Number.isInteger(grossPriceCents) ||
-      grossPriceCents < 0
+      grossPriceCents < 0 ||
+      !Number.isInteger(parsedEffectValue) || parsedEffectValue < 1 ||
+      (pricingType === "package_percentage_discount" && (!Number.isInteger(percentageBps) || percentageBps < 1))
     )
       return;
     createProduct.mutate({
+      code: code.trim().toUpperCase() || undefined,
       name: name.trim(),
       description: description.trim(),
       gross_price_cents: grossPriceCents,
-      commissionable,
+      commissionable: true,
+      category,
+      unit,
+      effect_type: effectType,
+      effect_value: parsedEffectValue,
+      print_format: effectType === "print_quantity" ? printFormat : undefined,
+      pricing_type: pricingType,
+      percentage_bps: pricingType === "package_percentage_discount" ? percentageBps : undefined,
       active: true,
     });
   }
@@ -511,6 +539,7 @@ export default function FinancePage() {
         {addOns.error ? <Notice>{addOns.error.message}</Notice> : null}
         {me.data?.role === "platform" ? (
           <form className="finance-add-on-form" onSubmit={submit}>
+            <Field label="Ürün kodu" value={code} onChange={(event) => setCode(event.target.value)} placeholder="QR-10" maxLength={40} />
             <Field
               label="Ürün adı"
               value={name}
@@ -518,28 +547,25 @@ export default function FinancePage() {
               required
               maxLength={120}
             />
-            <Field
-              label="KDV dahil fiyat (TL)"
-              value={price}
-              onChange={(event) => setPrice(event.target.value)}
-              inputMode="decimal"
-              placeholder="500,00"
-              required
-            />
+            <label className="form-field"><span>Kategori</span><select value={category} onChange={(event) => setCategory(event.target.value as NonNullable<AddOnProduct["category"]>)}><option value="qr_print">QR ve baskı</option><option value="storage_retention">Depolama ve saklama</option><option value="digital">Dijital hizmet</option><option value="design">Tasarım</option><option value="organization">Organizasyon</option></select></label>
+            <label className="form-field"><span>Hak / etki</span><select value={effectType} onChange={(event) => {
+              const nextEffect = event.target.value as NonNullable<AddOnProduct["effect_type"]>;
+              setEffectType(nextEffect);
+              setEffectValue(effectOptions[nextEffect][0].value);
+              setPricingType(nextEffect === "second_event" ? "package_percentage_discount" : "fixed");
+            }}><option value="print_quantity">QR baskı adedi</option><option value="welcome_sign">Karşılama tabelası</option><option value="storage_gib">Ek depolama (GB)</option><option value="retention_months">İlave saklama (ay)</option><option value="digital_invitation">Dijital davetiye</option><option value="custom_design">Özel tasarım</option><option value="second_event">İkinci organizasyon</option></select></label>
+            <label className="form-field"><span>Hak miktarı</span><select value={effectValue} onChange={(event) => setEffectValue(event.target.value)}>{effectOptions[effectType].map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            {effectType === "print_quantity" ? <label className="form-field"><span>QR baskı tipi</span><select value={printFormat} onChange={(event) => setPrintFormat(event.target.value as NonNullable<AddOnProduct["print_format"]>)}><option value="vertical_mini">Dikey Mini QR</option></select></label> : null}
+            <label className="form-field"><span>Birim</span><select value={unit} onChange={(event) => setUnit(event.target.value as NonNullable<AddOnProduct["unit"]>)}><option value="item">Adet</option><option value="gib">GB</option><option value="month">Ay</option><option value="service">Hizmet</option><option value="organization">Organizasyon</option></select></label>
+            <label className="form-field"><span>Fiyat türü</span><select value={pricingType} disabled={effectType === "second_event"} onChange={(event) => setPricingType(event.target.value as NonNullable<AddOnProduct["pricing_type"]>)}><option value="fixed">Sabit KDV dahil fiyat</option>{effectType === "second_event" ? <option value="package_percentage_discount">Ana pakete yüzde indirim</option> : null}</select></label>
+            {pricingType === "fixed" ? <Field label="KDV dahil fiyat (TL)" value={price} onChange={(event) => setPrice(event.target.value)} inputMode="decimal" placeholder="500,00" required /> : <Field label="İndirim oranı (%)" value={percentage} onChange={(event) => setPercentage(event.target.value)} inputMode="decimal" min={0.01} max={90} required />}
             <TextField
               label="Açıklama"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               maxLength={500}
             />
-            <label className="finance-check">
-              <input
-                type="checkbox"
-                checked={commissionable}
-                onChange={(event) => setCommissionable(event.target.checked)}
-              />
-              <span>Partner komisyonuna dahil</span>
-            </label>
+            <p className="admin-hint">Tüm ek ürünler komisyona dahildir. Komisyon, indirim sonrası KDV hariç toplam satış üzerinden hesaplanır.</p>
             <button
               className="admin-button primary"
               disabled={createProduct.isPending}
@@ -555,28 +581,25 @@ export default function FinancePage() {
           <div className="detail-static-row" key={product.id}>
             <div>
               <strong>
-                {product.name} · {money(product.gross_price_cents)}
+                {product.name} · {product.pricing_type === "package_percentage_discount" ? `%${(product.percentage_bps || 0) / 100} indirim` : money(product.gross_price_cents)}
               </strong>
               <small>
-                {product.description || "Açıklama yok"} ·{" "}
-                {product.commissionable
-                  ? "Komisyona dahil"
-                  : "Komisyona dahil değil"}
+                {[product.code, product.print_format === "vertical_mini" ? "Dikey Mini QR" : null, product.description || "Açıklama yok", product.effect_value ? `${product.effect_value} ${product.unit || "birim"}` : null, "Komisyona dahil"].filter(Boolean).join(" · ")}
               </small>
             </div>
             {me.data?.role === "platform" ? (
-              <button
-                className="admin-button"
-                disabled={updateProduct.isPending}
-                onClick={() =>
-                  updateProduct.mutate({
-                    id: product.id,
-                    changes: { active: !product.active },
-                  })
-                }
-              >
-                {product.active ? "Satıştan kaldır" : "Satışa aç"}
-              </button>
+              <div className="account-actions">
+                <input aria-label={`${product.name} yeni ${product.pricing_type === "package_percentage_discount" ? "indirim oranı" : "fiyatı"}`} placeholder={product.pricing_type === "package_percentage_discount" ? "Yeni indirim (%)" : "Yeni fiyat (TL)"} inputMode="decimal" value={editPrices[product.id] || ""} onChange={(event) => setEditPrices((current) => ({ ...current, [product.id]: event.target.value }))} />
+                <button className="admin-button" disabled={updateProduct.isPending || !editPrices[product.id]} onClick={() => {
+                  const numericValue = Number((editPrices[product.id] || "").replace(",", "."));
+                  const changes = product.pricing_type === "package_percentage_discount"
+                    ? { percentage_bps: Math.round(numericValue * 100) }
+                    : { gross_price_cents: Math.round(numericValue * 100) };
+                  const value = Object.values(changes)[0];
+                  if (Number.isInteger(value) && value > 0) updateProduct.mutate({ id: product.id, changes });
+                }}>{product.pricing_type === "package_percentage_discount" ? "İndirimi güncelle" : "Fiyatı güncelle"}</button>
+                <button className="admin-button" disabled={updateProduct.isPending} onClick={() => updateProduct.mutate({ id: product.id, changes: { active: !product.active } })}>{product.active ? "Satıştan kaldır" : "Satışa aç"}</button>
+              </div>
             ) : (
               <span>{product.active ? "Aktif" : "Pasif"}</span>
             )}

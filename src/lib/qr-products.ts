@@ -1,27 +1,25 @@
 import type { PackagePolicy } from "./commercial-policy";
 import type { QrCollectionId, WeddingDesign } from "./design";
 
-export const qrProductIds = ["portrait-mini-75x100-duplex", "landscape-mini-100x75-duplex", "table-card-150x200-duplex", "welcome-sign-500x700-duplex"] as const;
+export const qrProductIds = ["portrait-mini-75x100-duplex", "landscape-mini-100x75-duplex", "welcome-sign-500x700-duplex"] as const;
 export type QrProductId = (typeof qrProductIds)[number];
-export type QrProduct = { id: QrProductId; name: string; shortName: string; trimWidthMm: number; trimHeightMm: number; bleedMm: number; safeAreaMm: number; dpi: number; sides: readonly ["front", "back"]; compatibleTemplates: readonly QrCollectionId[]; artworkReady: boolean };
+export type QrProduct = { id: QrProductId; name: string; shortName: string; trimWidthMm: number; trimHeightMm: number; bleedMm: number; safeAreaMm: number; dpi: number; sides: readonly ("front" | "back")[]; compatibleTemplates: readonly QrCollectionId[]; artworkReady: boolean };
 
-const allTemplates = ["the-editorial", "velvet-flow", "botanical", "modern-arch", "aurora"] as const;
-const velvetFlowOnly = ["velvet-flow"] as const;
-const portraitMiniTemplates = ["velvet-flow", "botanical"] as const;
+const velvetAndBotanical = ["velvet-flow", "botanical"] as const;
+const portraitMiniTemplates = ["velvet-flow", "botanical", "modern-arch"] as const;
+const landscapeMiniTemplates = ["velvet-flow", "botanical", "modern-arch"] as const;
 export const qrProducts: readonly QrProduct[] = [
   { id: "portrait-mini-75x100-duplex", name: "7,5 × 10 cm Dikey Mini Kart", shortName: "Dikey mini kart", trimWidthMm: 75, trimHeightMm: 100, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: portraitMiniTemplates, artworkReady: true },
-  { id: "landscape-mini-100x75-duplex", name: "10 × 7,5 cm Yatay Mini Kart", shortName: "Yatay mini kart", trimWidthMm: 100, trimHeightMm: 75, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: velvetFlowOnly, artworkReady: false },
-  { id: "table-card-150x200-duplex", name: "15 × 20 cm Çift Taraflı Masa Kartı", shortName: "Masa kartı", trimWidthMm: 150, trimHeightMm: 200, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: allTemplates, artworkReady: false },
-  { id: "welcome-sign-500x700-duplex", name: "50 × 70 cm Karşılama Tabelası", shortName: "Karşılama tabelası", trimWidthMm: 500, trimHeightMm: 700, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: velvetFlowOnly, artworkReady: false },
+  { id: "landscape-mini-100x75-duplex", name: "10 × 7,5 cm Yatay Mini Kart", shortName: "Yatay mini kart", trimWidthMm: 100, trimHeightMm: 75, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front", "back"], compatibleTemplates: landscapeMiniTemplates, artworkReady: true },
+  { id: "welcome-sign-500x700-duplex", name: "50 × 70 cm Karşılama Tabelası", shortName: "Karşılama tabelası", trimWidthMm: 500, trimHeightMm: 700, bleedMm: 3, safeAreaMm: 5, dpi: 300, sides: ["front"], compatibleTemplates: velvetAndBotanical, artworkReady: true },
 ];
-export const defaultQrProduct = qrProducts[2];
+export const defaultQrProduct = qrProducts[0];
 export function resolveQrProduct(id: QrProductId) { return qrProducts.find((product) => product.id === id) ?? defaultQrProduct; }
 
 export function qrProductEntitlement(product: QrProduct, policy?: PackagePolicy) {
   const includedQuantity = !policy ? 0
     : product.id === "welcome-sign-500x700-duplex" ? policy.welcomeSignCount
-      : product.id === "table-card-150x200-duplex" ? policy.tableQrCount
-        : policy.miniQrCount;
+      : policy.miniQrCount;
   if (!product.artworkReady) return { allowed: false, includedQuantity, reason: "Bu ölçünün tasarımı henüz hazırlanıyor." };
   if (!policy) return { allowed: false, includedQuantity, reason: "Paket bilgisi doğrulanamadı." };
   if (includedQuantity < 1) return { allowed: false, includedQuantity, reason: "Bu ürün mevcut pakete dâhil değil." };

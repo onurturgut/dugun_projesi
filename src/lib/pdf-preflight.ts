@@ -53,7 +53,10 @@ export async function inspectPrintPdf(body: Uint8Array, product: QrProduct) {
     },
     {
       id: "page-count",
-      label: "Ön ve arka yüz mevcut",
+      label:
+        product.sides.length === 1
+          ? "Tek yüzlü baskı sayfası mevcut"
+          : "Ön ve arka yüz mevcut",
       status: pages.length === product.sides.length ? "passed" : "failed",
       detail: `${pages.length} sayfa bulundu; ${product.sides.length} sayfa bekleniyor.`,
     },

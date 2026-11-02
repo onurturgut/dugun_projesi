@@ -166,14 +166,14 @@ export default function DesignPreviewPage() {
         <figure className={styles.qrVisual}>
           <Image
             src="/marketing/qr-card-options-editorial.webp"
-            alt="Ayaklı ve düz QR masa kartı tasarımları"
+            alt="Dikey ve yatay mini QR kart tasarımları"
             width={1536}
             height={1024}
             sizes="(max-width: 800px) 100vw, 58vw"
           />
           <figcaption>
-            <span>01 · Ayaklı masa kartı</span>
-            <span>02 · Düz masa kartı</span>
+            <span>01 · Dikey mini QR kartı</span>
+            <span>02 · Yatay mini QR kartı</span>
           </figcaption>
         </figure>
       </section>

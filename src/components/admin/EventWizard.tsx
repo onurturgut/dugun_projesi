@@ -145,10 +145,15 @@ export function EventWizard({
     );
     return product ? [{ ...selection, product }] : [];
   });
+  const packageGrossCents = PACKAGE_CATALOG[data.package_code].grossPriceCents;
+  const addOnUnitGross = (product: AddOnProduct) =>
+    product.pricing_type === "package_percentage_discount"
+      ? -Math.round((packageGrossCents * (product.percentage_bps || 0)) / 10_000)
+      : product.gross_price_cents;
   const totalGrossCents =
-    PACKAGE_CATALOG[data.package_code].grossPriceCents +
+    packageGrossCents +
     selectedAddOns.reduce(
-      (sum, item) => sum + item.product.gross_price_cents * item.quantity,
+      (sum, item) => sum + addOnUnitGross(item.product) * item.quantity,
       0,
     );
   const money = (cents: number) =>
@@ -444,10 +449,11 @@ export function EventWizard({
                             (product.commissionable
                               ? "Partner komisyonuna dahil"
                               : "Partner komisyonuna dahil değil")}
+                          {product.print_format === "vertical_mini" ? " · Dikey Mini QR" : ""}
                         </small>
                       </span>
-                      <b>{money(product.gross_price_cents)}</b>
-                      {selection ? (
+                      <b>{product.pricing_type === "package_percentage_discount" ? `-%${(product.percentage_bps || 0) / 100}` : money(product.gross_price_cents)}</b>
+                      {selection && product.effect_type === "storage_gib" ? (
                         <input
                           aria-label={`${product.name} adedi`}
                           type="number"

@@ -1,11 +1,15 @@
 import QRCode from "qrcode";
 import { designNames, type WeddingDesign } from "./design";
-import { qrTemplateLayouts, resolveQrVariant, type QrFontFamily } from "./qr-templates";
+import { resolveQrTemplateLayout, resolveQrVariant, type QrFontFamily } from "./qr-templates";
+import { buildMinimalCreamPortrait } from "./minimal-cream-template";
+import { buildMinimalCreamLandscape } from "./minimal-cream-landscape-template";
 
 export type QrEmbeddedAssets = {
   front: string;
   back: string;
+  logo?: string;
   fonts?: Partial<Record<QrFontFamily, string>>;
+  minimalFonts?: Partial<Record<"montserratLight" | "montserrat" | "montserratBold" | "allura", string>>;
 };
 
 export const escapeXml = (value: string) => value.replace(/[<>&"']/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[char]!);
@@ -72,8 +76,29 @@ function mediaIcons(x: number, y: number, width: number, height: number, color: 
 }
 
 export function buildQrCards(design: WeddingDesign, title: string, date: string | null, url: string, embeddedAssets?: QrEmbeddedAssets) {
+  if (
+    design.qrTemplateId === "modern-arch" &&
+    design.qrColorVariant === "cream" &&
+    design.qrProductId === "landscape-mini-100x75-duplex" &&
+    embeddedAssets?.logo
+  ) {
+    return buildMinimalCreamLandscape(design, title, date, url, { front: embeddedAssets.front, back: embeddedAssets.back, logo: embeddedAssets.logo, fonts: embeddedAssets.minimalFonts });
+  }
+  if (
+    design.qrTemplateId === "modern-arch" &&
+    design.qrProductId === "portrait-mini-75x100-duplex" &&
+    embeddedAssets?.logo
+  ) {
+    return buildMinimalCreamPortrait(design, title, date, url, {
+      front: embeddedAssets.front,
+      back: embeddedAssets.back,
+      logo: embeddedAssets.logo,
+      fonts: embeddedAssets.minimalFonts,
+    });
+  }
   const variant = resolveQrVariant(design.qrTemplateId, design.qrColorVariant);
-  const layout = qrTemplateLayouts[design.qrTemplateId];
+  const layout = resolveQrTemplateLayout(design.qrTemplateId, design.qrProductId);
+  const landscapeBotanical = design.qrTemplateId === "botanical" && design.qrProductId === "landscape-mini-100x75-duplex";
   const custom = design.qrLayout;
   const names = designNames(design, title);
   const open = (face: "front" | "back") => {
@@ -99,12 +124,15 @@ export function buildQrCards(design: WeddingDesign, title: string, date: string 
     + `<path d="M${dividerX - custom.divider.width / 2} ${dividerY}H${dividerX + custom.divider.width / 2}" stroke="${variant.ink}" stroke-width="${Math.max(1, custom.divider.height / 40)}" stroke-opacity=".65"/>`
     + clipped("clip-names", namesX - custom.names.width / 2, namesY - 32, custom.names.width, custom.names.height, `<text x="${namesX}" y="${namesY}" text-anchor="middle" fill="${variant.ink}" font-family="${familyNames.cinzel}" font-size="21" letter-spacing="4">${escapeXml(names.toLocaleUpperCase("tr-TR"))}</text>`)
     + `<text x="${layout.contentX}" y="${layout.dateY}" text-anchor="middle" fill="${variant.ink}" font-family="${familyNames.manrope}" font-size="11" letter-spacing="2">${escapeXml(dateLabel(date))}</text></svg>`;
-  const messageX = layout.contentX + custom.message.x, messageY = 300 + custom.message.y;
+  const messageX = layout.contentX + custom.message.x, messageY = (landscapeBotanical ? 390 : 300) + custom.message.y;
+  const backDividerY = landscapeBotanical ? 700 : 760;
+  const backNamesY = landscapeBotanical ? 750 : 815;
+  const backDateY = landscapeBotanical ? 790 : 854;
   const back = open("back") + brand
     + clipped("clip-message", messageX - custom.message.width / 2, messageY - 55, custom.message.width, custom.message.height, textBlock({ text: design.message, x: messageX, y: messageY, size: 34, width: Math.max(10, Math.floor(custom.message.width / 16)), maxLines: 8, color: variant.ink, family: design.qrTemplateId === "aurora" ? "cormorantItalic" : "cormorant", weight: 500, lineHeight: 1.08 }))
-    + `<path d="M${layout.contentX - 105} 760H${layout.contentX + 105}" stroke="${variant.ink}" stroke-opacity=".65"/>`
-    + clipped("clip-back-names", namesX - custom.names.width / 2, 783 + custom.names.y, custom.names.width, custom.names.height, `<text x="${namesX}" y="${815 + custom.names.y}" text-anchor="middle" fill="${variant.ink}" font-family="${familyNames.cinzel}" font-size="22" letter-spacing="4">${escapeXml(names.toLocaleUpperCase("tr-TR"))}</text>`)
-    + `<text x="${layout.contentX}" y="854" text-anchor="middle" fill="${variant.ink}" font-family="${familyNames.manrope}" font-size="11" letter-spacing="2">${escapeXml(dateLabel(date))}</text></svg>`;
+    + `<path d="M${layout.contentX - 105} ${backDividerY}H${layout.contentX + 105}" stroke="${variant.ink}" stroke-opacity=".65"/>`
+    + clipped("clip-back-names", namesX - custom.names.width / 2, backNamesY - 32 + custom.names.y, custom.names.width, custom.names.height, `<text x="${namesX}" y="${backNamesY + custom.names.y}" text-anchor="middle" fill="${variant.ink}" font-family="${familyNames.cinzel}" font-size="22" letter-spacing="4">${escapeXml(names.toLocaleUpperCase("tr-TR"))}</text>`)
+    + `<text x="${layout.contentX}" y="${backDateY}" text-anchor="middle" fill="${variant.ink}" font-family="${familyNames.manrope}" font-size="11" letter-spacing="2">${escapeXml(dateLabel(date))}</text></svg>`;
   return { front, back };
 }
 

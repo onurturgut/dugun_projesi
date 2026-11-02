@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "layoutId": "botanical-landscape-mini-v1",
+  "templateId": "botanical",
+  "productId": "landscape-mini-100x75-duplex",
+  "status": "approved",
+  "units": "px",
+  "coordinateSpace": {
+    "canvas": {
+      "width": 1252,
+      "height": 957,
+      "dpi": 300
+    },
+    "print": {
+      "trimWidthMm": 100,
+      "trimHeightMm": 75,
+      "bleedMm": 3,
+      "safeAreaMm": 5
+    }
+  },
+  "variants": {
+    "sage": {
+      "name": "Adaçayı",
+      "ink": "#20291F",
+      "frontBase": "/design-center/templates/botanical/sage/landscape-mini/botanical-sage-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/botanical/sage/landscape-mini/botanical-sage-landscape-mini-back-base-clean.png"
+    },
+    "cream": {
+      "name": "Krem",
+      "ink": "#33281F",
+      "frontBase": "/design-center/templates/botanical/cream/landscape-mini/botanical-cream-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/botanical/cream/landscape-mini/botanical-cream-landscape-mini-back-base-clean.png"
+    },
+    "blush": {
+      "name": "Pudra",
+      "ink": "#3B2523",
+      "frontBase": "/design-center/templates/botanical/blush/landscape-mini/botanical-blush-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/botanical/blush/landscape-mini/botanical-blush-landscape-mini-back-base-clean.png"
+    },
+    "blue": {
+      "name": "Mavi",
+      "ink": "#172A3A",
+      "frontBase": "/design-center/templates/botanical/blue/landscape-mini/botanical-blue-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/botanical/blue/landscape-mini/botanical-blue-landscape-mini-back-base-clean.png"
+    },
+    "black": {
+      "name": "Siyah",
+      "ink": "#FFF8EB",
+      "frontBase": "/design-center/templates/botanical/black/landscape-mini/botanical-black-landscape-mini-front-base-clean.png",
+      "backBase": "/design-center/templates/botanical/black/landscape-mini/botanical-black-landscape-mini-back-base-clean.png"
+    }
+  },
+  "contentLimits": {
+    "qrHook": 72,
+    "qrDescription": 110,
+    "qrCta": 48,
+    "names": 100,
+    "message": 240
+  }
+}

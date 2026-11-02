@@ -65,19 +65,6 @@ const variant = (
 });
 
 export const qrTemplates: Record<QrCollectionId, QrTemplate> = {
-  "the-editorial": {
-    id: "the-editorial",
-    name: "The Editorial",
-    defaultVariant: "cream",
-    flatBackground: "/qr-flat/01_The_Editorial_Arka_Yuz.webp",
-    variants: [
-      variant("the-editorial", "cream", "Krem", "#ead8bf", "#2b211a", "01_Krem_On_Yuz.webp", "01_Krem_Arka_Yuz.webp"),
-      variant("the-editorial", "blush", "Pudra", "#d39a91", "#321d1b", "02_Pudra_On_Yuz.webp", "02_Pudra_Arka_Yuz.webp"),
-      variant("the-editorial", "sage", "Adaçayı", "#879078", "#20251d", "03_Adacayi_On_Yuz.webp", "03_Adacayi_Arka_Yuz.webp"),
-      variant("the-editorial", "blue", "Mavi", "#aabfd7", "#172331", "04_Mavi_On_Yuz.webp", "04_Mavi_Arka_Yuz.webp"),
-      variant("the-editorial", "black", "Siyah", "#171717", "#fff8eb", "05_Siyah_On_Yuz.webp", "05_Siyah_Arka_Yuz.webp"),
-    ],
-  },
   "velvet-flow": {
     id: "velvet-flow",
     name: "Velvet Flow",
@@ -133,12 +120,6 @@ export const qrTemplates: Record<QrCollectionId, QrTemplate> = {
 };
 
 export const qrTemplateLayouts: Record<QrCollectionId, QrTemplateLayout> = {
-  "the-editorial": {
-    contentX: 530, brandY: 106,
-    title: { y: 222, size: 45, width: 16, maxLines: 4, family: "cormorant", letterSpacing: -.5 },
-    description: { y: 385, size: 20, width: 27, maxLines: 3 },
-    qr: { x: 432, y: 455, size: 196 }, iconsY: 684, ctaY: 746, dividerY: 817, namesY: 861, dateY: 897,
-  },
   "velvet-flow": {
     contentX: 532, brandY: 104,
     title: { y: 217, size: 39, width: 15, maxLines: 4, family: "cinzel", letterSpacing: .4 },
@@ -165,6 +146,19 @@ export const qrTemplateLayouts: Record<QrCollectionId, QrTemplateLayout> = {
   },
 };
 
+const botanicalLandscapeLayout: QrTemplateLayout = {
+  contentX: 500, brandY: 265,
+  title: { y: 330, size: 38, width: 19, maxLines: 2, family: "cormorant", letterSpacing: -.4 },
+  description: { y: 400, size: 17, width: 34, maxLines: 2 },
+  qr: { x: 375, y: 420, size: 250 }, iconsY: 680, ctaY: 720, dividerY: 750, namesY: 780, dateY: 805,
+};
+
+export function resolveQrTemplateLayout(templateId: QrCollectionId, productId?: string) {
+  return templateId === "botanical" && productId === "landscape-mini-100x75-duplex"
+    ? botanicalLandscapeLayout
+    : qrTemplateLayouts[templateId];
+}
+
 export function resolveQrVariant(templateId: QrCollectionId, variantId: QrColorVariantId) {
   const template = qrTemplates[templateId];
   return template.variants.find((item) => item.id === variantId) ?? template.variants.find((item) => item.id === template.defaultVariant)!;
@@ -186,15 +180,25 @@ const botanicalPhysicalVariantFolders: Partial<Record<QrColorVariantId, string>>
   black: "black",
 };
 
-export function resolvePhysicalQrBackground(templateId: QrCollectionId, variantId: QrColorVariantId, face: "front" | "back") {
+export function resolvePhysicalQrBackground(templateId: QrCollectionId, variantId: QrColorVariantId, face: "front" | "back", productId = "portrait-mini-75x100-duplex") {
+  const format = productId === "landscape-mini-100x75-duplex" ? "landscape-mini"
+    : productId === "welcome-sign-500x700-duplex" ? "welcome-sign-500x700"
+      : "portrait-mini";
+  if (templateId === "modern-arch" && format === "portrait-mini" && ["cream", "blush", "sage", "blue", "black"].includes(variantId)) {
+    return `/design-center/templates/modern-arch/${variantId}/portrait-mini/minimal-${variantId}-portrait-mini-${face}-base-clean.png`;
+  }
+  if (templateId === "modern-arch" && variantId === "cream" && format === "landscape-mini") {
+    return `/design-center/templates/modern-arch/cream/landscape-mini/minimal-cream-landscape-mini-${face}-base-clean.png`;
+  }
   if (templateId === "botanical") {
     const folder = botanicalPhysicalVariantFolders[variantId];
     if (!folder) return null;
-    return `/design-center/templates/botanical/${folder}/portrait-mini/botanical-${folder}-portrait-mini-${face}-base-clean.png`;
+    const extension = format === "welcome-sign-500x700" ? "jpg" : "png";
+    return `/design-center/templates/botanical/${folder}/${format}/botanical-${folder}-${format}-${face}-base-clean.${extension}`;
   }
   if (templateId !== "velvet-flow") return null;
   const folder = velvetPhysicalVariantFolders[variantId];
   if (!folder) return null;
-  const availableFace = folder === "obsidian-black" ? "back" : face;
-  return `/design-center/templates/velvet-flow/${folder}/portrait-mini/velvet-flow-${folder}-portrait-mini-${availableFace}-base-clean.png`;
+  const availableFace = format === "welcome-sign-500x700" ? "front" : folder === "obsidian-black" && format === "portrait-mini" ? "back" : face;
+  return `/design-center/templates/velvet-flow/${folder}/${format}/velvet-flow-${folder}-${format}-${availableFace}-base-clean.png`;
 }

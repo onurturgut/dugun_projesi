@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "layoutId": "botanical-welcome-sign-500x700-v1",
+  "templateId": "botanical",
+  "productId": "welcome-sign-500x700-duplex",
+  "status": "approved",
+  "units": "px",
+  "coordinateSpace": {
+    "canvas": {
+      "width": 5976,
+      "height": 8339,
+      "dpi": 300
+    },
+    "print": {
+      "trimWidthMm": 500,
+      "trimHeightMm": 700,
+      "bleedMm": 3,
+      "safeAreaMm": 5
+    }
+  },
+  "variants": {
+    "sage": {
+      "name": "Adaçayı",
+      "ink": "#20291F",
+      "frontBase": "/design-center/templates/botanical/sage/welcome-sign-500x700/botanical-sage-welcome-sign-500x700-front-base-clean.jpg",
+      "backBase": "/design-center/templates/botanical/sage/welcome-sign-500x700/botanical-sage-welcome-sign-500x700-back-base-clean.jpg"
+    },
+    "cream": {
+      "name": "Krem",
+      "ink": "#33281F",
+      "frontBase": "/design-center/templates/botanical/cream/welcome-sign-500x700/botanical-cream-welcome-sign-500x700-front-base-clean.jpg",
+      "backBase": "/design-center/templates/botanical/cream/welcome-sign-500x700/botanical-cream-welcome-sign-500x700-back-base-clean.jpg"
+    },
+    "blush": {
+      "name": "Pudra",
+      "ink": "#3B2523",
+      "frontBase": "/design-center/templates/botanical/blush/welcome-sign-500x700/botanical-blush-welcome-sign-500x700-front-base-clean.jpg",
+      "backBase": "/design-center/templates/botanical/blush/welcome-sign-500x700/botanical-blush-welcome-sign-500x700-back-base-clean.jpg"
+    },
+    "blue": {
+      "name": "Mavi",
+      "ink": "#172A3A",
+      "frontBase": "/design-center/templates/botanical/blue/welcome-sign-500x700/botanical-blue-welcome-sign-500x700-front-base-clean.jpg",
+      "backBase": "/design-center/templates/botanical/blue/welcome-sign-500x700/botanical-blue-welcome-sign-500x700-back-base-clean.jpg"
+    },
+    "black": {
+      "name": "Siyah",
+      "ink": "#FFF8EB",
+      "frontBase": "/design-center/templates/botanical/black/welcome-sign-500x700/botanical-black-welcome-sign-500x700-front-base-clean.jpg",
+      "backBase": "/design-center/templates/botanical/black/welcome-sign-500x700/botanical-black-welcome-sign-500x700-back-base-clean.jpg"
+    }
+  },
+  "contentLimits": {
+    "qrHook": 72,
+    "qrDescription": 110,
+    "qrCta": 48,
+    "names": 100,
+    "message": 240
+  }
+}

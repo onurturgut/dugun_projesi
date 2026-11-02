@@ -93,6 +93,17 @@ import {
   encryptTotpSecret,
   verifyTotp,
 } from "./totp";
+const addOnEffectValues: Record<NonNullable<AddOnProduct["effect_type"]>, readonly number[]> = {
+  print_quantity: [10, 20, 30, 50],
+  welcome_sign: [1],
+  storage_gib: [10],
+  retention_months: [3, 6, 12],
+  digital_invitation: [1],
+  custom_design: [1],
+  second_event: [1],
+};
+const validAddOnEffect = (effectType: NonNullable<AddOnProduct["effect_type"]>, effectValue: number) =>
+  addOnEffectValues[effectType].includes(effectValue);
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
     status,
@@ -2174,17 +2185,44 @@ export async function handle(
         requirePlatform(user);
         const input = z
           .object({
+            code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/).optional(),
             name: z.string().trim().min(2).max(120),
             description: z.string().trim().max(500).default(""),
-            gross_price_cents: z.number().int().min(1).max(100_000_000),
-            commissionable: z.boolean().default(true),
+            gross_price_cents: z.number().int().min(0).max(100_000_000),
+            commissionable: z.boolean().optional(),
+            category: z.enum(["qr_print", "storage_retention", "digital", "design", "organization"]).default("digital"),
+            unit: z.enum(["item", "gib", "month", "service", "organization"]).default("service"),
+            effect_type: z.enum(["print_quantity", "welcome_sign", "storage_gib", "retention_months", "digital_invitation", "custom_design", "second_event"]),
+            effect_value: z.number().int().min(1).max(10000).default(1),
+            print_format: z.literal("vertical_mini").optional(),
+            pricing_type: z.enum(["fixed", "package_percentage_discount"]).default("fixed"),
+            percentage_bps: z.number().int().min(1).max(9000).optional(),
             active: z.boolean().default(true),
           })
+          .superRefine((value, context) => {
+            if (value.pricing_type === "fixed" && value.gross_price_cents < 1)
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["gross_price_cents"], message: "Sabit fiyatlı üründe fiyat gerekli." });
+            if (value.pricing_type === "package_percentage_discount" && !value.percentage_bps)
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["percentage_bps"], message: "İndirim oranı gerekli." });
+            if (value.pricing_type === "package_percentage_discount" && value.effect_type !== "second_event")
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["effect_type"], message: "Yüzde indirim yalnızca ikinci organizasyon ürününde kullanılabilir." });
+            if (value.effect_type === "second_event" && value.pricing_type !== "package_percentage_discount")
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["pricing_type"], message: "İkinci organizasyon yüzde indirimli fiyatlandırılmalı." });
+            if (!validAddOnEffect(value.effect_type, value.effect_value))
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["effect_value"], message: "Bu ek ürün için izin verilen miktarlardan birini seçin." });
+            if (value.effect_type === "print_quantity" && !value.print_format)
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["print_format"], message: "QR baskı tipi gerekli." });
+            if (value.effect_type !== "print_quantity" && value.print_format)
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["print_format"], message: "Baskı tipi yalnızca QR baskı ürünlerinde kullanılabilir." });
+          })
           .parse(await req.json());
+        if (input.code && await products.findOne({ code: input.code }))
+          throw new HttpError(409, "Bu ek ürün kodu zaten kullanılıyor.");
         const now = new Date().toISOString();
         const product: AddOnProduct = {
           id: randomUUID(),
           ...input,
+          commissionable: true,
           created_at: now,
           updated_at: now,
         };
@@ -2206,15 +2244,22 @@ export async function handle(
       requirePlatform(user);
       const changes = z
         .object({
+          code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/).optional(),
           name: z.string().trim().min(2).max(120).optional(),
           description: z.string().trim().max(500).optional(),
           gross_price_cents: z
             .number()
             .int()
-            .min(1)
+            .min(0)
             .max(100_000_000)
             .optional(),
-          commissionable: z.boolean().optional(),
+          category: z.enum(["qr_print", "storage_retention", "digital", "design", "organization"]).optional(),
+          unit: z.enum(["item", "gib", "month", "service", "organization"]).optional(),
+          effect_type: z.enum(["print_quantity", "welcome_sign", "storage_gib", "retention_months", "digital_invitation", "custom_design", "second_event"]).optional(),
+          effect_value: z.number().int().min(1).max(10000).optional(),
+          print_format: z.literal("vertical_mini").optional(),
+          pricing_type: z.enum(["fixed", "package_percentage_discount"]).optional(),
+          percentage_bps: z.number().int().min(1).max(9000).optional(),
           active: z.boolean().optional(),
         })
         .refine(
@@ -2222,11 +2267,26 @@ export async function handle(
           "En az bir alan değiştirilmeli.",
         )
         .parse(await req.json());
+      const currentProduct = await database.collection<AddOnProduct>("add_on_products").findOne({ id: path[2] });
+      if (!currentProduct) throw new HttpError(404, "Ek ürün bulunamadı.");
+      const nextProduct = { ...currentProduct, ...changes };
+      if (nextProduct.effect_type && nextProduct.effect_value && !validAddOnEffect(nextProduct.effect_type, nextProduct.effect_value))
+        throw new HttpError(400, "Bu ek ürün için izin verilen miktarlardan birini seçin.");
+      if (nextProduct.effect_type === "print_quantity" && !nextProduct.print_format)
+        throw new HttpError(400, "QR baskı tipi gerekli.");
+      if (nextProduct.effect_type !== "print_quantity" && nextProduct.print_format)
+        throw new HttpError(400, "Baskı tipi yalnızca QR baskı ürünlerinde kullanılabilir.");
+      if (nextProduct.pricing_type === "package_percentage_discount" && nextProduct.effect_type !== "second_event")
+        throw new HttpError(400, "Yüzde indirim yalnızca ikinci organizasyon ürününde kullanılabilir.");
+      if (nextProduct.effect_type === "second_event" && (nextProduct.pricing_type !== "package_percentage_discount" || !nextProduct.percentage_bps))
+        throw new HttpError(400, "İkinci organizasyon için geçerli bir yüzde indirim oranı gerekli.");
+      if (changes.code && await database.collection<AddOnProduct>("add_on_products").findOne({ code: changes.code, id: { $ne: path[2] } }))
+        throw new HttpError(409, "Bu ek ürün kodu zaten kullanılıyor.");
       const result = await database
         .collection<AddOnProduct>("add_on_products")
         .findOneAndUpdate(
           { id: path[2] },
-          { $set: { ...changes, updated_at: new Date().toISOString() } },
+          { $set: { ...changes, commissionable: true, updated_at: new Date().toISOString() } },
           { returnDocument: "after", projection: { _id: 0 } },
         );
       if (!result) throw new HttpError(404, "Ek ürün bulunamadı.");

@@ -329,10 +329,18 @@ export interface PhotographerAssignment {
 }
 export interface AddOnProduct {
   id: string;
+  code?: string;
   name: string;
   description: string;
   gross_price_cents: number;
   commissionable: boolean;
+  category?: "qr_print" | "storage_retention" | "digital" | "design" | "organization";
+  unit?: "item" | "gib" | "month" | "service" | "organization";
+  effect_type?: "print_quantity" | "welcome_sign" | "storage_gib" | "retention_months" | "digital_invitation" | "custom_design" | "second_event";
+  effect_value?: number;
+  print_format?: "vertical_mini" | "table_card";
+  pricing_type?: "fixed" | "package_percentage_discount";
+  percentage_bps?: number;
   active: boolean;
   created_at: string;
   updated_at: string;

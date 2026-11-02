@@ -148,7 +148,7 @@ export function ThemeGallery({ limit }: { limit?: number }) {
             <div className={styles.modalVisual}>
               <Image
                 src={selected.image}
-                alt={`${selected.displayName} QR masa kartı`}
+                alt={`${selected.displayName} mini QR kartı`}
                 fill
                 sizes="90vw"
               />

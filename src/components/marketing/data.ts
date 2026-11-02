@@ -66,16 +66,16 @@ const weddingThemeImages = [
 ] as const;
 
 const qrThemeImages = [
-  "/qr-templates/the-editorial/01_Krem_On_Yuz.webp",
+  "/qr-templates/botanical/Botanical_Adacayi_On_Yuz.webp",
   "/qr-templates/velvet-flow/01_Bordo_On_Yuz.webp",
   "/qr-templates/botanical/Botanical_Krem_On_Yuz.webp",
   "/qr-templates/modern-arch/01_Krem_On_Yuz.webp",
   "/qr-templates/aurora/Aurora_01_Rose_On_Yuz.webp",
-  "/qr-templates/the-editorial/01_Krem_On_Yuz.webp",
+  "/qr-templates/modern-arch/01_Krem_On_Yuz.webp",
   "/qr-templates/aurora/Aurora_01_Rose_On_Yuz.webp",
   "/qr-templates/aurora/Aurora_02_Mavi_On_Yuz.webp",
   "/qr-templates/modern-arch/05_Siyah_On_Yuz.webp",
-  "/qr-templates/the-editorial/01_Krem_On_Yuz.webp",
+  "/qr-templates/botanical/Botanical_Krem_On_Yuz.webp",
 ] as const;
 
 const collectionNames = [

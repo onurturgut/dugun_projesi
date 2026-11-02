@@ -10,12 +10,12 @@ const output = path.join(root, "SHINEQR-PREMIUM-KATALOG-V2/05-katalog-kaynaklari
 const publicDir = path.join(root, "public");
 
 const jobs = [
-  ["editorial-cream", "the-editorial", "cream"],
+  ["botanical-sage", "botanical", "sage"],
   ["velvet-burgundy", "velvet-flow", "burgundy"],
   ["botanical-cream", "botanical", "cream"],
   ["modern-arch-cream", "modern-arch", "cream"],
   ["aurora-lavender", "aurora", "lavender"],
-  ["editorial-black", "the-editorial", "black"],
+  ["modern-arch-black", "modern-arch", "black"],
 ] as const;
 
 const mime = (file: string) => file.endsWith(".webp") ? "image/webp" : "font/ttf";

@@ -2,19 +2,18 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { botanicalPortraitMiniPresentations, landscapeMiniPresentations, portraitMiniPresentations, welcomeSignPresentations } from "@/lib/qr-presentations";
-import { qrTemplates } from "@/lib/qr-templates";
+import { auroraPresentationSet, botanicalLandscapeMiniPresentations, botanicalPortraitMiniPresentations, botanicalWelcomeSignPresentations, landscapeMiniPresentations, minimalPresentationSet, portraitMiniPresentations, welcomeSignPresentations } from "@/lib/qr-presentations";
 
 const themes = [
   { id: "velvet-flow", label: "Velvet Flow", status: "3 format hazır" },
-  { id: "botanical", label: "Botanical", status: "Dikey mini hazır" },
-  { id: "the-editorial", label: "The Editorial", status: "Referans" },
-  { id: "modern-arch", label: "Minimal", status: "Referans" },
-  { id: "aurora", label: "Aurora", status: "Referans" },
+  { id: "botanical", label: "Botanical", status: "3 format hazır" },
+  { id: "modern-arch", label: "Minimal", status: "3 sunum hazır" },
+  { id: "aurora", label: "Aurora", status: "3 sunum hazır" },
 ] as const;
 
 type ThemeId = (typeof themes)[number]["id"];
 type Presentation = { id: string; name: string; image: string };
+const presentationSets = { "modern-arch": minimalPresentationSet, aurora: auroraPresentationSet } as const;
 
 export function QrThemeAccordion() {
   const [activeTheme, setActiveTheme] = useState<ThemeId>("velvet-flow");
@@ -47,12 +46,22 @@ export function QrThemeAccordion() {
         <PresentationGallery title="10 × 7,5 cm Yatay Mini QR" detail="Onaylı ön/arka kart sunumları" items={landscapeMiniPresentations}/>
         <PresentationGallery title="7,5 × 10 cm Dikey Mini QR" detail="Onaylı ön/arka kart sunumları" items={portraitMiniPresentations}/>
         <PresentationGallery title="50 × 70 cm Karşılama Tabelası" detail="Onaylı şövale sunumları" items={welcomeSignPresentations} welcomeSign/>
-      </> : activeTheme === "botanical" ?
+      </> : activeTheme === "botanical" ? <>
+        <PresentationGallery title="10 × 7,5 cm Yatay Mini QR" detail="300 dpi ön/arka kart sunumları" items={botanicalLandscapeMiniPresentations}/>
         <PresentationGallery title="7,5 × 10 cm Dikey Mini QR" detail="300 dpi ön/arka 3D kart sunumları" items={botanicalPortraitMiniPresentations}/>
-        : <ReferenceGallery templateId={activeTheme}/>
+        <PresentationGallery title="50 × 70 cm Karşılama Tabelası" detail="300 dpi şövale sunumları" items={botanicalWelcomeSignPresentations} welcomeSign/>
+      </> : <CollectionPresentationGalleries set={presentationSets[activeTheme]}/>
       }
     </div>
   </section>;
+}
+
+function CollectionPresentationGalleries({ set }: { set: (typeof presentationSets)[keyof typeof presentationSets] }) {
+  return <>
+    <PresentationGallery title="10 × 7,5 cm Yatay Mini QR" detail="Sunum onayından sonra baskı yüzü hazırlanacak" items={set.landscape}/>
+    <PresentationGallery title="7,5 × 10 cm Dikey Mini QR" detail="Sunum onayından sonra baskı yüzü hazırlanacak" items={set.portrait}/>
+    <PresentationGallery title="50 × 70 cm Karşılama Tabelası" detail="Sunum onayından sonra baskı yüzü hazırlanacak" items={set.welcome} welcomeSign/>
+  </>;
 }
 
 function PresentationGallery({ title, detail, items, welcomeSign = false }: { title: string; detail: string; items: readonly Presentation[]; welcomeSign?: boolean }) {
@@ -65,16 +74,3 @@ function PresentationGallery({ title, detail, items, welcomeSign = false }: { ti
   </section>;
 }
 
-function ReferenceGallery({ templateId }: { templateId: Exclude<ThemeId, "velvet-flow" | "botanical"> }) {
-  const template = qrTemplates[templateId];
-  return <section className="design-center__reference-section">
-    <div className="design-center__collection-head"><div><span>MEVCUT REFERANSLAR</span><h3>Ön ve arka yüz varyantları</h3></div><small>Fiziksel baskı tabanı henüz hazırlanmadı</small></div>
-    <div className="design-center__reference-grid">{template.variants.map((variant) => <article key={variant.id}>
-      <div className="design-center__reference-pair">
-        <Image src={variant.front} alt={`${template.name} ${variant.name} ön yüz referansı`} width={768} height={1024}/>
-        <Image src={variant.back} alt={`${template.name} ${variant.name} arka yüz referansı`} width={768} height={1024}/>
-      </div>
-      <footer><span style={{ background: variant.swatch }}/><strong>{variant.name}</strong><small>REFERANS</small></footer>
-    </article>)}</div>
-  </section>;
-}

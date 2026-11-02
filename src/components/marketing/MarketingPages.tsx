@@ -98,7 +98,7 @@ export function HomePage() {
   const launchSteps = [
     {
       title: "QR kodunu okut",
-      text: "Misafiriniz masa kartındaki kodu telefon kamerasıyla saniyeler içinde okutur.",
+      text: "Misafiriniz mini karttaki kodu telefon kamerasıyla saniyeler içinde okutur.",
       image: "/marketing/qr-scan-wedding-cards.png",
       className: styles.productSceneQr,
     },
@@ -156,8 +156,8 @@ export function HomePage() {
         <div className={styles.premiumHeroVisual} aria-label="ShineQR tasarım örnekleri">
           <div className={styles.heroVisualTrack}>
             {[
-              ["/marketing/qr-table-cards-hero-transparent.png", "Dört kişiselleştirilmiş ShineQR QR masa kartı"],
-              ["/marketing/floral-wedding-cards-hero-transparent.png", "Çiçek detaylı ShineQR düğün masa kartları"],
+              ["/marketing/qr-scan-wedding-cards.png", "Kişiselleştirilmiş ShineQR mini QR kartı"],
+              ["/marketing/floral-wedding-cards-hero-transparent.png", "Çiçek detaylı ShineQR mini QR kartları"],
               ["/marketing/seher-muhammed-wedding-composition-v2.png", "ShineQR düğün albümü deneyimi"],
             ].map(([src, alt], index) => (
               <Image key={src} src={src} alt={alt} fill priority={index === 0} sizes="(max-width: 760px) 100vw, 58vw" />
@@ -248,7 +248,6 @@ export function HomePage() {
           {(Object.keys(PACKAGE_CATALOG) as PackageCode[]).map((code, index) => {
             const plan = PACKAGE_CATALOG[code];
             const packageFeatures = [
-              ...(plan.tableQrCount ? [`${plan.tableQrCount} masa QR kartı`] : []),
               ...(plan.welcomeSignCount ? [`${plan.welcomeSignCount} karşılama panosu`] : []),
               plan.uploadWindow === "event-day" ? "Etkinlik günü yükleme" : "7 gün yükleme süresi",
               `${plan.includedEventCount} organizasyon kullanımı`,
@@ -316,7 +315,7 @@ export function HomePage() {
             <div className={styles.extrasGrid}>
             {[
               [QrCode, "Ek Mini QR Kart"],
-              [LayoutDashboard, "Masa QR Kartı"],
+              [LayoutDashboard, "Mini QR Kartı"],
               [Presentation, "Ek Karşılama Tabelası"],
               [HardDrive, "Ek Depolama"],
               [Clock3, "İlave Saklama"],
@@ -348,7 +347,7 @@ export function HomePage() {
 export function HowPage() {
   const rows = [
     { title: "Etkinliğini oluştur", text: "İşletme ya da organizasyon sahibi panelden etkinlik tarihini, çift adlarını ve erişim süresini belirler.", image: createEvent },
-    { title: "QR kodunu paylaş", text: "Oluşturulan QR kod, seçtiğiniz masa kartı tasarımıyla basılır veya dijital davetlerde paylaşılır.", image: "/marketing/qr-scan-wedding-cards.png" },
+    { title: "QR kodunu paylaş", text: "Oluşturulan QR kod, seçtiğiniz mini kart tasarımıyla basılır veya dijital davetlerde paylaşılır.", image: "/marketing/qr-scan-wedding-cards.png" },
     { title: "Fotoğraf ve videoları yükleyin", text: "Misafirler tarayıcıdan içeriklerini gönderir; siz albümden görüntüler ve topluca indirirsiniz.", image: uploadWedding },
   ];
   return (
@@ -465,7 +464,7 @@ export function ThemesPage() {
       <PageHero
         eyebrow="QR KOD VE YÜKLEME SAYFASI"
         title="Tema galerisi"
-        description="QR masa kartınız ve misafir yükleme ekranınız aynı tasarım hikâyesini anlatsın."
+        description="Mini QR kartınız ve misafir yükleme ekranınız aynı tasarım hikâyesini anlatsın."
         image="/marketing/qr-card-options-editorial.webp"
       />
       <section className={styles.section}>
@@ -507,7 +506,6 @@ export function PricingPage() {
           {(Object.keys(PACKAGE_CATALOG) as PackageCode[]).map((code, i) => {
             const plan = PACKAGE_CATALOG[code];
             const packageFeatures = [
-              ...(plan.tableQrCount ? [`${plan.tableQrCount} masa QR kartı`] : []),
               ...(plan.welcomeSignCount ? [`${plan.welcomeSignCount} karşılama panosu`] : []),
               plan.uploadWindow === "event-day" ? "Etkinlik günü yükleme" : "7 gün yükleme süresi",
               `${plan.includedEventCount} organizasyon kullanımı`,
@@ -560,7 +558,6 @@ export function PricingPage() {
             <tbody>
               {[
                 ["Mini QR", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${plan.miniQrCount} adet`],
-                ["Masa QR", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.tableQrCount ? `${plan.tableQrCount} adet` : "Dahil değil"],
                 ["Karşılama tabelası", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.welcomeSignCount ? `${plan.welcomeSignCount} adet` : "Dahil değil"],
                 ["Depolama", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => `${(packageStorageLimit(plan) || 0) / GIB} GB`],
                 ["Yükleme süresi", (plan: (typeof PACKAGE_CATALOG)[PackageCode]) => plan.uploadWindow === "event-day" ? "Etkinlik günü" : "7 gün"],
@@ -637,7 +634,7 @@ export function PhotographerPackagePage() {
           <article>
             <h2>Pakete dahil değil</h2>
             <ul>
-              <li>Mini QR veya masa QR baskısı</li>
+              <li>Dikey veya yatay mini QR baskısı</li>
               <li>Karşılama tabelası</li>
               <li>Dijital davetiye</li>
               <li>Ana QR paketlerinin depolama kapasitesini artırma</li>
