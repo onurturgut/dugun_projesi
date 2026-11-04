@@ -4,4 +4,5 @@ export const metadata: Metadata = {
   title: "Paketler",
   description: "ShineQR etkinlik paketleri ve kurumsal teklif seçenekleri.",
 };
+export const dynamic = "force-dynamic";
 export default PricingPage;

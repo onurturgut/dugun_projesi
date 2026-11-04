@@ -20,7 +20,6 @@ const bytes = await createMinimalCreamLandscapePrintPdf(design, "ELA & DENİZ", 
   solidLogoSvg: await readFile("public/brand/vector/shineqr-logo-solid-gold.svg", "utf8"),
   montserratLight: await readFile("public/fonts/qr/montserrat-light.ttf"),
   montserrat: await readFile("public/fonts/qr/montserrat-regular.ttf"),
-  montserratBold: await readFile("public/fonts/qr/montserrat-bold.ttf"),
   allura: await readFile("public/fonts/qr/allura-400.ttf"),
 });
 await writeFile("output/pdf/shineqr-minimal-cream-landscape-100x75mm-proof.pdf", bytes);

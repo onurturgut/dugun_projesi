@@ -13,14 +13,17 @@
     "setup": "node --env-file=.env.local scripts/setup.mjs",
     "upload:covers": "node --env-file=.env.local scripts/upload-covers.mjs",
     "platform:migrate": "node --env-file=.env.local scripts/migrate-platform.mjs",
+    "finance:migrate:check": "node --env-file=.env.local scripts/check-finance-center-migration.mjs",
+    "finance:migrate:apply": "node --env-file=.env.local scripts/migrate-finance-center.mjs --apply",
     "demo:seed": "node --env-file=.env.local scripts/seed-demo-accounts.mjs",
     "maintenance": "node --env-file=.env.local scripts/maintenance.mjs",
     "worker": "node --env-file=.env.local scripts/maintenance.mjs --watch",
     "load:seed": "node --env-file=.env.local scripts/load-seed.mjs",
     "load:test": "node --env-file=.env.local scripts/load-test.mjs",
     "load:cleanup": "node --env-file=.env.local scripts/load-cleanup.mjs",
-    "test": "node ./node_modules/tsx/dist/cli.mjs --test tests/policy.test.ts tests/design.test.ts tests/commercial-policy.test.ts tests/access-control.test.ts tests/print-jobs.test.ts tests/pdf-preflight.test.ts tests/agent-config.test.ts tests/agent-report.test.ts tests/uploads.test.ts",
+    "test": "node ./node_modules/tsx/dist/cli.mjs --test tests/policy.test.ts tests/design.test.ts tests/commercial-policy.test.ts tests/finance.test.ts tests/access-control.test.ts tests/print-jobs.test.ts tests/pdf-preflight.test.ts tests/agent-config.test.ts tests/agent-report.test.ts tests/uploads.test.ts",
     "test:integration": "node --env-file=.env.local tests/integration.mjs",
+    "test:finance-integration": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/finance-integration-test.ts",
     "test:migration-rollback": "node --env-file=.env.local scripts/migration-rollback-test.mjs"
   },
   "dependencies": {

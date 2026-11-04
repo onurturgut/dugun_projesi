@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { designNames, type WeddingDesign } from "./design";
-import { minimalCreamDateLabel, type MinimalCreamAssets } from "./minimal-cream-template";
+import { minimalCreamDateLabel, minimalPortraitPalette, type MinimalCreamAssets } from "./minimal-cream-template";
 
 export const minimalCreamLandscapeMaster = {
   id: "minimal-cream-landscape-v1",
@@ -38,7 +38,7 @@ const xml = (value: string) => value.replace(/[<>&"']/g, (char) => ({ "<": "&lt;
 const mm = (pt: number) => pt * 0.352778;
 
 function fontDefinitions(fonts?: MinimalCreamAssets["fonts"]) {
-  const values = [["MinimalMontserratLight", fonts?.montserratLight], ["MinimalMontserrat", fonts?.montserrat], ["MinimalMontserratBold", fonts?.montserratBold], ["MinimalAllura", fonts?.allura]].filter((entry): entry is [string, string] => Boolean(entry[1]));
+  const values = [["MinimalMontserratLight", fonts?.montserratLight], ["MinimalMontserrat", fonts?.montserrat], ["MinimalAllura", fonts?.allura]].filter((entry): entry is [string, string] => Boolean(entry[1]));
   return values.length ? `<defs><style>${values.map(([family, source]) => `@font-face{font-family:${family};src:url('${source}') format('truetype');}`).join("")}</style></defs>` : "";
 }
 
@@ -66,25 +66,25 @@ function qrMarkup(url: string) {
 }
 
 export function buildMinimalCreamLandscape(design: WeddingDesign, title: string, date: string | null, url: string, assets: MinimalCreamAssets) {
-  const master = minimalCreamLandscapeMaster, names = designNames(design, title).toLocaleUpperCase("tr-TR"), dateText = minimalCreamDateLabel(date);
+  const master = minimalCreamLandscapeMaster, names = designNames(design, title).toLocaleUpperCase("tr-TR"), dateText = minimalCreamDateLabel(date), palette = minimalPortraitPalette(design.qrColorVariant);
   const open = (face: "front" | "back", logo: { xMm: number; yMm: number; widthMm: number; heightMm: number }) => `<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="75mm" viewBox="3 3 100 75" role="img">${fontDefinitions(assets.fonts)}<image href="${xml(assets[face])}" x="0" y="0" width="106" height="81" preserveAspectRatio="none"/><image href="${xml(assets.logo)}" x="${logo.xMm}" y="${logo.yMm}" width="${logo.widthMm}" height="${logo.heightMm}" preserveAspectRatio="xMidYMid meet"/>`;
   const front = open("front", master.elements.frontLogo)
-    + lines(design.qrHook, master.elements.title, "MinimalMontserratBold", `fill="#171717" letter-spacing=".08"`)
+    + lines(design.qrHook, master.elements.title, "MinimalMontserratLight", `fill="${palette.ink}" letter-spacing=".08"`)
     + text("Sen de iz bırak.", master.elements.frontScript, "MinimalAllura", `fill="#a86419"`)
-    + text(design.qrDescription, master.elements.description, "MinimalMontserratBold", `fill="#27221e" letter-spacing=".12"`)
+    + text(design.qrDescription, master.elements.description, "MinimalMontserrat", `fill="${palette.muted}" letter-spacing=".12"`)
     + qrMarkup(url)
-    + text(design.qrCta.toLocaleUpperCase("tr-TR"), master.elements.cta, "MinimalMontserrat", `fill="#171717" letter-spacing=".5"`)
-    + text(names, master.elements.names, "MinimalMontserrat", `fill="#171717" letter-spacing=".65"`)
-    + text(dateText, master.elements.date, "MinimalMontserrat", `fill="#171717" letter-spacing=".5"`)
+    + text(design.qrCta.toLocaleUpperCase("tr-TR"), master.elements.cta, "MinimalMontserrat", `fill="${palette.ink}" letter-spacing=".5"`)
+    + text(names, master.elements.names, "MinimalMontserrat", `fill="${palette.ink}" letter-spacing=".65"`)
+    + text(dateText, master.elements.date, "MinimalMontserrat", `fill="${palette.ink}" letter-spacing=".5"`)
     + `</svg>`;
   const divider = master.elements.backDivider;
   const back = open("back", master.elements.backLogo)
-    + lines("BU HİKÂYENİN PARÇASISIN.", master.elements.backTitle, "MinimalMontserratBold", `fill="#171717" letter-spacing=".08"`)
+    + lines("BU HİKÂYENİN PARÇASISIN.", master.elements.backTitle, "MinimalMontserratLight", `fill="${palette.ink}" letter-spacing=".08"`)
     + text("İyi ki geldin.", master.elements.backScript, "MinimalAllura", `fill="#a86419"`)
-    + lines(design.message, master.elements.backDescription, "MinimalMontserratBold", `fill="#27221e" letter-spacing=".12"`)
+    + lines(design.message, master.elements.backDescription, "MinimalMontserrat", `fill="${palette.muted}" letter-spacing=".12"`)
     + `<path d="M${divider.xMm} ${divider.yMm}H52.3M53.7 ${divider.yMm}H${divider.xMm + divider.widthMm}" stroke="#b87925" stroke-width=".18"/><rect x="52.54" y="58.54" width=".92" height=".92" transform="rotate(45 53 59)" fill="#b87925"/>`
-    + text(names, master.elements.backNames, "MinimalMontserrat", `fill="#171717" letter-spacing=".65"`)
-    + text(dateText, master.elements.backDate, "MinimalMontserrat", `fill="#171717" letter-spacing=".5"`)
+    + text(names, master.elements.backNames, "MinimalMontserrat", `fill="${palette.ink}" letter-spacing=".65"`)
+    + text(dateText, master.elements.backDate, "MinimalMontserrat", `fill="${palette.ink}" letter-spacing=".5"`)
     + `</svg>`;
   return { front, back };
 }

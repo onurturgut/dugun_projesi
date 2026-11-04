@@ -56,6 +56,96 @@ final result: passed
 
 ---
 
+# Minimal Krem 50x70 Karşılama Tabelası QA - 2026-11-03
+
+## Evidence
+
+- Clean background sources: `Krem Kâğıtta Altın QR Çerçevesi-2.png` and `Krem zeminli altın çizgili davetiye şablonu-1.png`.
+- Browser-rendered proof: `output/design-center/modern-arch/cream/welcome-sign-500x700/minimal-cream-welcome-sign-proof.png`.
+- One-page control PDF: `output/design-center/modern-arch/cream/welcome-sign-500x700/minimal-cream-welcome-sign-control.pdf`.
+- Design Center presentation: `public/design-center/presentations/modern-arch/welcome-sign-500x700/modern-arch-cream-welcome-sign-500x700-uploaded-v1-presentation.png`.
+
+## Findings
+
+- The 506 x 706 mm media, 500 x 700 mm trim, 3 mm bleed and 5 mm internal safe-area contract passes automated preflight.
+- The browser preview, PDF and 3D presentation use the same master coordinates and dynamic QR target.
+- The supplied 1060 x 1484 px raster base resolves to approximately 53.85 DPI at 500 x 700 mm. It is suitable for visual approval but not a true 300 DPI production background.
+- A complete flattened final reference was not supplied, so exact pixel-level fidelity of the final composed typography cannot be certified against a separate approved reference.
+
+## Verification note
+
+- Type checking passed.
+- 33 design and PDF preflight tests passed.
+- Browser proof and 3D presentation were visually inspected; no clipping or overlap was found.
+- PDF geometry and page boxes were verified by automated preflight. Poppler was unavailable, so a separate PDF-to-PNG visual render could not be completed in this environment.
+
+final result: blocked - replace the background with a 300 DPI source of at least 5976 x 8339 px and approve the composed proof before production release
+
+---
+
+# Minimal Yatay Mini QR — Beş Renk QA — 2026-11-03
+
+## Evidence
+
+- Source visual targets: `public/design-center/source-art/modern-arch/landscape-mini/*-presentation-source.png`.
+- Combined implementation evidence: `output/pdf/shineqr-minimal-landscape-five-variants-qa.png` (Cream, Blush, Sage, Blue, Black).
+- Print artifacts: `output/pdf/shineqr-minimal-*-landscape-100x75mm-proof.pdf`.
+- State: Minimal / 100 × 75 mm Yatay Mini QR / ön ve arka yüz / beş renk.
+
+## Required fidelity surfaces
+
+- Fonts and typography: bütün renklerde Montserrat Light başlık, Montserrat Regular açıklama ve Allura script korunuyor.
+- Spacing and layout rhythm: beş varyasyon aynı master koordinatları, 100 × 75 mm kesim ve 3 mm taşma alanını kullanıyor.
+- Colors and visual tokens: krem, pudra, adaçayı, mavi ve siyah zeminler ayrı üretildi; altın çizgiler korunuyor. Siyah varyasyonda metin açık krem.
+- Image quality and asset fidelity: on zemin dosyasının tamamı 1252 × 957 px ve 300 DPI.
+- Copy and content: müşteri metinleri ve gerçek QR hedefi tüm varyasyonlarda dinamik.
+
+## Comparison history
+
+1. P1: ilk siyah dönüşümde sıcak krem zemin altın maske olarak yanlış algılandı ve açık kaldı.
+2. Düzeltme: altın piksel maskesi yalnızca gerçek metalik çizgileri koruyacak biçimde daraltıldı.
+3. Son kanıt: birleşik QA görselinde siyah zemin temiz ve metin kontrastı yeterli; diğer dört renk de tutarlı.
+
+## Findings
+
+- No actionable P0, P1, or P2 mismatch remains.
+- Beş QR kodun tamamı render edilmiş PDF üzerinden doğru varyasyon URL’siyle tarandı.
+
+final result: passed
+
+---
+
+# Minimal Krem Yatay Mini QR Font Eşleştirmesi — 2026-11-03
+
+## Evidence
+
+- Source visual truth: `public/design-center/source-art/modern-arch/landscape-mini/cream-presentation-source.png` (1536 × 1024 px).
+- Rendered implementation: `output/pdf/shineqr-minimal-cream-landscape-front-preview.png` and `output/pdf/shineqr-minimal-cream-landscape-back-preview.png`.
+- State: Minimal / Krem / 100 × 75 mm yatay mini QR, ön ve arka yüz.
+
+## Required fidelity surfaces
+
+- Fonts and typography: başlık Montserrat Light (300), açıklama Montserrat Regular (400), script Allura. Önceki Montserrat Bold (700) kaldırıldı.
+- Spacing and layout rhythm: ağırlık değişimi mevcut satır kırılımlarını, QR yerleşimini ve güvenli alanı değiştirmedi.
+- Colors and visual tokens: referanstaki siyah metin, altın script ve krem zemin korunuyor.
+- Image quality and asset fidelity: 300 DPI zemin ile vektör metin/QR üretimi korunuyor.
+- Copy and content: müşteri tarafından düzenlenebilir metinler değişmedi.
+
+## Findings
+
+- Bold sürüm referanstan belirgin biçimde ağırdı; Light/Regular eşleştirmesiyle düzeltildi.
+- Son renderlarda taşma, çakışma veya okunabilirlik sorunu görülmedi.
+
+## Comparison history
+
+1. P2: başlık ve açıklamanın Bold (700) olması sunum dosyasındaki zarif tipografiyle uyuşmuyordu.
+2. Düzeltme: başlık 300, açıklama 400 ağırlığına alındı.
+3. Son kanıt: ön/arka PDF renderları referanstaki ağırlık ve hiyerarşiyi yeniden sağlıyor.
+
+final result: passed
+
+---
+
 # Minimal Krem Yatay Mini QR QA — 2026-11-03
 
 ## Evidence

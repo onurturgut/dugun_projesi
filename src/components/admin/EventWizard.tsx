@@ -4,15 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, LoaderCircle, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Account, AddOnProduct, Partner, Wedding } from "@/lib/models";
+import type { Account, AddOnProduct, PackageConfiguration, Partner, QrQuantitySelection, Wedding } from "@/lib/models";
 import { CoverUpload } from "./CoverUpload";
 import { Field, Notice, TextField } from "./Fields";
 import { SelectField } from "./SelectField";
-import {
-  PACKAGE_CATALOG,
-  type AddOnSelection,
-  type PackageCode,
-} from "@/lib/commercial-policy";
+import { type AddOnSelection, type PackageCode } from "@/lib/commercial-policy";
 
 const steps = [
   "Organizasyon",
@@ -42,6 +38,7 @@ type DraftState = {
   trash_days: number;
   package_code: PackageCode;
   add_on_selections: AddOnSelection[];
+  qr_quantity_selections: QrQuantitySelection[];
 };
 type BusinessOption = Pick<Partner, "id" | "name" | "business_types">;
 type PhotographerOption = { id: string; display_name: string; partner_id: string };
@@ -84,6 +81,7 @@ function initialState(event?: Wedding): DraftState {
     trash_days: event?.trash_days || 7,
     package_code: event?.package_code || "plan-1",
     add_on_selections: event?.add_on_selections || [],
+    qr_quantity_selections: event?.qr_quantity_selections || [],
   };
 }
 
@@ -138,14 +136,23 @@ export function EventWizard({
     queryFn: () => api<AddOnProduct[]>("/admin/add-ons"),
     enabled: user.role === "platform" || user.role === "partner",
   });
+  const packages = useQuery({
+    queryKey: ["finance-packages"],
+    queryFn: () => api<{ items: PackageConfiguration[] }>("/admin/finance/packages"),
+  });
+  const packageCatalog = Object.fromEntries((packages.data?.items || []).map((item) => [item.code, item])) as Partial<Record<PackageCode, PackageConfiguration>>;
   const activeAddOns = addOns.data?.filter((item) => item.active) || [];
+  const qrProducts = activeAddOns.filter((item) => item.category === "qr_print" && item.effect_type === "print_quantity" && item.unit === "item" && item.effect_value === 1);
+  const qrProductIds = new Set(qrProducts.map((item) => item.id));
+  const regularAddOns = activeAddOns.filter((item) => !qrProductIds.has(item.id));
   const selectedAddOns = data.add_on_selections.flatMap((selection) => {
-    const product = activeAddOns.find(
+    const product = regularAddOns.find(
       (item) => item.id === selection.product_id,
     );
     return product ? [{ ...selection, product }] : [];
   });
-  const packageGrossCents = PACKAGE_CATALOG[data.package_code].grossPriceCents;
+  const selectedPackage = packageCatalog[data.package_code] || (initialEvent?.package_snapshot as PackageConfiguration | undefined);
+  const packageGrossCents = selectedPackage?.grossPriceCents || 0;
   const addOnUnitGross = (product: AddOnProduct) =>
     product.pricing_type === "package_percentage_discount"
       ? -Math.round((packageGrossCents * (product.percentage_bps || 0)) / 10_000)
@@ -155,7 +162,11 @@ export function EventWizard({
     selectedAddOns.reduce(
       (sum, item) => sum + addOnUnitGross(item.product) * item.quantity,
       0,
-    );
+    ) + qrProducts.reduce((sum, product) => {
+      const included = product.print_format === "table_card" ? selectedPackage?.tableQrCount || 0 : selectedPackage?.miniQrCount || 0;
+      const total = data.qr_quantity_selections.find((item) => item.product_id === product.id)?.total_quantity ?? included;
+      return sum + Math.max(0, total - included) * product.gross_price_cents;
+    }, 0);
   const money = (cents: number) =>
     new Intl.NumberFormat("tr-TR", {
       style: "currency",
@@ -189,6 +200,13 @@ export function EventWizard({
       ),
     );
   }
+  function setQrTotal(productId: string, totalQuantity: number) {
+    const next = Math.max(0, Math.min(10_000, totalQuantity || 0));
+    set("qr_quantity_selections", [
+      ...data.qr_quantity_selections.filter((item) => item.product_id !== productId),
+      { product_id: productId, total_quantity: next },
+    ]);
+  }
   useEffect(() => {
     const listener = (keyboardEvent: KeyboardEvent) => {
       if (keyboardEvent.key === "Escape" && !busy && !coverBusy) onClose();
@@ -216,6 +234,7 @@ export function EventWizard({
     const payload = {
       ...(event ? { id: event.id } : {}),
       ...data,
+      add_on_selections: data.add_on_selections.filter((item) => !qrProductIds.has(item.product_id)),
       slug: data.slug || undefined,
       wedding_date: data.wedding_date || undefined,
       bride_name: data.bride_name.trim() || undefined,
@@ -381,9 +400,9 @@ export function EventWizard({
                     set("package_code", value as PackageCode)
                   }
                 >
-                  {(Object.entries(PACKAGE_CATALOG) as Array<
-                    [PackageCode, (typeof PACKAGE_CATALOG)[PackageCode]]
-                  >).map(([code, plan], index) => (
+                  {(Object.entries(packageCatalog) as Array<
+                    [PackageCode, PackageConfiguration]
+                  >).filter(([, plan]) => plan.active).map(([code, plan], index) => (
                     <option key={code} value={code}>
                       Plan {index + 1} · {plan.name} · {money(plan.grossPriceCents)}
                     </option>
@@ -414,7 +433,16 @@ export function EventWizard({
                   <small>Finansal hak ediş bu işletmeye yazılır ve satıştan sonra değişmez.</small>
                 </label>
               ) : null}
-              <div className="event-wizard-add-ons">
+                {qrProducts.length ? <div className="event-wizard-add-ons">
+                  <div className="event-wizard-add-on-heading"><div><strong>Toplam QR adetleri</strong><small>Pakete dahil adet düşülür; yalnızca ekstra adet ücretlendirilir.</small></div></div>
+                  {qrProducts.map((product) => {
+                    const included = product.print_format === "table_card" ? selectedPackage?.tableQrCount || 0 : selectedPackage?.miniQrCount || 0;
+                    const total = data.qr_quantity_selections.find((item) => item.product_id === product.id)?.total_quantity ?? included;
+                    const extra = Math.max(0, total - included);
+                    return <label className="event-wizard-add-on" key={product.id}><span><strong>{product.name}</strong><small>Pakete dahil {included} · ekstra {extra} × {money(product.gross_price_cents)} = {money(extra * product.gross_price_cents)}</small></span><input aria-label={`${product.name} toplam adedi`} type="number" min={included} max={included + (product.maximum_quantity || 100)} value={total} onChange={(event) => setQrTotal(product.id, Number(event.target.value))} /></label>;
+                  })}
+                </div> : null}
+                <div className="event-wizard-add-ons">
                 <div className="event-wizard-add-on-heading">
                   <div>
                     <strong>Ek ürünler</strong>
@@ -426,10 +454,10 @@ export function EventWizard({
                   <strong>{money(totalGrossCents)}</strong>
                 </div>
                 {addOns.isLoading ? <p>Ek ürünler yükleniyor…</p> : null}
-                {!addOns.isLoading && !activeAddOns.length ? (
+                {!addOns.isLoading && !regularAddOns.length ? (
                   <p className="admin-hint">Satışa açık ek ürün bulunmuyor.</p>
                 ) : null}
-                {activeAddOns.map((product) => {
+                {regularAddOns.map((product) => {
                   const selection = data.add_on_selections.find(
                     (item) => item.product_id === product.id,
                   );
@@ -634,11 +662,16 @@ export function EventWizard({
                 <div>
                   <dt>Paket ve ek ürünler</dt>
                   <dd>
-                    {PACKAGE_CATALOG[data.package_code].name}
+                    {selectedPackage?.name || data.package_code}
                     {selectedAddOns.length
                       ? ` · ${selectedAddOns.map((item) => `${item.product.name} × ${item.quantity}`).join(", ")}`
                       : " · Ek ürün yok"}
                     <br />
+                    {qrProducts.map((product) => {
+                      const included = product.print_format === "table_card" ? selectedPackage?.tableQrCount || 0 : selectedPackage?.miniQrCount || 0;
+                      const total = data.qr_quantity_selections.find((item) => item.product_id === product.id)?.total_quantity ?? included;
+                      return <span key={product.id}>{product.name}: toplam {total}, ekstra {Math.max(0, total - included)}<br /></span>;
+                    })}
                     KDV dahil toplam: {money(totalGrossCents)}
                   </dd>
                 </div>

@@ -2,6 +2,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { MongoServerError } from "mongodb";
 import { z } from "zod";
 import {
   PutObjectCommand,
@@ -57,6 +58,11 @@ import type {
   PhotographerSaleRecord,
   ServicePayoutLedgerEntry,
   AddOnProduct,
+  ExpenseRecord,
+  PackageConfiguration,
+  PartnerCommissionPolicy,
+  PhotographerPackageConfiguration,
+  TaxConfiguration,
   AgentReport,
   PrintJob,
   PrintJobStatus,
@@ -79,6 +85,23 @@ import {
   type PackagePolicy,
 } from "@/lib/commercial-policy";
 import {
+  calculateCommissionCents,
+  commissionRateForOrdinal,
+  breakEvenGrossCents,
+  monthlyBreakEvenUnits,
+  netFromVatIncluded,
+  profitability,
+  targetMarginGrossCents,
+} from "@/lib/finance";
+import {
+  currentCommissionPolicy,
+  currentPackage,
+  currentPackages,
+  currentPhotographerPackage,
+  priceSnapshotForPackage,
+  selectionsWithExtraQr,
+} from "./pricing";
+import {
   accountHasPermission,
   effectiveStaffRole,
   initialPartnerStaffRole,
@@ -87,6 +110,7 @@ import { canTransitionPrintJob } from "@/lib/print-jobs";
 import { inspectPrintPdf } from "@/lib/pdf-preflight";
 import { resolveQrProduct } from "@/lib/qr-products";
 import { sendPasswordResetEmail } from "./email";
+import { createPaymentQuote } from "./payment-quote";
 import {
   createTotpSecret,
   decryptTotpSecret,
@@ -94,7 +118,7 @@ import {
   verifyTotp,
 } from "./totp";
 const addOnEffectValues: Record<NonNullable<AddOnProduct["effect_type"]>, readonly number[]> = {
-  print_quantity: [10, 20, 30, 50],
+  print_quantity: [1, 10, 20, 30, 50],
   welcome_sign: [1],
   storage_gib: [10],
   retention_months: [3, 6, 12],
@@ -103,7 +127,9 @@ const addOnEffectValues: Record<NonNullable<AddOnProduct["effect_type"]>, readon
   second_event: [1],
 };
 const validAddOnEffect = (effectType: NonNullable<AddOnProduct["effect_type"]>, effectValue: number) =>
-  addOnEffectValues[effectType].includes(effectValue);
+  effectType === "print_quantity"
+    ? Number.isInteger(effectValue) && effectValue >= 1 && effectValue <= 10_000
+    : addOnEffectValues[effectType].includes(effectValue);
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
     status,
@@ -2167,6 +2193,258 @@ export async function handle(
         },
       });
     }
+    if (
+      path.length === 4 && path[0] === "admin" && path[1] === "weddings" &&
+      path[3] === "payment-quote" && method === "POST" && user
+    ) {
+      requirePermission(user, "organization.update");
+      const event = await eventFor(user, path[2]);
+      const quote = await createPaymentQuote(database, event, user.id);
+      await audit(req, "payment_quote.created", user, { quote_id: quote.id, wedding_id: event.id, gross_cents: quote.gross_cents });
+      return json(quote, 201);
+    }
+    if (route === "admin/finance/packages" && user && method === "GET") {
+      requirePermission(user, user.role === "platform" ? "finance.view_all" : "finance.view_own");
+      return json(await currentPackages(database));
+    }
+    if (
+      path.length === 4 && path[0] === "admin" && path[1] === "finance" &&
+      path[2] === "packages" && method === "PATCH" && user
+    ) {
+      requirePermission(user, "commission.manage");
+      const code = z.enum(["plan-1", "plan-2", "plan-3"]).parse(path[3]);
+      const changes = z.object({
+        name: z.string().trim().min(2).max(120).optional(),
+        description: z.string().trim().max(1000).optional(),
+        grossPriceCents: z.number().int().min(0).max(100_000_000).optional(),
+        miniQrCount: z.number().int().min(0).max(10000).optional(),
+        welcomeSignCount: z.number().int().min(0).max(1000).optional(),
+        active: z.boolean().optional(),
+        display_order: z.number().int().min(0).max(1000).optional(),
+        featured: z.boolean().optional(),
+        vat_rate_bps: z.number().int().min(0).max(10_000).optional(),
+        target_margin_bps: z.number().int().min(0).max(9900).optional(),
+        variable_cost_cents: z.number().int().min(0).max(100_000_000).optional(),
+        hardStorageBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+        fairUseSoftCapBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+        uploadWindow: z.enum(["event-day", "seven-days"]).optional(),
+        digitalRetentionMonths: z.number().int().min(1).max(120).optional(),
+        physicalRetentionMonths: z.number().int().min(0).max(120).optional(),
+        revisionLimit: z.number().int().min(0).max(100).nullable().optional(),
+        includedEventCount: z.number().int().min(1).max(100).optional(),
+        secondEventPrintingIncluded: z.boolean().optional(),
+        qualifiesForVolumeCommission: z.boolean().optional(),
+        digitalInvitationIncluded: z.boolean().optional(),
+        tableQrCount: z.number().int().min(0).max(10_000).optional(),
+        campaign_starts_at: z.string().datetime().nullable().optional(),
+        campaign_ends_at: z.string().datetime().nullable().optional(),
+        compare_at_gross_cents: z.number().int().min(0).max(100_000_000).nullable().optional(),
+      }).refine((value) => Object.keys(value).length > 0, "En az bir alan değiştirilmeli.").parse(await req.json());
+      const previous = await currentPackage(database, code, true);
+      const now = new Date().toISOString();
+      const next: PackageConfiguration = {
+        ...previous,
+        ...changes,
+        version: previous.version + 1,
+        updated_at: now,
+        updated_by: user.id,
+      };
+      const transaction = (await mongoClient()).startSession();
+      try {
+        await transaction.withTransaction(async () => {
+          await database.collection<PackageConfiguration>("package_configurations").replaceOne({ code }, next, { upsert: true, session: transaction });
+          await database.collection("pricing_change_history").insertOne({
+            id: randomUUID(), entity_type: "package", entity_id: code,
+            previous, next, changed_fields: Object.keys(changes), changed_at: now, changed_by: user.id,
+          }, { session: transaction });
+        });
+      } finally { await transaction.endSession(); }
+      await audit(req, "pricing.package.updated", user, { code, previous, next });
+      return json(next);
+    }
+    if (route === "admin/finance/photographer-package" && user) {
+      requirePermission(user, user.role === "platform" ? "finance.view_all" : "finance.view_own");
+      if (method === "GET") return json(await currentPhotographerPackage(database, true));
+      if (method !== "PATCH") throw new HttpError(405, "Desteklenmeyen yöntem.");
+      requirePermission(user, "commission.manage");
+      const changes = z.object({
+        name: z.string().trim().min(2).max(120).optional(),
+        description: z.string().trim().max(1000).optional(),
+        grossPriceCents: z.number().int().min(0).max(100_000_000).optional(),
+        vatRateBps: z.number().int().min(0).max(10_000).optional(),
+        digitalRetentionMonths: z.number().int().min(1).max(120).optional(),
+        photographerGrossCents: z.number().int().min(0).max(100_000_000).optional(),
+        originatingPartnerGrossCents: z.number().int().min(0).max(100_000_000).optional(),
+        platformGrossCents: z.number().int().min(0).max(100_000_000).optional(),
+        active: z.boolean().optional(),
+      }).refine((value) => Object.keys(value).length > 0, "En az bir alan değiştirilmeli.").parse(await req.json());
+      const previous = await currentPhotographerPackage(database, true);
+      const now = new Date().toISOString();
+      const next: PhotographerPackageConfiguration = { ...previous, ...changes, version: previous.version + 1, updated_at: now, updated_by: user.id };
+      const allocation = next.photographerGrossCents + next.originatingPartnerGrossCents + next.platformGrossCents;
+      if (allocation !== next.grossPriceCents)
+        throw new HttpError(400, "Fotoğrafçı, kaynak işletme ve platform payları toplam satış fiyatına eşit olmalı.");
+      const transaction = (await mongoClient()).startSession();
+      try {
+        await transaction.withTransaction(async () => {
+          await database.collection<PhotographerPackageConfiguration>("photographer_package_configurations").replaceOne({ code: next.code }, next, { upsert: true, session: transaction });
+          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "photographer_package", entity_id: next.code, previous, next, changed_fields: Object.keys(changes), changed_at: now, changed_by: user.id }, { session: transaction });
+        });
+      } finally { await transaction.endSession(); }
+      await audit(req, "pricing.photographer_package.updated", user, { previous, next });
+      return json(next);
+    }
+    if (route === "admin/finance/commission-policies" && user) {
+      if (method === "GET") {
+        requirePermission(user, user.role === "platform" ? "finance.view_all" : "commission.view_own");
+        const scope = user.role === "platform" ? { active: true } : { active: true, partner_id: user.partner_id! };
+        const [policies, partners] = await Promise.all([
+          database.collection<PartnerCommissionPolicy>("partner_commission_policies").find(scope, { projection: { _id: 0 } }).sort({ partner_id: 1, version: -1 }).toArray(),
+          database.collection("partners").find(user.role === "platform" ? {} : { id: user.partner_id! }, { projection: { _id: 0, id: 1, name: 1, business_types: 1, active: 1 } }).toArray(),
+        ]);
+        const latest = new Map<string, PartnerCommissionPolicy>();
+        for (const policy of policies) if (!latest.has(policy.partner_id)) latest.set(policy.partner_id, policy);
+        const period = istanbulCalendarMonth(new Date());
+        const counters = await database.collection("monthly_sales_counters").find({ partner_id: { $in: partners.map((item) => item.id) }, period }).toArray();
+        return json(partners.map((partner) => ({ ...partner, policy: latest.get(String(partner.id)) || null, period, monthly_valid_sales: Number(counters.find((item) => item.partner_id === partner.id)?.net_count || 0) })));
+      }
+      if (method === "POST") {
+        requirePermission(user, "commission.manage");
+        const input = z.object({
+          partner_id: z.string().trim().min(1).max(100), base_rate_bps: z.number().int().min(0).max(10_000),
+          threshold: z.number().int().min(1).max(10_000).default(10), elevated_rate_bps: z.number().int().min(0).max(10_000),
+          tiered: z.boolean().default(true), qualifying_package_codes: z.array(z.enum(["plan-1", "plan-2", "plan-3"])).min(1),
+          effective_from: z.string().datetime(),
+        }).parse(await req.json());
+        const now = new Date().toISOString();
+        const current = await database.collection<PartnerCommissionPolicy>("partner_commission_policies").findOne({ partner_id: input.partner_id, active: true }, { sort: { version: -1 } });
+        const policy: PartnerCommissionPolicy = { id: randomUUID(), ...input, version: (current?.version || 0) + 1, active: true, created_at: now, created_by: user.id, updated_at: now, updated_by: user.id };
+        const tx = (await mongoClient()).startSession();
+        try { await tx.withTransaction(async () => {
+          await database.collection<PartnerCommissionPolicy>("partner_commission_policies").insertOne(policy, { session: tx });
+          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "commission_policy", entity_id: input.partner_id, previous: current || null, next: policy, changed_fields: Object.keys(input), changed_at: now, changed_by: user.id }, { session: tx });
+        }); } finally { await tx.endSession(); }
+        await audit(req, "commission.policy.updated", user, { partner_id: input.partner_id, previous: current || null, next: policy });
+        return json(policy, 201);
+      }
+    }
+    if (route === "admin/finance/tax" && user) {
+      requirePermission(user, user.role === "platform" ? "finance.view_all" : "finance.view_own");
+      const taxes = database.collection<TaxConfiguration>("tax_configurations");
+      if (method === "GET") return json(await taxes.findOne({ id: "default" }, { projection: { _id: 0 } }));
+      requirePermission(user, "commission.manage");
+      const input = z.object({ default_vat_rate_bps: z.number().int().min(0).max(10_000), category_vat_rate_bps: z.record(z.string(), z.number().int().min(0).max(10_000)).default({}), carried_vat_cents: z.number().int().min(0), effective_from: z.string().datetime() }).parse(await req.json());
+      const previous = await taxes.findOne({ id: "default" });
+      const next: TaxConfiguration = { id: "default", ...input, version: (previous?.version || 0) + 1, updated_at: new Date().toISOString(), updated_by: user.id };
+      const transaction = (await mongoClient()).startSession();
+      try {
+        await transaction.withTransaction(async () => {
+          await taxes.replaceOne({ id: "default" }, next, { upsert: true, session: transaction });
+          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "tax_configuration", entity_id: "default", previous, next, changed_fields: Object.keys(input), changed_at: next.updated_at, changed_by: user.id }, { session: transaction });
+        });
+      } finally { await transaction.endSession(); }
+      await audit(req, "tax.configuration.updated", user, { previous, next });
+      return json(next);
+    }
+    if (route === "admin/finance/expenses" && user) {
+      requirePermission(user, "finance.view_all");
+      const expenses = database.collection<ExpenseRecord>("expense_records");
+      if (method === "GET") return json(await expenses.find({ $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }, { projection: { _id: 0 } }).sort({ payment_date: -1 }).limit(500).toArray());
+      const input = z.object({ name: z.string().trim().min(2).max(160), category: z.string().trim().min(2).max(80), amount_cents: z.number().int().min(0), vat_rate_bps: z.number().int().min(0).max(10_000).default(2000), deductible_vat: z.boolean().default(false), kind: z.enum(["fixed", "variable"]), recurrence: z.enum(["once", "monthly", "yearly"]), payment_status: z.enum(["planned", "paid"]), payment_date: z.string().date(), order_id: z.string().trim().optional(), estimated: z.boolean().default(false) }).parse(await req.json());
+      const now = new Date().toISOString();
+      const expense: ExpenseRecord = { id: randomUUID(), ...input, currency: "TRY", created_at: now, created_by: user.id, updated_at: now, updated_by: user.id };
+      const transaction = (await mongoClient()).startSession();
+      try {
+        await transaction.withTransaction(async () => {
+          await expenses.insertOne(expense, { session: transaction });
+          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "expense", entity_id: expense.id, previous: null, next: expense, changed_fields: Object.keys(input), changed_at: now, changed_by: user.id }, { session: transaction });
+        });
+      } finally { await transaction.endSession(); }
+      await audit(req, "expense.created", user, { expense_id: expense.id, amount_cents: expense.amount_cents });
+      return json(expense, 201);
+    }
+    if (path.length === 4 && path[0] === "admin" && path[1] === "finance" && path[2] === "expenses" && user) {
+      requirePermission(user, "finance.view_all");
+      const expenses = database.collection<ExpenseRecord>("expense_records");
+      const previous = await expenses.findOne({ id: path[3], $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }, { projection: { _id: 0 } });
+      if (!previous) throw new HttpError(404, "Gider kaydı bulunamadı.");
+      const now = new Date().toISOString();
+      if (method === "DELETE") {
+        const next = { ...previous, archived_at: now, archived_by: user.id, updated_at: now, updated_by: user.id };
+        const transaction = (await mongoClient()).startSession();
+        try {
+          await transaction.withTransaction(async () => {
+            await expenses.updateOne({ id: path[3] }, { $set: { archived_at: now, archived_by: user.id, updated_at: now, updated_by: user.id } }, { session: transaction });
+            await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "expense", entity_id: path[3], previous, next, changed_fields: ["archived_at"], changed_at: now, changed_by: user.id }, { session: transaction });
+          });
+        } finally { await transaction.endSession(); }
+        await audit(req, "expense.archived", user, { expense_id: path[3], previous, next });
+        return json(next);
+      }
+      if (method === "PATCH") {
+        const changes = z.object({ name: z.string().trim().min(2).max(160).optional(), category: z.string().trim().min(2).max(80).optional(), amount_cents: z.number().int().min(0).optional(), vat_rate_bps: z.number().int().min(0).max(10_000).optional(), deductible_vat: z.boolean().optional(), kind: z.enum(["fixed", "variable"]).optional(), recurrence: z.enum(["once", "monthly", "yearly"]).optional(), payment_status: z.enum(["planned", "paid"]).optional(), payment_date: z.string().date().optional(), order_id: z.string().trim().optional(), estimated: z.boolean().optional() }).refine((value) => Object.keys(value).length > 0, "En az bir alan değiştirilmeli.").parse(await req.json());
+        const next = { ...previous, ...changes, updated_at: now, updated_by: user.id };
+        const transaction = (await mongoClient()).startSession();
+        try {
+          await transaction.withTransaction(async () => {
+            await expenses.updateOne({ id: path[3] }, { $set: { ...changes, updated_at: now, updated_by: user.id } }, { session: transaction });
+            await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "expense", entity_id: path[3], previous, next, changed_fields: Object.keys(changes), changed_at: now, changed_by: user.id }, { session: transaction });
+          });
+        } finally { await transaction.endSession(); }
+        await audit(req, "expense.updated", user, { expense_id: path[3], previous, next });
+        return json(next);
+      }
+    }
+    if (route === "admin/finance/history" && user && method === "GET") {
+      requirePermission(user, "finance.view_all");
+      const entityType = req.nextUrl.searchParams.get("entity_type");
+      const filter = entityType ? { entity_type: entityType } : {};
+      return json(await database.collection("pricing_change_history").find(filter, { projection: { _id: 0 } }).sort({ changed_at: -1 }).limit(500).toArray());
+    }
+    if (route === "admin/finance/profitability" && user && method === "GET") {
+      requirePermission(user, "finance.view_all");
+      const packageResult = await currentPackages(database);
+      const [products, fixedExpenses, salesByPackage] = await Promise.all([
+        database.collection<AddOnProduct>("add_on_products").find({ active: true }).toArray(),
+        database.collection<ExpenseRecord>("expense_records").find({ kind: "fixed", payment_status: "paid", estimated: false, $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }).toArray(),
+        database.collection<SaleRecord>("sales").aggregate<{ _id: PackageCode; count: number }>([{ $match: { status: "paid" } }, { $group: { _id: "$package_code", count: { $sum: 1 } } }]).toArray(),
+      ]);
+      const partnerId = req.nextUrl.searchParams.get("partner_id") || "platform";
+      const commissionPolicy = await currentCommissionPolicy(database, partnerId, new Date().toISOString());
+      const packageRows = packageResult.items.map((item) => {
+        const miniCost = products.find((product) => product.category === "qr_print" && product.print_format === "vertical_mini" && product.unit === "item")?.unit_cost_cents || 0;
+        const tableCost = products.find((product) => product.category === "qr_print" && product.print_format === "table_card" && product.unit === "item")?.unit_cost_cents || 0;
+        const signCost = products.find((product) => product.effect_type === "welcome_sign")?.unit_cost_cents || 0;
+        const variableCost = item.variable_cost_cents + item.miniQrCount * miniCost + (item.tableQrCount || 0) * tableCost + item.welcomeSignCount * signCost;
+        const rate = commissionRateForOrdinal(commissionPolicy, item.code, 1);
+        const result = profitability({ gross_cents: item.grossPriceCents, vat_rate_bps: item.vat_rate_bps, variable_cost_cents: variableCost, commission_rate_bps: rate, payment_rate_bps: 0, target_margin_bps: item.target_margin_bps });
+        let breakEvenGrossCentsValue: number | null = null;
+        let targetGrossCentsValue: number | null = null;
+        let calculationWarning: string | null = null;
+        try {
+          breakEvenGrossCentsValue = breakEvenGrossCents({ vat_rate_bps: item.vat_rate_bps, variable_cost_cents: variableCost, commission_rate_bps: rate, payment_rate_bps: 0 });
+          targetGrossCentsValue = targetMarginGrossCents({ vat_rate_bps: item.vat_rate_bps, variable_cost_cents: variableCost, commission_rate_bps: rate, payment_rate_bps: 0, target_margin_bps: item.target_margin_bps });
+        } catch (reason) {
+          calculationWarning = reason instanceof Error ? reason.message : "Fiyat hesaplanamıyor.";
+        }
+        return { ...item, variable_cost_cents: variableCost, commission_rate_bps: rate, ...result, break_even_gross_cents: breakEvenGrossCentsValue, target_gross_cents: targetGrossCentsValue, calculation_warning: calculationWarning, sales_count: salesByPackage.find((sale) => sale._id === item.code)?.count || 0 };
+      });
+      const monthlyFixedCents = fixedExpenses.reduce((sum, item) => sum + (item.recurrence === "yearly" ? Math.ceil(item.amount_cents / 12) : item.recurrence === "monthly" ? item.amount_cents : 0), 0);
+      const totalSales = packageRows.reduce((sum, item) => sum + item.sales_count, 0);
+      const weightedContribution = totalSales > 0 ? Math.round(packageRows.reduce((sum, item) => sum + item.contribution_cents * item.sales_count, 0) / totalSales) : packageRows.length ? Math.round(packageRows.reduce((sum, item) => sum + item.contribution_cents, 0) / packageRows.length) : 0;
+      return json({ packages: packageRows, monthly_fixed_cents: monthlyFixedCents, weighted_contribution_cents: weightedContribution, monthly_break_even_units: monthlyBreakEvenUnits(monthlyFixedCents, weightedContribution), commission_policy: commissionPolicy, payment_cost_assumption: { configured: false, rate_bps: 0, fixed_cents: 0 } });
+    }
+    if (route === "admin/finance/overview" && user && method === "GET") {
+      requirePermission(user, user.role === "platform" ? "finance.view_all" : "finance.view_own");
+      const scope = user.role === "platform" ? { status: "paid" as const } : { status: "paid" as const, partner_id: user.partner_id! };
+      const [salesRows, expenses] = await Promise.all([
+        database.collection<SaleRecord>("sales").find(scope, { projection: { _id: 0 } }).toArray(),
+        user.role === "platform" ? database.collection<ExpenseRecord>("expense_records").find({ payment_status: "paid", estimated: false, $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }).toArray() : Promise.resolve([]),
+      ]);
+      const totals = salesRows.reduce((sum, sale) => ({ gross_cents: sum.gross_cents + sale.gross_cents, net_cents: sum.net_cents + sale.net_cents, vat_cents: sum.vat_cents + sale.vat_cents, commission_cents: sum.commission_cents + sale.commission_cents }), { gross_cents: 0, net_cents: 0, vat_cents: 0, commission_cents: 0 });
+      const expenseCents = expenses.reduce((sum, item) => sum + item.amount_cents, 0);
+      return json({ sales_count: salesRows.length, ...totals, expense_cents: expenseCents, operating_contribution_cents: totals.net_cents - totals.commission_cents - expenseCents });
+    }
     if (route === "admin/add-ons" && user) {
       const products = database.collection<AddOnProduct>("add_on_products");
       if (method === "GET") {
@@ -2189,17 +2467,27 @@ export async function handle(
             name: z.string().trim().min(2).max(120),
             description: z.string().trim().max(500).default(""),
             gross_price_cents: z.number().int().min(0).max(100_000_000),
+            unit_cost_cents: z.number().int().min(0).max(100_000_000).default(0),
+            vat_rate_bps: z.number().int().min(0).max(10_000).optional(),
+            minimum_quantity: z.number().int().min(1).max(10_000).default(1),
+            maximum_quantity: z.number().int().min(1).max(10_000).default(100),
+            eligible_package_codes: z.array(z.enum(["plan-1", "plan-2", "plan-3"])).default(["plan-1", "plan-2", "plan-3"]),
+            image_url: z.string().url().max(1000).optional(),
             commissionable: z.boolean().optional(),
             category: z.enum(["qr_print", "storage_retention", "digital", "design", "organization"]).default("digital"),
             unit: z.enum(["item", "gib", "month", "service", "organization"]).default("service"),
             effect_type: z.enum(["print_quantity", "welcome_sign", "storage_gib", "retention_months", "digital_invitation", "custom_design", "second_event"]),
             effect_value: z.number().int().min(1).max(10000).default(1),
-            print_format: z.literal("vertical_mini").optional(),
+            print_format: z.enum(["vertical_mini", "table_card"]).optional(),
             pricing_type: z.enum(["fixed", "package_percentage_discount"]).default("fixed"),
             percentage_bps: z.number().int().min(1).max(9000).optional(),
             active: z.boolean().default(true),
           })
           .superRefine((value, context) => {
+            if (value.maximum_quantity < value.minimum_quantity)
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["maximum_quantity"], message: "Maksimum adet minimum adetten küçük olamaz." });
+            if (value.category === "qr_print" && (value.unit !== "item" || value.effect_type !== "print_quantity" || value.effect_value !== 1))
+              context.addIssue({ code: z.ZodIssueCode.custom, path: ["effect_value"], message: "Ekstra QR ürünü adet biriminde ve birim etkisi 1 olarak tanımlanmalıdır." });
             if (value.pricing_type === "fixed" && value.gross_price_cents < 1)
               context.addIssue({ code: z.ZodIssueCode.custom, path: ["gross_price_cents"], message: "Sabit fiyatlı üründe fiyat gerekli." });
             if (value.pricing_type === "package_percentage_discount" && !value.percentage_bps)
@@ -2219,14 +2507,22 @@ export async function handle(
         if (input.code && await products.findOne({ code: input.code }))
           throw new HttpError(409, "Bu ek ürün kodu zaten kullanılıyor.");
         const now = new Date().toISOString();
+        const taxConfiguration = await database.collection<TaxConfiguration>("tax_configurations").findOne({ id: "default" });
         const product: AddOnProduct = {
           id: randomUUID(),
           ...input,
+          vat_rate_bps: input.vat_rate_bps ?? taxConfiguration?.category_vat_rate_bps[input.category] ?? taxConfiguration?.default_vat_rate_bps ?? 2000,
           commissionable: true,
           created_at: now,
           updated_at: now,
         };
-        await products.insertOne(product);
+        const transaction = (await mongoClient()).startSession();
+        try {
+          await transaction.withTransaction(async () => {
+            await products.insertOne(product, { session: transaction });
+            await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "add_on_product", entity_id: product.id, previous: null, next: product, changed_fields: Object.keys(input), changed_at: now, changed_by: user.id }, { session: transaction });
+          });
+        } finally { await transaction.endSession(); }
         await audit(req, "add_on.created", user, {
           product_id: product.id,
           gross_price_cents: product.gross_price_cents,
@@ -2253,11 +2549,17 @@ export async function handle(
             .min(0)
             .max(100_000_000)
             .optional(),
+          unit_cost_cents: z.number().int().min(0).max(100_000_000).optional(),
+          vat_rate_bps: z.number().int().min(0).max(10_000).optional(),
+          minimum_quantity: z.number().int().min(1).max(10_000).optional(),
+          maximum_quantity: z.number().int().min(1).max(10_000).optional(),
+          eligible_package_codes: z.array(z.enum(["plan-1", "plan-2", "plan-3"])).optional(),
+          image_url: z.string().url().max(1000).optional(),
           category: z.enum(["qr_print", "storage_retention", "digital", "design", "organization"]).optional(),
           unit: z.enum(["item", "gib", "month", "service", "organization"]).optional(),
           effect_type: z.enum(["print_quantity", "welcome_sign", "storage_gib", "retention_months", "digital_invitation", "custom_design", "second_event"]).optional(),
           effect_value: z.number().int().min(1).max(10000).optional(),
-          print_format: z.literal("vertical_mini").optional(),
+          print_format: z.enum(["vertical_mini", "table_card"]).optional(),
           pricing_type: z.enum(["fixed", "package_percentage_discount"]).optional(),
           percentage_bps: z.number().int().min(1).max(9000).optional(),
           active: z.boolean().optional(),
@@ -2270,6 +2572,10 @@ export async function handle(
       const currentProduct = await database.collection<AddOnProduct>("add_on_products").findOne({ id: path[2] });
       if (!currentProduct) throw new HttpError(404, "Ek ürün bulunamadı.");
       const nextProduct = { ...currentProduct, ...changes };
+      if ((nextProduct.maximum_quantity || 100) < (nextProduct.minimum_quantity || 1))
+        throw new HttpError(400, "Maksimum adet minimum adetten küçük olamaz.");
+      if (nextProduct.category === "qr_print" && (nextProduct.unit !== "item" || nextProduct.effect_type !== "print_quantity" || nextProduct.effect_value !== 1))
+        throw new HttpError(400, "Ekstra QR ürünü adet biriminde ve birim etkisi 1 olarak tanımlanmalıdır.");
       if (nextProduct.effect_type && nextProduct.effect_value && !validAddOnEffect(nextProduct.effect_type, nextProduct.effect_value))
         throw new HttpError(400, "Bu ek ürün için izin verilen miktarlardan birini seçin.");
       if (nextProduct.effect_type === "print_quantity" && !nextProduct.print_format)
@@ -2282,17 +2588,28 @@ export async function handle(
         throw new HttpError(400, "İkinci organizasyon için geçerli bir yüzde indirim oranı gerekli.");
       if (changes.code && await database.collection<AddOnProduct>("add_on_products").findOne({ code: changes.code, id: { $ne: path[2] } }))
         throw new HttpError(409, "Bu ek ürün kodu zaten kullanılıyor.");
-      const result = await database
-        .collection<AddOnProduct>("add_on_products")
-        .findOneAndUpdate(
-          { id: path[2] },
-          { $set: { ...changes, commissionable: true, updated_at: new Date().toISOString() } },
-          { returnDocument: "after", projection: { _id: 0 } },
-        );
+      const updatedAt = new Date().toISOString();
+      const transaction = (await mongoClient()).startSession();
+      let result: AddOnProduct | null = null;
+      try {
+        await transaction.withTransaction(async () => {
+          result = await database
+            .collection<AddOnProduct>("add_on_products")
+            .findOneAndUpdate(
+              { id: path[2] },
+              { $set: { ...changes, commissionable: true, updated_at: updatedAt } },
+              { returnDocument: "after", projection: { _id: 0 }, session: transaction },
+            );
+          if (!result) throw new HttpError(404, "Ek ürün bulunamadı.");
+          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "add_on_product", entity_id: path[2], previous: currentProduct, next: result, changed_fields: Object.keys(changes), changed_at: updatedAt, changed_by: user.id }, { session: transaction });
+        });
+      } finally { await transaction.endSession(); }
       if (!result) throw new HttpError(404, "Ek ürün bulunamadı.");
       await audit(req, "add_on.updated", user, {
         product_id: path[2],
         fields: Object.keys(changes),
+        previous: currentProduct,
+        next: result,
       });
       return json(result);
     }
@@ -2399,7 +2716,6 @@ export async function handle(
           .object({
             wedding_id: z.string().uuid(),
             idempotency_key: z.string().trim().min(8).max(120),
-            vat_rate_bps: z.number().int().min(0).max(10_000).default(2000),
             occurred_at: z.string().datetime().optional(),
           })
           .parse(await req.json());
@@ -2419,23 +2735,35 @@ export async function handle(
           );
         const occurredAt = input.occurred_at || new Date().toISOString();
         const period = istanbulCalendarMonth(occurredAt);
-        const selectedPackage = packageSnapshot(event.package_code);
+        const selectedPackage = event.package_snapshot || await currentPackage(database, event.package_code);
+        const taxConfiguration = await database.collection<TaxConfiguration>("tax_configurations").findOne({ id: "default" });
+        const vatRateBps = (selectedPackage as Partial<PackageConfiguration>).vat_rate_bps ?? taxConfiguration?.default_vat_rate_bps ?? 2000;
+        const partnerId = event.seller_partner_id || event.partner_id;
         const transaction = (await mongoClient()).startSession();
         let created: SaleRecord | null = null;
         try {
           await transaction.withTransaction(async () => {
+            const commissionPolicy = await currentCommissionPolicy(
+              database,
+              partnerId,
+              occurredAt,
+              transaction,
+            );
             let ordinal: number | null = null;
-            if (selectedPackage.qualifiesForVolumeCommission) {
+            if (
+              commissionPolicy.tiered &&
+              commissionPolicy.qualifying_package_codes.includes(event.package_code!)
+            ) {
               const counter = await database
                 .collection("monthly_sales_counters")
                 .findOneAndUpdate(
                   {
-                    partner_id: event.seller_partner_id || event.partner_id,
+                    partner_id: partnerId,
                     period,
                   },
                   {
                     $setOnInsert: {
-                      partner_id: event.seller_partner_id || event.partner_id,
+                      partner_id: partnerId,
                       period,
                       refunded_count: 0,
                     },
@@ -2452,17 +2780,23 @@ export async function handle(
             }
             const pricing =
               event.price_snapshot ||
-              priceSnapshot(event.package_code!, [], []);
-            const snapshot = commissionSnapshot(
+              priceSnapshotForPackage(selectedPackage as PackageConfiguration, [], []);
+            const grossCents = pricing.gross_cents;
+            const netCents = pricing.net_cents ?? netFromVatIncluded(grossCents, vatRateBps);
+            const eligibleNetCents = pricing.commissionable_net_cents ?? netFromVatIncluded(pricing.commissionable_gross_cents, vatRateBps);
+            const commissionRateBps = commissionRateForOrdinal(
+              commissionPolicy,
               event.package_code!,
               ordinal,
-              input.vat_rate_bps,
-              pricing,
+            );
+            const commissionCents = calculateCommissionCents(
+              eligibleNetCents,
+              commissionRateBps,
             );
             created = {
               id: randomUUID(),
               idempotency_key: input.idempotency_key,
-              partner_id: event.seller_partner_id || event.partner_id,
+              partner_id: partnerId,
               wedding_id: event.id,
               package_code: event.package_code!,
               status: "paid",
@@ -2470,14 +2804,16 @@ export async function handle(
               occurred_at: occurredAt,
               recorded_at: new Date().toISOString(),
               recorded_by: user.id,
-              net_cents: snapshot.netCents,
-              vat_rate_bps: snapshot.vatRateBps,
-              vat_cents: snapshot.grossCents - snapshot.netCents,
-              gross_cents: snapshot.grossCents,
-              qualifying_ordinal: snapshot.qualifyingOrdinal,
-              commission_rate_bps: snapshot.commissionRateBps,
-              commission_cents: snapshot.commissionCents,
-              platform_cents: snapshot.netCents - snapshot.commissionCents,
+              net_cents: netCents,
+              vat_rate_bps: vatRateBps,
+              vat_cents: grossCents - netCents,
+              gross_cents: grossCents,
+              qualifying_ordinal: ordinal,
+              commission_rate_bps: commissionRateBps,
+              commission_cents: commissionCents,
+              commission_policy_snapshot: commissionPolicy,
+              package_snapshot: structuredClone(selectedPackage),
+              platform_cents: netCents - commissionCents,
               price_snapshot: pricing,
               refunded_at: null,
               refunded_by: null,
@@ -2497,6 +2833,15 @@ export async function handle(
               { session: transaction },
             );
           });
+        } catch (reason) {
+          if (reason instanceof MongoServerError && reason.code === 11000) {
+            const raced = await sales.findOne(
+              { idempotency_key: input.idempotency_key },
+              { projection: { _id: 0 } },
+            );
+            if (raced) created = raced;
+            else throw reason;
+          } else throw reason;
         } finally {
           await transaction.endSession();
         }
@@ -2755,7 +3100,8 @@ export async function handle(
           );
         const occurredAt = input.occurred_at || new Date().toISOString();
         const now = new Date().toISOString();
-        const settlement = photographerSettlementSnapshot();
+        const photographerPackage = await currentPhotographerPackage(database);
+        const settlement = photographerSettlementSnapshot(photographerPackage);
         const transaction = (await mongoClient()).startSession();
         let created: PhotographerSaleRecord | null = null;
         try {
@@ -4278,6 +4624,7 @@ export async function handle(
         } catch {
           throw new HttpError(400, "Geçersiz organizasyon tarihi.");
         }
+        const defaultPackage = await currentPackage(database, "plan-1");
         const w: Wedding = {
           ...data,
           id: randomUUID(),
@@ -4298,9 +4645,9 @@ export async function handle(
           ],
           owner_id: null,
           package_code: "plan-1",
-          package_snapshot: packageSnapshot("plan-1"),
+          package_snapshot: defaultPackage,
           add_on_selections: [],
-          price_snapshot: priceSnapshot("plan-1", [], []),
+          price_snapshot: priceSnapshotForPackage(defaultPackage, [], []),
           upload_days: data.upload_days || 7,
           trash_days: data.trash_days || 7,
           uploads_open_at: now,
@@ -4357,24 +4704,40 @@ export async function handle(
           partner_id: _partner,
           package_code,
           add_on_selections,
+          qr_quantity_selections,
           ...changes
         } = data;
         const effectivePackageCode =
           package_code || existing.package_code || "plan-1";
+        const effectivePackage = package_code
+          ? await currentPackage(database, package_code)
+          : (existing.package_snapshot || await currentPackage(database, effectivePackageCode));
         const addOnProducts = await database
           .collection<AddOnProduct>("add_on_products")
           .find({
-            id: { $in: add_on_selections.map((item) => item.product_id) },
+            id: { $in: [...new Set([
+              ...add_on_selections.map((item) => item.product_id),
+              ...qr_quantity_selections.map((item) => item.product_id),
+            ])] },
             active: true,
           })
           .toArray();
         let pricing;
+        let normalizedSelections;
         try {
-          pricing = priceSnapshot(
-            effectivePackageCode,
+          const normalized = selectionsWithExtraQr(
+            effectivePackage as PackageConfiguration,
             add_on_selections,
+            qr_quantity_selections,
             addOnProducts,
           );
+          normalizedSelections = normalized.selections;
+          pricing = priceSnapshotForPackage(
+            effectivePackage as PackageConfiguration,
+            normalizedSelections,
+            addOnProducts,
+          );
+          pricing.qr_details = normalized.qr_details;
         } catch (reason) {
           throw new HttpError(
             409,
@@ -4386,8 +4749,8 @@ export async function handle(
         const packageChanges = package_code
           ? {
               package_code,
-              package_snapshot: packageSnapshot(package_code),
-              upload_days: packageUploadDays(package_code),
+              package_snapshot: effectivePackage,
+              upload_days: effectivePackage.uploadWindow === "event-day" ? 1 : 7,
             }
           : {};
         if (changes.cover_images)
@@ -4410,7 +4773,8 @@ export async function handle(
                   ].filter((value): value is string => !!value),
                 ),
               ],
-              add_on_selections,
+              add_on_selections: normalizedSelections,
+              qr_quantity_selections,
               price_snapshot: pricing,
               updated_at: new Date().toISOString(),
             },
@@ -4451,18 +4815,26 @@ export async function handle(
       const id = randomUUID();
       const now = new Date().toISOString();
       const packageCode = data.package_code || "plan-1";
-      const selectedPackage = packageSnapshot(packageCode);
+      const selectedPackage = await currentPackage(database, packageCode);
       const selections = data.add_on_selections || [];
+      const qrSelections = data.qr_quantity_selections || [];
       const addOnProducts = await database
         .collection<AddOnProduct>("add_on_products")
         .find({
-          id: { $in: selections.map((item) => item.product_id) },
+          id: { $in: [...new Set([
+            ...selections.map((item) => item.product_id),
+            ...qrSelections.map((item) => item.product_id),
+          ])] },
           active: true,
         })
         .toArray();
       let pricing;
+      let normalizedSelections;
       try {
-        pricing = priceSnapshot(packageCode, selections, addOnProducts);
+        const normalized = selectionsWithExtraQr(selectedPackage, selections, qrSelections, addOnProducts);
+        normalizedSelections = normalized.selections;
+        pricing = priceSnapshotForPackage(selectedPackage, normalizedSelections, addOnProducts);
+        pricing.qr_details = normalized.qr_details;
       } catch (reason) {
         throw new HttpError(
           409,
@@ -4508,7 +4880,8 @@ export async function handle(
         archived_at: null,
         package_code: packageCode,
         package_snapshot: selectedPackage,
-        add_on_selections: selections,
+        add_on_selections: normalizedSelections,
+        qr_quantity_selections: qrSelections,
         price_snapshot: pricing,
         upload_days: packageUploadDays(packageCode),
         trash_days: data.trash_days || 7,
@@ -5484,7 +5857,8 @@ export async function handle(
               ? event.package_code
               : "plan-1";
           try {
-            pricing = priceSnapshot(knownCode, addOnSelections, addOnProducts);
+            const packageForPricing = (event.package_snapshot || await currentPackage(database, knownCode)) as PackageConfiguration;
+            pricing = priceSnapshotForPackage(packageForPricing, addOnSelections, addOnProducts);
           } catch (reason) {
             throw new HttpError(
               400,

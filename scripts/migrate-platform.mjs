@@ -311,6 +311,16 @@ try {
     db.collection("add_on_products").createIndex({ id: 1 }, { unique: true }),
     db.collection("add_on_products").createIndex({ code: 1 }, { unique: true, sparse: true }),
     db.collection("add_on_products").createIndex({ active: 1, name: 1 }),
+    db.collection("package_configurations").createIndex({ code: 1 }, { unique: true }),
+    db.collection("photographer_package_configurations").createIndex({ code: 1 }, { unique: true }),
+    db.collection("pricing_change_history").createIndex({ entity_type: 1, entity_id: 1, changed_at: -1 }),
+    db.collection("partner_commission_policies").createIndex({ partner_id: 1, active: 1, effective_from: -1 }),
+    db.collection("partner_commission_policies").createIndex({ partner_id: 1, version: 1 }, { unique: true }),
+    db.collection("partner_commission_policies").createIndex({ id: 1 }, { unique: true }),
+    db.collection("expense_records").createIndex({ payment_date: -1, kind: 1, payment_status: 1 }),
+    db.collection("tax_configurations").createIndex({ id: 1 }, { unique: true }),
+    db.collection("payment_quotes").createIndex({ id: 1 }, { unique: true }),
+    db.collection("payment_quotes").createIndex({ expires_at: 1 }, { expireAfterSeconds: 86400 }),
     db.collection("agent_reports").createIndex({ id: 1 }, { unique: true }),
     db
       .collection("agent_reports")

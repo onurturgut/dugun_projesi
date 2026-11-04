@@ -56,10 +56,17 @@ export const eventDraftInput = eventInput.partial().extend({
     product_id: z.string().uuid(),
     quantity: z.number().int().min(1).max(100),
   })).max(20).default([]),
+  qr_quantity_selections: z.array(z.object({
+    product_id: z.string().uuid(),
+    total_quantity: z.number().int().min(0).max(10_000),
+  })).max(20).default([]),
 }).superRefine((value, context) => {
   const ids = value.add_on_selections.map((item) => item.product_id);
   if (new Set(ids).size !== ids.length)
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["add_on_selections"], message: "Aynı ek ürün birden fazla kez seçilemez." });
+  const qrIds = value.qr_quantity_selections.map((item) => item.product_id);
+  if (new Set(qrIds).size !== qrIds.length)
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["qr_quantity_selections"], message: "Aynı QR ürünü birden fazla kez seçilemez." });
 });
 export const accountInput = z.object({
   username: loginName,

@@ -100,6 +100,21 @@ test("photographer package uses a fixed gross distribution outside standard comm
   );
 });
 
+test("photographer package settlement freezes an edited finance configuration", () => {
+  const snapshot = photographerSettlementSnapshot({
+    ...PHOTOGRAPHER_PACKAGE,
+    version: 2,
+    grossPriceCents: 450_000,
+    photographerGrossCents: 330_000,
+    originatingPartnerGrossCents: 60_000,
+    platformGrossCents: 60_000,
+  });
+  assert.equal(snapshot.packageVersion, 2);
+  assert.equal(snapshot.grossCents, 450_000);
+  assert.equal(snapshot.photographerGrossCents, 330_000);
+  assert.throws(() => photographerSettlementSnapshot({ ...PHOTOGRAPHER_PACKAGE, platformGrossCents: 40_000 }), /toplamına eşit/);
+});
+
 test("legacy organizations resolve a conservative package without replacing a historical snapshot", () => {
   const historical = packageSnapshot("plan-2");
   historical.miniQrCount = 17;

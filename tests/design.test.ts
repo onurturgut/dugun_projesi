@@ -12,11 +12,29 @@ import {
   availableTemplates,
 } from "../src/lib/design";
 import { buildQrCards } from "../src/lib/qr-card";
-import { defaultQrProduct, qrProductEntitlement, qrProducts, validateQrProduct, withPrintMarks } from "../src/lib/qr-products";
+import {
+  defaultQrProduct,
+  qrProductEntitlement,
+  qrProducts,
+  validateQrProduct,
+  withPrintMarks,
+} from "../src/lib/qr-products";
 import { packageSnapshot } from "../src/lib/commercial-policy";
 import { resolvePhysicalQrBackground } from "../src/lib/qr-templates";
-import { auroraPresentationSet, botanicalLandscapeMiniPresentations, botanicalPortraitMiniPresentations, botanicalWelcomeSignPresentations, landscapeMiniPresentations, minimalPresentationSet, portraitMiniPresentations, welcomeSignPresentations } from "../src/lib/qr-presentations";
-import { weddingImageBelongsToEvent, weddingTemplates } from "../src/lib/wedding-templates";
+import {
+  auroraPresentationSet,
+  botanicalLandscapeMiniPresentations,
+  botanicalPortraitMiniPresentations,
+  botanicalWelcomeSignPresentations,
+  landscapeMiniPresentations,
+  minimalPresentationSet,
+  portraitMiniPresentations,
+  welcomeSignPresentations,
+} from "../src/lib/qr-presentations";
+import {
+  weddingImageBelongsToEvent,
+  weddingTemplates,
+} from "../src/lib/wedding-templates";
 
 test("existing invitations keep their original video and speed", () => {
   assert.equal(resolveDesign().intro, "video");
@@ -24,7 +42,11 @@ test("existing invitations keep their original video and speed", () => {
   assert.equal(resolveDesign().version, 2);
 });
 test("legacy design values migrate to studio schema v2", () => {
-  const legacy = { ...defaultDesign, version: 1 as const, theme: "navy" as const };
+  const legacy = {
+    ...defaultDesign,
+    version: 1 as const,
+    theme: "navy" as const,
+  };
   const migrated = resolveDesign(legacy);
   assert.equal(migrated.version, 2);
   assert.equal(migrated.theme, "navy");
@@ -45,7 +67,11 @@ test("template libraries expose only available templates", () => {
   for (const surface of ["wedding", "loading", "qr"] as const) {
     const templates = availableTemplates(surface);
     assert.ok(templates.length > 0);
-    assert.ok(templates.every((template) => template.available && template.surface === surface));
+    assert.ok(
+      templates.every(
+        (template) => template.available && template.surface === surface,
+      ),
+    );
   }
 });
 test("loading library keeps the legacy video and adds the portrait videos", () => {
@@ -55,10 +81,7 @@ test("loading library keeps the legacy video and adds the portrait videos", () =
   const album = templates.find((template) => template.id === "album");
 
   assert.equal(legacy?.asset, "/intro/shineqr-portrait-v2.mp4");
-  assert.equal(
-    envelope?.asset,
-    "/intro/wedding-envelope-loading-9x16.mp4",
-  );
+  assert.equal(envelope?.asset, "/intro/wedding-envelope-loading-9x16.mp4");
   assert.equal(album?.asset, "/intro/wedding-album-loading-9x16.mp4");
   assert.equal(
     designSchema.safeParse({ ...defaultDesign, intro: "envelope" }).success,
@@ -175,7 +198,10 @@ test("Botanical renders high contrast QR cards with escaped user text", () => {
       assert.match(cards.front, /width="150mm" height="200mm"/);
       assert.match(cards.front, /Botanical_Krem_On_Yuz\.webp/);
       assert.match(cards.front, /preserveAspectRatio="xMidYMid slice"/);
-      assert.doesNotMatch(cards.front + cards.back, /fill-opacity="\.78"|xMidYMid meet/);
+      assert.doesNotMatch(
+        cards.front + cards.back,
+        /fill-opacity="\.78"|xMidYMid meet/,
+      );
       assert.doesNotMatch(cards.front + cards.back, /<script>|<img>/);
       assert.match(cards.back, /A &amp; B &lt;img&gt;/);
       assert.match(cards.front, /shape-rendering="crispEdges"/);
@@ -228,7 +254,14 @@ test("QR physical product enforces compatibility, bleed and safe area", () => {
   assert.equal(validation.passed, true);
   assert.equal(defaultQrProduct.bleedMm, 3);
   assert.equal(defaultQrProduct.safeAreaMm, 5);
-  assert.equal(validateQrProduct(defaultQrProduct, defaultDesign, "https://example.com/wedding/degisebilir").passed, false);
+  assert.equal(
+    validateQrProduct(
+      defaultQrProduct,
+      defaultDesign,
+      "https://example.com/wedding/degisebilir",
+    ).passed,
+    false,
+  );
 });
 test("print exports include bleed canvas and crop marks without changing QR target", () => {
   const target = "https://example.com/q/67e55044-10b1-426f-9247-bb680e5fe0c8";
@@ -240,55 +273,139 @@ test("print exports include bleed canvas and crop marks without changing QR targ
 });
 
 test("Velvet Flow exposes every approved physical format and color base", () => {
-  assert.deepEqual(qrProducts.map((product) => [product.trimWidthMm, product.trimHeightMm]), [[75, 100], [100, 75], [500, 700]]);
-  for (const variant of ["burgundy", "navy", "black", "cream", "emerald"] as const) {
+  assert.deepEqual(
+    qrProducts.map((product) => [product.trimWidthMm, product.trimHeightMm]),
+    [
+      [75, 100],
+      [100, 75],
+      [500, 700],
+    ],
+  );
+  for (const variant of [
+    "burgundy",
+    "navy",
+    "black",
+    "cream",
+    "emerald",
+  ] as const) {
     for (const face of ["front", "back"] as const) {
-      assert.match(resolvePhysicalQrBackground("velvet-flow", variant, face) ?? "", /^\/design-center\/templates\/velvet-flow\//);
+      assert.match(
+        resolvePhysicalQrBackground("velvet-flow", variant, face) ?? "",
+        /^\/design-center\/templates\/velvet-flow\//,
+      );
     }
   }
 });
 
 test("approved Velvet Flow presentation galleries expose five color images", () => {
-  for (const gallery of [landscapeMiniPresentations, portraitMiniPresentations, welcomeSignPresentations]) {
-    assert.deepEqual(gallery.map((item) => item.id), ["burgundy", "black", "navy", "emerald", "cream"]);
-    assert.ok(gallery.every((item) => item.image.startsWith("/design-center/presentations/velvet-flow/") && item.image.endsWith("-presentation.png")));
+  for (const gallery of [
+    landscapeMiniPresentations,
+    portraitMiniPresentations,
+    welcomeSignPresentations,
+  ]) {
+    assert.deepEqual(
+      gallery.map((item) => item.id),
+      ["burgundy", "black", "navy", "emerald", "cream"],
+    );
+    assert.ok(
+      gallery.every(
+        (item) =>
+          item.image.startsWith("/design-center/presentations/velvet-flow/") &&
+          item.image.endsWith("-presentation.png"),
+      ),
+    );
   }
 });
 
 test("reference collections expose presentation-only galleries for active products", () => {
-  for (const [collection, set] of [["modern-arch", minimalPresentationSet], ["aurora", auroraPresentationSet]] as const) {
+  for (const [collection, set] of [
+    ["modern-arch", minimalPresentationSet],
+    ["aurora", auroraPresentationSet],
+  ] as const) {
     for (const [format, gallery] of Object.entries(set)) {
       assert.equal(gallery.length, 5);
-      assert.ok(gallery.every((item) => item.image.startsWith(`/design-center/presentations/${collection}/`) && item.image.endsWith("-presentation.png")), `${collection}/${format}`);
+      assert.ok(
+        gallery.every(
+          (item) =>
+            item.image.startsWith(
+              `/design-center/presentations/${collection}/`,
+            ) && item.image.endsWith("-presentation.png"),
+        ),
+        `${collection}/${format}`,
+      );
     }
   }
 });
 
 test("Botanical portrait mini exposes five physical backgrounds and presentations", () => {
-  assert.deepEqual(botanicalPortraitMiniPresentations.map((item) => item.id), ["sage", "cream", "blush", "blue", "black"]);
-  assert.ok(botanicalPortraitMiniPresentations.every((item) => item.image.startsWith("/design-center/presentations/botanical/portrait-mini/")));
+  assert.deepEqual(
+    botanicalPortraitMiniPresentations.map((item) => item.id),
+    ["sage", "cream", "blush", "blue", "black"],
+  );
+  assert.ok(
+    botanicalPortraitMiniPresentations.every((item) =>
+      item.image.startsWith(
+        "/design-center/presentations/botanical/portrait-mini/",
+      ),
+    ),
+  );
   for (const variant of ["sage", "cream", "blush", "blue", "black"] as const) {
     for (const face of ["front", "back"] as const) {
-      assert.match(resolvePhysicalQrBackground("botanical", variant, face) ?? "", /^\/design-center\/templates\/botanical\//);
+      assert.match(
+        resolvePhysicalQrBackground("botanical", variant, face) ?? "",
+        /^\/design-center\/templates\/botanical\//,
+      );
     }
   }
-  const portrait = qrProducts.find((product) => product.id === "portrait-mini-75x100-duplex")!;
+  const portrait = qrProducts.find(
+    (product) => product.id === "portrait-mini-75x100-duplex",
+  )!;
   assert.equal(portrait.compatibleTemplates.includes("botanical"), true);
 });
 
 test("Botanical landscape mini and welcome sign expose approved print assets", () => {
-  for (const gallery of [botanicalLandscapeMiniPresentations, botanicalWelcomeSignPresentations]) {
-    assert.deepEqual(gallery.map((item) => item.id), ["sage", "cream", "blush", "blue", "black"]);
-    assert.ok(gallery.every((item) => item.image.startsWith("/design-center/presentations/botanical/")));
+  for (const gallery of [
+    botanicalLandscapeMiniPresentations,
+    botanicalWelcomeSignPresentations,
+  ]) {
+    assert.deepEqual(
+      gallery.map((item) => item.id),
+      ["sage", "cream", "blush", "blue", "black"],
+    );
+    assert.ok(
+      gallery.every((item) =>
+        item.image.startsWith("/design-center/presentations/botanical/"),
+      ),
+    );
   }
   for (const variant of ["sage", "cream", "blush", "blue", "black"] as const) {
     for (const face of ["front", "back"] as const) {
-      assert.match(resolvePhysicalQrBackground("botanical", variant, face, "landscape-mini-100x75-duplex") ?? "", /\/landscape-mini\//);
-      assert.match(resolvePhysicalQrBackground("botanical", variant, face, "welcome-sign-500x700-duplex") ?? "", /\/welcome-sign-500x700\//);
+      assert.match(
+        resolvePhysicalQrBackground(
+          "botanical",
+          variant,
+          face,
+          "landscape-mini-100x75-duplex",
+        ) ?? "",
+        /\/landscape-mini\//,
+      );
+      assert.match(
+        resolvePhysicalQrBackground(
+          "botanical",
+          variant,
+          face,
+          "welcome-sign-500x700-duplex",
+        ) ?? "",
+        /\/welcome-sign-500x700\//,
+      );
     }
   }
-  const landscape = qrProducts.find((product) => product.id === "landscape-mini-100x75-duplex")!;
-  const welcome = qrProducts.find((product) => product.id === "welcome-sign-500x700-duplex")!;
+  const landscape = qrProducts.find(
+    (product) => product.id === "landscape-mini-100x75-duplex",
+  )!;
+  const welcome = qrProducts.find(
+    (product) => product.id === "welcome-sign-500x700-duplex",
+  )!;
   assert.equal(landscape.artworkReady, true);
   assert.equal(welcome.artworkReady, true);
   assert.deepEqual(welcome.sides, ["front"]);
@@ -297,15 +414,65 @@ test("Botanical landscape mini and welcome sign expose approved print assets", (
 });
 
 test("every physical format exports exact trim plus bleed dimensions", () => {
-  const cards = buildQrCards(defaultDesign, "A & B", null, "https://example.com/q/67e55044-10b1-426f-9247-bb680e5fe0c8");
+  const cards = buildQrCards(
+    defaultDesign,
+    "A & B",
+    null,
+    "https://example.com/q/67e55044-10b1-426f-9247-bb680e5fe0c8",
+  );
   for (const product of qrProducts) {
     const printable = withPrintMarks(cards.front, product);
-    assert.match(printable, new RegExp(`width="${product.trimWidthMm + 6}mm" height="${product.trimHeightMm + 6}mm"`));
+    assert.match(
+      printable,
+      new RegExp(
+        `width="${product.trimWidthMm + 6}mm" height="${product.trimHeightMm + 6}mm"`,
+      ),
+    );
   }
 });
 
+test("Minimal landscape mini exposes all five print-ready color backgrounds", () => {
+  for (const variant of ["cream", "blush", "sage", "blue", "black"] as const) {
+    for (const face of ["front", "back"] as const) {
+      assert.match(
+        resolvePhysicalQrBackground(
+          "modern-arch",
+          variant,
+          face,
+          "landscape-mini-100x75-duplex",
+        ) ?? "",
+        new RegExp(`/modern-arch/${variant}/landscape-mini/`),
+      );
+    }
+  }
+});
+
+test("Minimal cream welcome sign is selectable and uses its clean physical background", () => {
+  const welcome = qrProducts.find(
+    (product) => product.id === "welcome-sign-500x700-duplex",
+  )!;
+  assert.equal(welcome.compatibleTemplates.includes("modern-arch"), true);
+  assert.equal(welcome.sides.length, 1);
+  assert.equal(
+    resolvePhysicalQrBackground(
+      "modern-arch",
+      "cream",
+      "front",
+      "welcome-sign-500x700-duplex",
+    ),
+    "/design-center/templates/modern-arch/cream/welcome-sign-500x700/minimal-cream-welcome-sign-front-base-clean.png",
+  );
+});
+
 test("legacy designs receive safe sequential workflow defaults", () => {
-  const resolved = resolveDesign({ ...defaultDesign, qrProductId: undefined, qrCompleted: undefined, loadingCompleted: undefined, weddingCompleted: undefined, weddingImage: undefined } as unknown as Record<string, unknown>);
+  const resolved = resolveDesign({
+    ...defaultDesign,
+    qrProductId: undefined,
+    qrCompleted: undefined,
+    loadingCompleted: undefined,
+    weddingCompleted: undefined,
+    weddingImage: undefined,
+  } as unknown as Record<string, unknown>);
   assert.equal(resolved.qrProductId, "portrait-mini-75x100-duplex");
   assert.equal(resolved.qrCompleted, false);
   assert.equal(resolved.loadingCompleted, false);
@@ -335,44 +502,66 @@ test("Loading cannot be completed before the QR stage", () => {
 });
 
 test("Wedding completion requires Loading and an organization photo", () => {
-  assert.equal(designSchema.safeParse({
-    ...defaultDesign,
-    qrCompleted: true,
-    loadingCompleted: false,
-    weddingImage: "/covers/couple-1.jpg",
-    weddingCompleted: true,
-  }).success, false);
-  assert.equal(designSchema.safeParse({
-    ...defaultDesign,
-    qrCompleted: true,
-    loadingCompleted: true,
-    weddingImage: "",
-    weddingCompleted: true,
-  }).success, false);
-  assert.equal(designSchema.safeParse({
-    ...defaultDesign,
-    qrCompleted: true,
-    loadingCompleted: true,
-    pageTemplate: "velvet-flow",
-    weddingImage: "/covers/couple-1.jpg",
-    weddingCompleted: true,
-  }).success, true);
+  assert.equal(
+    designSchema.safeParse({
+      ...defaultDesign,
+      qrCompleted: true,
+      loadingCompleted: false,
+      weddingImage: "/covers/couple-1.jpg",
+      weddingCompleted: true,
+    }).success,
+    false,
+  );
+  assert.equal(
+    designSchema.safeParse({
+      ...defaultDesign,
+      qrCompleted: true,
+      loadingCompleted: true,
+      weddingImage: "",
+      weddingCompleted: true,
+    }).success,
+    false,
+  );
+  assert.equal(
+    designSchema.safeParse({
+      ...defaultDesign,
+      qrCompleted: true,
+      loadingCompleted: true,
+      pageTemplate: "velvet-flow",
+      weddingImage: "/covers/couple-1.jpg",
+      weddingCompleted: true,
+    }).success,
+    true,
+  );
 });
 
 test("Wedding templates use the approved references and photo ownership is exact", () => {
   assert.equal(weddingTemplates.length, 11);
-  assert.equal(new Set(weddingTemplates.map((template) => template.id)).size, 11);
+  assert.equal(
+    new Set(weddingTemplates.map((template) => template.id)).size,
+    11,
+  );
   for (const template of weddingTemplates)
     assert.match(template.reference, /^\/wedding-designs\/\d{2}_.+\.png$/);
-  assert.equal(weddingImageBelongsToEvent("/covers/a.jpg", ["/covers/a.jpg"]), true);
-  assert.equal(weddingImageBelongsToEvent("/covers/b.jpg", ["/covers/a.jpg"]), false);
+  assert.equal(
+    weddingImageBelongsToEvent("/covers/a.jpg", ["/covers/a.jpg"]),
+    true,
+  );
+  assert.equal(
+    weddingImageBelongsToEvent("/covers/b.jpg", ["/covers/a.jpg"]),
+    false,
+  );
 });
 
 test("QR product access uses the frozen package snapshot and artwork readiness", () => {
   const plan1 = packageSnapshot("plan-1");
   const plan2 = packageSnapshot("plan-2");
-  const portrait = qrProducts.find((product) => product.id === "portrait-mini-75x100-duplex")!;
-  const welcome = qrProducts.find((product) => product.id === "welcome-sign-500x700-duplex")!;
+  const portrait = qrProducts.find(
+    (product) => product.id === "portrait-mini-75x100-duplex",
+  )!;
+  const welcome = qrProducts.find(
+    (product) => product.id === "welcome-sign-500x700-duplex",
+  )!;
   assert.equal(qrProductEntitlement(portrait, plan1).allowed, true);
   assert.equal(qrProductEntitlement(welcome, plan2).includedQuantity, 1);
   assert.equal(qrProductEntitlement(welcome, plan2).allowed, true);

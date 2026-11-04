@@ -53,7 +53,7 @@ export type MinimalCreamAssets = {
   front: string;
   back: string;
   logo: string;
-  fonts?: Partial<Record<"montserratLight" | "montserrat" | "montserratBold" | "allura", string>>;
+  fonts?: Partial<Record<"montserratLight" | "montserrat" | "allura", string>>;
 };
 
 const xml = (value: string) =>

@@ -5,5 +5,6 @@ export const metadata: Metadata = {
   title: "Fotoğrafçı Paketi",
   description: "ShineQR bağımsız profesyonel çekim ve dijital teslimat paketi.",
 };
+export const dynamic = "force-dynamic";
 
 export default PhotographerPackagePage;

@@ -6,4 +6,5 @@ export const metadata: Metadata = {
   description:
     "Düğün ve etkinliklerinizde misafirlerin fotoğraf ve videolarını QR kodla tek bir özel albümde toplayın.",
 };
+export const dynamic = "force-dynamic";
 export default HomePage;

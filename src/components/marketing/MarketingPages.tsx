@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import {
   ArrowRight,
   Building2,
@@ -36,11 +37,12 @@ import styles from "./marketing.module.css";
 import { HomePartnerStrip } from "./HomePartnerStrip";
 import {
   GIB,
-  PACKAGE_CATALOG,
-  PHOTOGRAPHER_PACKAGE,
   packageStorageLimit,
   type PackageCode,
 } from "@/lib/commercial-policy";
+import type { PackageConfiguration, PhotographerPackageConfiguration } from "@/lib/models";
+import { db } from "@/lib/server/db";
+import { currentPackages, currentPhotographerPackage } from "@/lib/server/pricing";
 import albumDashboard from "../../../shineqr_planlama/düzenleme24_10/dijital_albüm.png";
 import uploadWedding from "../../../shineqr_planlama/düzenleme24_10/fotograf_ve_videolari_yukleyin.png";
 import qrCollection from "../../../shineqr_planlama/düzenleme24_10/kisilestirilebilir_qr_tasarımları.png";
@@ -59,12 +61,12 @@ const featureIcons = [
   LayoutDashboard,
 ];
 
-function PhotographerPackageCard() {
+function PhotographerPackageCard({ photographerPackage }: { photographerPackage: PhotographerPackageConfiguration }) {
   return (
     <section className={styles.photographerPackage}>
       <div className={styles.photographerPackageCopy}>
         <p className={styles.eyebrow}>PROFESYONEL ÇEKİM</p>
-        <h3>{PHOTOGRAPHER_PACKAGE.name}</h3>
+        <h3>{photographerPackage.name}</h3>
         <p className={styles.lead}>
           Özel gününüz profesyonelce çekilsin, fotoğraflarınız ShineQR
           üzerinden güvenle teslim edilsin.
@@ -74,7 +76,7 @@ function PhotographerPackageCard() {
             style: "currency",
             currency: "TRY",
             maximumFractionDigits: 0,
-          }).format(PHOTOGRAPHER_PACKAGE.grossPriceCents / 100)}
+          }).format(photographerPackage.grossPriceCents / 100)}
           <small>KDV dahil</small>
         </div>
         <Link className={styles.primary} href="/fotografci-paketi">
@@ -94,7 +96,10 @@ function PhotographerPackageCard() {
   );
 }
 
-export function HomePage() {
+export async function HomePage() {
+  const database = await db();
+  const [current, photographerPackage] = await Promise.all([currentPackages(database), currentPhotographerPackage(database, true)]);
+  const PACKAGE_CATALOG = Object.fromEntries(current.items.filter((item) => item.active).map((item) => [item.code, item])) as Record<PackageCode, PackageConfiguration>;
   const launchSteps = [
     {
       title: "QR kodunu okut",
@@ -274,18 +279,18 @@ export function HomePage() {
               <Link className={index === 1 ? styles.primary : styles.ghost} href="/iletisim">Paketi görüşelim</Link>
             </article>;
           })}
-          <article className={`${styles.priceCard} ${styles.photographerPriceCard}`}>
+          {photographerPackage.active ? <article className={`${styles.priceCard} ${styles.photographerPriceCard}`}>
             <div className={styles.photographerCardTop}>
               <span className={styles.photographerCardIcon}><Camera size={22} aria-hidden="true" /></span>
               <p className={styles.eyebrow}>BAĞIMSIZ PROFESYONEL HİZMET</p>
             </div>
-            <h3>{PHOTOGRAPHER_PACKAGE.name}</h3>
+            <h3>{photographerPackage.name}</h3>
             <div className={styles.price}>
               {new Intl.NumberFormat("tr-TR", {
                 style: "currency",
                 currency: "TRY",
                 maximumFractionDigits: 0,
-              }).format(PHOTOGRAPHER_PACKAGE.grossPriceCents / 100)}
+              }).format(photographerPackage.grossPriceCents / 100)}
               <small>KDV dahil</small>
             </div>
             <p className={styles.packageIncludesLabel}>Hizmete dahil</p>
@@ -296,13 +301,13 @@ export function HomePage() {
               <li>Kontrollü dijital teslim</li>
               <li>Teslimat takibi ve onayı</li>
               <li>Toplu indirme</li>
-              <li>{PHOTOGRAPHER_PACKAGE.digitalRetentionMonths} ay saklama</li>
+              <li>{photographerPackage.digitalRetentionMonths} ay saklama</li>
             </ul>
             <Link className={styles.ghost} href="/fotografci-paketi">
               Paketi incele <ArrowRight size={16} />
             </Link>
             <p className={styles.photographerCardNote}>QR paketlerinden bağımsız satın alınır.</p>
-          </article>
+          </article> : null}
         </div>
         <div className={styles.extrasSection}>
           <div className={styles.extrasIntro}>
@@ -492,7 +497,10 @@ export function ThemesPage() {
   );
 }
 
-export function PricingPage() {
+export async function PricingPage() {
+  const database = await db();
+  const [current, photographerPackage] = await Promise.all([currentPackages(database), currentPhotographerPackage(database, true)]);
+  const PACKAGE_CATALOG = Object.fromEntries(current.items.filter((item) => item.active).map((item) => [item.code, item])) as Record<PackageCode, PackageConfiguration>;
   return (
     <MarketingShell>
       <PageHero
@@ -577,7 +585,7 @@ export function PricingPage() {
             </tbody>
           </table>
         </div>
-        <PhotographerPackageCard />
+        {photographerPackage.active ? <PhotographerPackageCard photographerPackage={photographerPackage} /> : null}
         <div className={styles.notice}>
           <strong>Not:</strong> Gösterilen fiyatlar KDV dahildir. Satış anındaki
           paket ve fiyat bilgileri organizasyon kaydında saklanır.
@@ -609,17 +617,19 @@ export function PricingPage() {
   );
 }
 
-export function PhotographerPackagePage() {
+export async function PhotographerPackagePage() {
+  const photographerPackage = await currentPhotographerPackage(await db(), true);
+  if (!photographerPackage.active) notFound();
   return (
     <MarketingShell>
       <PageHero
         eyebrow="BAĞIMSIZ HİZMET"
-        title={PHOTOGRAPHER_PACKAGE.name}
+        title={photographerPackage.name}
         description="Ana QR paketlerinden bağımsız profesyonel çekim ve kontrollü dijital teslimat akışı."
         hideVisual
       />
       <section className={styles.section}>
-        <PhotographerPackageCard />
+        <PhotographerPackageCard photographerPackage={photographerPackage} />
         <div className={styles.photographerScopeGrid}>
           <article>
             <h2>Pakete dahil</h2>
@@ -643,7 +653,7 @@ export function PhotographerPackagePage() {
           </article>
         </div>
         <div className={styles.notice}>
-          <strong>{new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(PHOTOGRAPHER_PACKAGE.grossPriceCents / 100)} KDV dahil.</strong>{" "}
+          <strong>{new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(photographerPackage.grossPriceCents / 100)} KDV dahil.</strong>{" "}
           Paket bağımsız satın alınır ve müşteri onayı verilmeden profesyonel yükleme açılmaz.
         </div>
         <div className={styles.centerAction}>

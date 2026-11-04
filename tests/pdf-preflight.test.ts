@@ -10,6 +10,8 @@ import { minimalCreamPortraitMaster } from "../src/lib/minimal-cream-template";
 import { createMinimalCreamLandscapePrintPdf } from "../src/lib/minimal-cream-landscape-pdf";
 import { minimalCreamLandscapeMaster } from "../src/lib/minimal-cream-landscape-template";
 import { buildMinimalCreamLandscape } from "../src/lib/minimal-cream-landscape-template";
+import { createMinimalCreamWelcomePrintPdf } from "../src/lib/minimal-cream-welcome-pdf";
+import { minimalCreamWelcomeMaster } from "../src/lib/minimal-cream-welcome-template";
 
 const mmToPoints = (value: number) => (value * 72) / 25.4;
 
@@ -75,14 +77,27 @@ test("all five Minimal variants export two-page print PDFs with exact bleed and 
   };
   for (const variant of ["cream", "blush", "sage", "blue", "black"] as const) {
     const design = { ...baseDesign, qrColorVariant: variant };
-    const bytes = await createMinimalCreamPrintPdf(design, "ELA & DENİZ", "2026-09-14", `https://shineqr.test/q/${variant}-event`, {
-      frontBackground: await readFile(`public/design-center/templates/modern-arch/${variant}/portrait-mini/minimal-${variant}-portrait-mini-front-base-clean.png`),
-      backBackground: await readFile(`public/design-center/templates/modern-arch/${variant}/portrait-mini/minimal-${variant}-portrait-mini-back-base-clean.png`),
-      solidLogoSvg: await readFile("public/brand/vector/shineqr-logo-solid-gold.svg", "utf8"),
-      montserratLight: await readFile("public/fonts/qr/montserrat-light.ttf"),
-      montserrat: await readFile("public/fonts/qr/montserrat-regular.ttf"),
-      allura: await readFile("public/fonts/qr/allura-400.ttf"),
-    });
+    const bytes = await createMinimalCreamPrintPdf(
+      design,
+      "ELA & DENİZ",
+      "2026-09-14",
+      `https://shineqr.test/q/${variant}-event`,
+      {
+        frontBackground: await readFile(
+          `public/design-center/templates/modern-arch/${variant}/portrait-mini/minimal-${variant}-portrait-mini-front-base-clean.png`,
+        ),
+        backBackground: await readFile(
+          `public/design-center/templates/modern-arch/${variant}/portrait-mini/minimal-${variant}-portrait-mini-back-base-clean.png`,
+        ),
+        solidLogoSvg: await readFile(
+          "public/brand/vector/shineqr-logo-solid-gold.svg",
+          "utf8",
+        ),
+        montserratLight: await readFile("public/fonts/qr/montserrat-light.ttf"),
+        montserrat: await readFile("public/fonts/qr/montserrat-regular.ttf"),
+        allura: await readFile("public/fonts/qr/allura-400.ttf"),
+      },
+    );
     const pdf = await PDFDocument.load(bytes);
     assert.equal(pdf.getPageCount(), 2);
     for (const page of pdf.getPages()) {
@@ -97,10 +112,29 @@ test("all five Minimal variants export two-page print PDFs with exact bleed and 
       assert.ok(Math.abs(trim.width - mmToPoints(75)) < 0.01);
       assert.ok(Math.abs(trim.height - mmToPoints(100)) < 0.01);
     }
-    assert.equal((await inspectPrintPdf(bytes, resolveQrProduct("portrait-mini-75x100-duplex"))).passed, true);
+    assert.equal(
+      (
+        await inspectPrintPdf(
+          bytes,
+          resolveQrProduct("portrait-mini-75x100-duplex"),
+        )
+      ).passed,
+      true,
+    );
   }
-  assert.deepEqual(minimalCreamPortraitMaster.elements.qrFrame, { xMm: 23.5, yMm: 55, widthMm: 34, heightMm: 34, radiusMm: 2 });
-  assert.deepEqual(minimalCreamPortraitMaster.elements.qr, { xMm: 25.25, yMm: 56.75, widthMm: 30.5, heightMm: 30.5 });
+  assert.deepEqual(minimalCreamPortraitMaster.elements.qrFrame, {
+    xMm: 23.5,
+    yMm: 55,
+    widthMm: 34,
+    heightMm: 34,
+    radiusMm: 2,
+  });
+  assert.deepEqual(minimalCreamPortraitMaster.elements.qr, {
+    xMm: 25.25,
+    yMm: 56.75,
+    widthMm: 30.5,
+    heightMm: 30.5,
+  });
 });
 
 test("Minimal cream landscape exports an exact two-page 100x75mm print PDF", async () => {
@@ -114,19 +148,32 @@ test("Minimal cream landscape exports an exact two-page 100x75mm print PDF", asy
     qrCta: "TARAT VE PAYLAŞ",
     message: "Bu özel günde yanımızda olduğun için teşekkür ederiz.",
   };
-  const bytes = await createMinimalCreamLandscapePrintPdf(design, "ELA & DENİZ", "2026-09-14", "https://shineqr.test/q/minimal-cream-landscape", {
-    frontBackground: await readFile("public/design-center/templates/modern-arch/cream/landscape-mini/minimal-cream-landscape-mini-front-base-clean.png"),
-    backBackground: await readFile("public/design-center/templates/modern-arch/cream/landscape-mini/minimal-cream-landscape-mini-back-base-clean.png"),
-    solidLogoSvg: await readFile("public/brand/vector/shineqr-logo-solid-gold.svg", "utf8"),
-    montserratLight: await readFile("public/fonts/qr/montserrat-light.ttf"),
-    montserrat: await readFile("public/fonts/qr/montserrat-regular.ttf"),
-    montserratBold: await readFile("public/fonts/qr/montserrat-bold.ttf"),
-    allura: await readFile("public/fonts/qr/allura-400.ttf"),
-  });
+  const bytes = await createMinimalCreamLandscapePrintPdf(
+    design,
+    "ELA & DENİZ",
+    "2026-09-14",
+    "https://shineqr.test/q/minimal-cream-landscape",
+    {
+      frontBackground: await readFile(
+        "public/design-center/templates/modern-arch/cream/landscape-mini/minimal-cream-landscape-mini-front-base-clean.png",
+      ),
+      backBackground: await readFile(
+        "public/design-center/templates/modern-arch/cream/landscape-mini/minimal-cream-landscape-mini-back-base-clean.png",
+      ),
+      solidLogoSvg: await readFile(
+        "public/brand/vector/shineqr-logo-solid-gold.svg",
+        "utf8",
+      ),
+      montserratLight: await readFile("public/fonts/qr/montserrat-light.ttf"),
+      montserrat: await readFile("public/fonts/qr/montserrat-regular.ttf"),
+      allura: await readFile("public/fonts/qr/allura-400.ttf"),
+    },
+  );
   const pdf = await PDFDocument.load(bytes);
   assert.equal(pdf.getPageCount(), 2);
   for (const page of pdf.getPages()) {
-    const media = page.getMediaBox(), trim = page.getTrimBox();
+    const media = page.getMediaBox(),
+      trim = page.getTrimBox();
     assert.ok(Math.abs(media.width - mmToPoints(106)) < 0.01);
     assert.ok(Math.abs(media.height - mmToPoints(81)) < 0.01);
     assert.ok(Math.abs(trim.x - mmToPoints(3)) < 0.01);
@@ -134,10 +181,86 @@ test("Minimal cream landscape exports an exact two-page 100x75mm print PDF", asy
     assert.ok(Math.abs(trim.width - mmToPoints(100)) < 0.01);
     assert.ok(Math.abs(trim.height - mmToPoints(75)) < 0.01);
   }
-  assert.equal((await inspectPrintPdf(bytes, resolveQrProduct("landscape-mini-100x75-duplex"))).passed, true);
-  assert.deepEqual(minimalCreamLandscapeMaster.elements.qr, { xMm: 67.4, yMm: 21.4, widthMm: 27.2, heightMm: 27.2 });
-  const preview = buildMinimalCreamLandscape(design, "ELA & DENİZ", "2026-09-14", "https://shineqr.test/q/minimal-cream-landscape", {
-    front: "front.png", back: "back.png", logo: "logo.svg",
+  assert.equal(
+    (
+      await inspectPrintPdf(
+        bytes,
+        resolveQrProduct("landscape-mini-100x75-duplex"),
+      )
+    ).passed,
+    true,
+  );
+  assert.deepEqual(minimalCreamLandscapeMaster.elements.qr, {
+    xMm: 67.4,
+    yMm: 21.4,
+    widthMm: 27.2,
+    heightMm: 27.2,
   });
-  assert.match(preview.front, /width="100mm" height="75mm" viewBox="3 3 100 75"/);
+  const preview = buildMinimalCreamLandscape(
+    design,
+    "ELA & DENİZ",
+    "2026-09-14",
+    "https://shineqr.test/q/minimal-cream-landscape",
+    {
+      front: "front.png",
+      back: "back.png",
+      logo: "logo.svg",
+    },
+  );
+  assert.match(
+    preview.front,
+    /width="100mm" height="75mm" viewBox="3 3 100 75"/,
+  );
+});
+
+test("Minimal cream welcome sign exports one 500x700mm page with exact bleed and trim boxes", async () => {
+  const design = {
+    ...defaultDesign,
+    qrTemplateId: "modern-arch" as const,
+    qrColorVariant: "cream" as const,
+    qrProductId: "welcome-sign-500x700-duplex" as const,
+    qrHook: "HER KARE BİR HİKÂYE.",
+    qrDescription: "Fotoğraf ve videolarını paylaş.",
+    qrCta: "TARAT VE PAYLAŞ",
+  };
+  const bytes = await createMinimalCreamWelcomePrintPdf(
+    design,
+    "ELA & DENİZ",
+    "2026-09-14",
+    "https://shineqr.test/q/minimal-cream-welcome",
+    {
+      background: await readFile(
+        "public/design-center/templates/modern-arch/cream/welcome-sign-500x700/minimal-cream-welcome-sign-front-base-clean.png",
+      ),
+      solidLogoSvg: await readFile(
+        "public/brand/vector/shineqr-logo-solid-gold.svg",
+        "utf8",
+      ),
+      montserratLight: await readFile("public/fonts/qr/montserrat-light.ttf"),
+      montserrat: await readFile("public/fonts/qr/montserrat-regular.ttf"),
+      allura: await readFile("public/fonts/qr/allura-400.ttf"),
+    },
+  );
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 1);
+  const page = pdf.getPage(0),
+    media = page.getMediaBox(),
+    trim = page.getTrimBox();
+  assert.ok(Math.abs(media.width - mmToPoints(506)) < 0.01);
+  assert.ok(Math.abs(media.height - mmToPoints(706)) < 0.01);
+  assert.ok(Math.abs(trim.x - mmToPoints(3)) < 0.01);
+  assert.ok(Math.abs(trim.y - mmToPoints(3)) < 0.01);
+  assert.ok(Math.abs(trim.width - mmToPoints(500)) < 0.01);
+  assert.ok(Math.abs(trim.height - mmToPoints(700)) < 0.01);
+  assert.equal(
+    (
+      await inspectPrintPdf(
+        bytes,
+        resolveQrProduct("welcome-sign-500x700-duplex"),
+      )
+    ).passed,
+    true,
+  );
+  assert.equal(minimalCreamWelcomeMaster.source.productionDpiTarget, 300);
+  assert.ok(minimalCreamWelcomeMaster.source.effectiveDpiAtTrim < 300);
 });

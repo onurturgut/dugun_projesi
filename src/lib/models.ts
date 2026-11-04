@@ -5,6 +5,7 @@ import type {
   PackageCode,
   PackagePolicy,
   PriceSnapshot,
+  PhotographerPackagePolicy,
   PhotographerSettlementSnapshot,
 } from "./commercial-policy";
 export type Role = "platform" | "partner" | "owner";
@@ -156,8 +157,10 @@ export interface SaleRecord {
   vat_cents: number;
   gross_cents: number;
   qualifying_ordinal: number | null;
-  commission_rate_bps: 3000 | 4000;
+  commission_rate_bps: number;
   commission_cents: number;
+  commission_policy_snapshot?: import("./finance").CommissionPolicySnapshot;
+  package_snapshot?: PackagePolicy;
   platform_cents: number;
   price_snapshot?: PriceSnapshot;
   refunded_at?: string | null;
@@ -256,6 +259,7 @@ export interface Wedding {
   package_snapshot?: PackagePolicy;
   package_code?: PackageCode;
   add_on_selections?: AddOnSelection[];
+  qr_quantity_selections?: QrQuantitySelection[];
   price_snapshot?: PriceSnapshot;
   approval_status?:
     "draft" | "submitted" | "changes_requested" | "approved" | "rejected";
@@ -333,6 +337,12 @@ export interface AddOnProduct {
   name: string;
   description: string;
   gross_price_cents: number;
+  unit_cost_cents?: number;
+  vat_rate_bps?: number;
+  minimum_quantity?: number;
+  maximum_quantity?: number;
+  eligible_package_codes?: PackageCode[];
+  image_url?: string;
   commissionable: boolean;
   category?: "qr_print" | "storage_retention" | "digital" | "design" | "organization";
   unit?: "item" | "gib" | "month" | "service" | "organization";
@@ -344,6 +354,84 @@ export interface AddOnProduct {
   active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface QrQuantitySelection {
+  product_id: string;
+  total_quantity: number;
+}
+
+export interface PackageConfiguration extends PackagePolicy {
+  active: boolean;
+  description: string;
+  category: string;
+  display_order: number;
+  featured: boolean;
+  campaign_starts_at?: string | null;
+  campaign_ends_at?: string | null;
+  compare_at_gross_cents?: number | null;
+  vat_rate_bps: number;
+  target_margin_bps: number;
+  variable_cost_cents: number;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface PhotographerPackageConfiguration extends PhotographerPackagePolicy {
+  active: boolean;
+  description: string;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface PartnerCommissionPolicy {
+  id: string;
+  partner_id: string;
+  version: number;
+  base_rate_bps: number;
+  threshold: number;
+  elevated_rate_bps: number;
+  tiered: boolean;
+  qualifying_package_codes: PackageCode[];
+  effective_from: string;
+  active: boolean;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface ExpenseRecord {
+  id: string;
+  name: string;
+  category: string;
+  amount_cents: number;
+  currency: "TRY";
+  vat_rate_bps: number;
+  deductible_vat: boolean;
+  kind: "fixed" | "variable";
+  recurrence: "once" | "monthly" | "yearly";
+  payment_status: "planned" | "paid";
+  payment_date: string;
+  order_id?: string;
+  estimated: boolean;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+  archived_at?: string | null;
+  archived_by?: string | null;
+}
+
+export interface TaxConfiguration {
+  id: "default";
+  version: number;
+  default_vat_rate_bps: number;
+  category_vat_rate_bps: Record<string, number>;
+  carried_vat_cents: number;
+  effective_from: string;
+  updated_at: string;
+  updated_by: string;
 }
 export interface Media {
   id: string;

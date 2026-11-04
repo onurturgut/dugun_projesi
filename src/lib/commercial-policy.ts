@@ -4,7 +4,7 @@ export type PackageCode = "plan-1" | "plan-2" | "plan-3";
 
 export type PackagePolicy = {
   code: PackageCode;
-  version: 1 | 2;
+  version: number;
   name: string;
   grossPriceCents: number;
   miniQrCount: number;
@@ -147,12 +147,15 @@ export const PACKAGE_CATALOG = PACKAGE_CATALOG_V2;
 
 export type PhotographerPackagePolicy = {
   code: "photographer-plan";
-  version: 1;
+  version: number;
   name: string;
-  grossPriceCents: 400_000;
-  vatRateBps: 2000;
+  grossPriceCents: number;
+  vatRateBps: number;
   settlementPolicy: "fixed-photographer-distribution";
-  digitalRetentionMonths: 12;
+  digitalRetentionMonths: number;
+  photographerGrossCents: number;
+  originatingPartnerGrossCents: number;
+  platformGrossCents: number;
 };
 
 export const PHOTOGRAPHER_PACKAGE: Readonly<PhotographerPackagePolicy> =
@@ -164,35 +167,40 @@ export const PHOTOGRAPHER_PACKAGE: Readonly<PhotographerPackagePolicy> =
     vatRateBps: 2000,
     settlementPolicy: "fixed-photographer-distribution",
     digitalRetentionMonths: 12,
+    photographerGrossCents: 300_000,
+    originatingPartnerGrossCents: 50_000,
+    platformGrossCents: 50_000,
   });
 
 export type PhotographerSettlementSnapshot = {
   packageCode: "photographer-plan";
-  packageVersion: 1;
-  grossCents: 400_000;
-  vatRateBps: 2000;
+  packageVersion: number;
+  grossCents: number;
+  vatRateBps: number;
   netCents: number;
   vatCents: number;
-  photographerGrossCents: 300_000;
-  originatingPartnerGrossCents: 50_000;
-  platformGrossCents: 50_000;
+  photographerGrossCents: number;
+  originatingPartnerGrossCents: number;
+  platformGrossCents: number;
 };
 
-export function photographerSettlementSnapshot(): PhotographerSettlementSnapshot {
+export function photographerSettlementSnapshot(
+  policy: PhotographerPackagePolicy = PHOTOGRAPHER_PACKAGE,
+): PhotographerSettlementSnapshot {
   const netCents = netCentsFromVatIncluded(
-    PHOTOGRAPHER_PACKAGE.grossPriceCents,
-    PHOTOGRAPHER_PACKAGE.vatRateBps,
+    policy.grossPriceCents,
+    policy.vatRateBps,
   );
   const snapshot: PhotographerSettlementSnapshot = {
-    packageCode: PHOTOGRAPHER_PACKAGE.code,
-    packageVersion: PHOTOGRAPHER_PACKAGE.version,
-    grossCents: PHOTOGRAPHER_PACKAGE.grossPriceCents,
-    vatRateBps: PHOTOGRAPHER_PACKAGE.vatRateBps,
+    packageCode: policy.code,
+    packageVersion: policy.version,
+    grossCents: policy.grossPriceCents,
+    vatRateBps: policy.vatRateBps,
     netCents,
-    vatCents: PHOTOGRAPHER_PACKAGE.grossPriceCents - netCents,
-    photographerGrossCents: 300_000,
-    originatingPartnerGrossCents: 50_000,
-    platformGrossCents: 50_000,
+    vatCents: policy.grossPriceCents - netCents,
+    photographerGrossCents: policy.photographerGrossCents,
+    originatingPartnerGrossCents: policy.originatingPartnerGrossCents,
+    platformGrossCents: policy.platformGrossCents,
   };
   const allocatedGross =
     snapshot.photographerGrossCents +
@@ -238,6 +246,9 @@ export type AddOnSnapshot = AddOnSelection & {
   name: string;
   unit_gross_cents: number;
   line_gross_cents: number;
+  vat_rate_bps?: number;
+  line_net_cents?: number;
+  line_vat_cents?: number;
   commissionable: boolean;
   pricing_type?: "fixed" | "package_percentage_discount";
   percentage_bps?: number;
@@ -252,6 +263,18 @@ export type PriceSnapshot = {
   add_on_gross_cents: number;
   gross_cents: number;
   commissionable_gross_cents: number;
+  net_cents?: number;
+  vat_cents?: number;
+  commissionable_net_cents?: number;
+  qr_details?: Array<{
+    product_id: string;
+    name: string;
+    included_quantity: number;
+    total_quantity: number;
+    extra_quantity: number;
+    unit_gross_cents: number;
+    extra_gross_cents: number;
+  }>;
 };
 
 export function priceSnapshot(
@@ -267,6 +290,10 @@ export function priceSnapshot(
     effect_type?: string;
     effect_value?: number;
     print_format?: "vertical_mini" | "table_card";
+    minimum_quantity?: number;
+    maximum_quantity?: number;
+    eligible_package_codes?: PackageCode[];
+    vat_rate_bps?: number;
   }>,
 ): PriceSnapshot {
   const byId = new Map(products.map((product) => [product.id, product]));
@@ -276,8 +303,12 @@ export function priceSnapshot(
   const addOns = selections.map((selection) => {
     const product = byId.get(selection.product_id);
     if (!product) throw new Error("Ek ürün bulunamadı veya satışa kapalı.");
-    if (!Number.isInteger(selection.quantity) || selection.quantity < 1 || selection.quantity > 100)
+    const minimum = product.minimum_quantity || 1;
+    const maximum = product.maximum_quantity || 100;
+    if (!Number.isInteger(selection.quantity) || selection.quantity < minimum || selection.quantity > maximum)
       throw new Error("Ek ürün adedi 1 ile 100 arasında olmalı.");
+    if (product.eligible_package_codes?.length && !product.eligible_package_codes.includes(code))
+      throw new Error("Ek ürün seçilen paketle birlikte sunulmuyor.");
     if (product.pricing_type === "package_percentage_discount" && selection.quantity !== 1)
       throw new Error("Yüzde indirimli ek ürün yalnızca bir kez seçilebilir.");
     if (
@@ -288,11 +319,18 @@ export function priceSnapshot(
     const unitGross = product.pricing_type === "package_percentage_discount"
       ? -Math.round((packageGross * (product.percentage_bps || 0)) / 10_000)
       : product.gross_price_cents;
+    const lineGross = unitGross * selection.quantity;
+    const lineNet = lineGross >= 0
+      ? netCentsFromVatIncluded(lineGross, product.vat_rate_bps ?? 2000)
+      : -netCentsFromVatIncluded(Math.abs(lineGross), product.vat_rate_bps ?? 2000);
     return {
       ...selection,
       name: product.name,
       unit_gross_cents: unitGross,
-      line_gross_cents: unitGross * selection.quantity,
+      line_gross_cents: lineGross,
+      vat_rate_bps: product.vat_rate_bps ?? 2000,
+      line_net_cents: lineNet,
+      line_vat_cents: lineGross - lineNet,
       commissionable: true,
       pricing_type: product.pricing_type || "fixed",
       percentage_bps: product.percentage_bps,

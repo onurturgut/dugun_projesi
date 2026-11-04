@@ -3,10 +3,8 @@ import { degrees, PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import { designNames, type WeddingDesign } from "./design";
 import type { MinimalCreamPdfAssets } from "./minimal-cream-pdf";
-import { minimalCreamDateLabel } from "./minimal-cream-template";
+import { minimalCreamDateLabel, minimalPortraitPalette } from "./minimal-cream-template";
 import { minimalCreamLandscapeMaster } from "./minimal-cream-landscape-template";
-
-type MinimalCreamLandscapePdfAssets = MinimalCreamPdfAssets & { montserratBold: Uint8Array };
 
 const pt = (mm: number) => mm * 72 / 25.4;
 const ink = rgb(23 / 255, 23 / 255, 23 / 255), muted = rgb(39 / 255, 34 / 255, 30 / 255), gold = rgb(199 / 255, 161 / 255, 90 / 255), scriptGold = rgb(168 / 255, 100 / 255, 25 / 255);
@@ -45,14 +43,17 @@ function drawQr(page: PDFPage, url: string) {
   });
 }
 
-export async function createMinimalCreamLandscapePrintPdf(design: WeddingDesign, title: string, date: string | null, url: string, assets: MinimalCreamLandscapePdfAssets) {
+export async function createMinimalCreamLandscapePrintPdf(design: WeddingDesign, title: string, date: string | null, url: string, assets: MinimalCreamPdfAssets) {
   const master = minimalCreamLandscapeMaster, pdf = await PDFDocument.create();
+  const variantPalette = minimalPortraitPalette(design.qrColorVariant);
+  const textInk = rgb(...variantPalette.inkRgb.map((value) => value / 255) as [number, number, number]);
+  const mutedInk = rgb(...variantPalette.mutedRgb.map((value) => value / 255) as [number, number, number]);
   pdf.registerFontkit(fontkit);
   pdf.setTitle(`ShineQR Minimal Krem Yatay - ${designNames(design, title)}`);
   pdf.setCreator("ShineQR Tasarım Merkezi");
   pdf.setProducer("ShineQR Baskı Otomasyonu");
-  const [frontImage, backImage, montserratLight, montserrat, montserratBold, allura] = await Promise.all([
-    pdf.embedPng(assets.frontBackground), pdf.embedPng(assets.backBackground), pdf.embedFont(assets.montserratLight, { subset: false }), pdf.embedFont(assets.montserrat, { subset: false }), pdf.embedFont(assets.montserratBold, { subset: false }), pdf.embedFont(assets.allura, { subset: false }),
+  const [frontImage, backImage, montserratLight, montserrat, allura] = await Promise.all([
+    pdf.embedPng(assets.frontBackground), pdf.embedPng(assets.backBackground), pdf.embedFont(assets.montserratLight, { subset: false }), pdf.embedFont(assets.montserrat, { subset: false }), pdf.embedFont(assets.allura, { subset: false }),
   ]);
   const names = designNames(design, title).toLocaleUpperCase("tr-TR"), dateText = minimalCreamDateLabel(date);
   for (const face of ["front", "back"] as const) {
@@ -62,24 +63,24 @@ export async function createMinimalCreamLandscapePrintPdf(design: WeddingDesign,
     page.drawImage(face === "front" ? frontImage : backImage, { x: 0, y: 0, width: pt(master.media.widthMm), height: pt(master.media.heightMm) });
     if (face === "front") {
       drawLogo(page, assets.solidLogoSvg, master.elements.frontLogo);
-      centeredLines(page, montserratBold, design.qrHook, master.elements.title);
+      centeredLines(page, montserratLight, design.qrHook, master.elements.title, textInk);
       centered(page, allura, "Sen de iz bırak.", master.elements.frontScript, scriptGold);
-      centered(page, montserratBold, design.qrDescription, master.elements.description, muted);
+      centered(page, montserrat, design.qrDescription, master.elements.description, mutedInk);
       drawQr(page, url);
-      centered(page, montserrat, design.qrCta.toLocaleUpperCase("tr-TR"), master.elements.cta);
-      centered(page, montserrat, names, master.elements.names);
-      centered(page, montserrat, dateText, master.elements.date);
+      centered(page, montserrat, design.qrCta.toLocaleUpperCase("tr-TR"), master.elements.cta, textInk);
+      centered(page, montserrat, names, master.elements.names, textInk);
+      centered(page, montserrat, dateText, master.elements.date, textInk);
     } else {
       drawLogo(page, assets.solidLogoSvg, master.elements.backLogo);
-      centeredLines(page, montserratBold, "BU HİKÂYENİN PARÇASISIN.", master.elements.backTitle);
+      centeredLines(page, montserratLight, "BU HİKÂYENİN PARÇASISIN.", master.elements.backTitle, textInk);
       centered(page, allura, "İyi ki geldin.", master.elements.backScript, scriptGold);
-      centeredLines(page, montserratBold, design.message, master.elements.backDescription, muted);
+      centeredLines(page, montserrat, design.message, master.elements.backDescription, mutedInk);
       const y = pt(master.media.heightMm - master.elements.backDivider.yMm);
       page.drawLine({ start: { x: pt(40), y }, end: { x: pt(52.3), y }, thickness: pt(.18), color: gold });
       page.drawLine({ start: { x: pt(53.7), y }, end: { x: pt(66), y }, thickness: pt(.18), color: gold });
       page.drawRectangle({ x: pt(53), y: y - pt(.65), width: pt(.92), height: pt(.92), rotate: degrees(45), color: gold });
-      centered(page, montserrat, names, master.elements.backNames);
-      centered(page, montserrat, dateText, master.elements.backDate);
+      centered(page, montserrat, names, master.elements.backNames, textInk);
+      centered(page, montserrat, dateText, master.elements.backDate, textInk);
     }
   }
   return pdf.save({ useObjectStreams: false });
@@ -92,15 +93,18 @@ async function fetchBytes(path: string) {
 }
 
 export async function downloadMinimalCreamLandscapePrintPdf(design: WeddingDesign, title: string, date: string | null, url: string) {
+  const variant = ["cream", "blush", "sage", "blue", "black"].includes(design.qrColorVariant) ? design.qrColorVariant : "cream";
   const assets = minimalCreamLandscapeMaster.assets;
-  const [frontBackground, backBackground, logoResponse, montserratLight, montserrat, montserratBold, allura] = await Promise.all([
-    fetchBytes(assets.front), fetchBytes(assets.back), fetch(assets.foilLogo), fetchBytes("/fonts/qr/montserrat-light.ttf"), fetchBytes("/fonts/qr/montserrat-regular.ttf"), fetchBytes("/fonts/qr/montserrat-bold.ttf"), fetchBytes("/fonts/qr/allura-400.ttf"),
+  const front = `/design-center/templates/modern-arch/${variant}/landscape-mini/minimal-${variant}-landscape-mini-front-base-clean.png`;
+  const back = `/design-center/templates/modern-arch/${variant}/landscape-mini/minimal-${variant}-landscape-mini-back-base-clean.png`;
+  const [frontBackground, backBackground, logoResponse, montserratLight, montserrat, allura] = await Promise.all([
+    fetchBytes(front), fetchBytes(back), fetch(assets.foilLogo), fetchBytes("/fonts/qr/montserrat-light.ttf"), fetchBytes("/fonts/qr/montserrat-regular.ttf"), fetchBytes("/fonts/qr/allura-400.ttf"),
   ]);
   if (!logoResponse.ok) throw new Error("Vektör logo yüklenemedi.");
-  const bytes = await createMinimalCreamLandscapePrintPdf(design, title, date, url, { frontBackground, backBackground, solidLogoSvg: await logoResponse.text(), montserratLight, montserrat, montserratBold, allura });
+  const bytes = await createMinimalCreamLandscapePrintPdf(design, title, date, url, { frontBackground, backBackground, solidLogoSvg: await logoResponse.text(), montserratLight, montserrat, allura });
   const href = URL.createObjectURL(new Blob([new Uint8Array(bytes).buffer], { type: "application/pdf" })), link = document.createElement("a");
   link.href = href;
-  link.download = "shineqr-minimal-krem-100x75mm-yatay-baski.pdf";
+  link.download = `shineqr-minimal-${variant}-100x75mm-yatay-baski.pdf`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(href), 1000);
 }

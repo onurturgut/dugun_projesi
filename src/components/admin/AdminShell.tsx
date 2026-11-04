@@ -92,8 +92,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           { href: "/admin/accounts", label: "Yetkili hesaplar", icon: Users },
           { href: "/admin/operations", label: "Medya merkezi", icon: Activity },
           {
+            href: "/admin/finance-center",
+            label: "Finans ve Fiyatlandırma",
+            icon: WalletCards,
+          },
+          {
             href: "/admin/finance",
-            label: "Satış ve komisyon",
+            label: "Satış defteri ve hakediş",
             icon: WalletCards,
           },
           { href: "/admin/audit", label: "İşlem kayıtları", icon: FileClock },
@@ -134,8 +139,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       icon: Camera,
                     },
                     {
-                      href: "/admin/finance",
-                      label: "Satış ve komisyon",
+                      href: "/admin/finance-center",
+                      label: "Komisyon ve kazanç",
                       icon: WalletCards,
                     },
                     {

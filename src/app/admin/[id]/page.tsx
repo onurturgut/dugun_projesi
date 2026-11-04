@@ -65,6 +65,8 @@ const dateText = (s: string | null, time = false) =>
         },
       )
     : "Tarih belirlenmedi";
+const money = (cents: number) =>
+  new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(cents / 100);
 export default function EventDetail() {
   const { id } = useParams<{ id: string }>(),
     qc = useQueryClient();
@@ -124,6 +126,11 @@ export default function EventDetail() {
         customer_approved_at?: string | null;
       } | null>(`/admin/weddings/${id}/photographer-sale`),
     enabled: me.data?.role === "owner" || me.data?.role === "platform",
+  });
+  const photographerPackage = useQuery({
+    queryKey: ["finance-photographer-package"],
+    queryFn: () => api<{ grossPriceCents: number; active: boolean }>("/admin/finance/photographer-package"),
+    enabled: me.data?.role === "platform",
   });
   const photographers = useQuery({
     queryKey: ["photographers"],
@@ -606,13 +613,14 @@ export default function EventDetail() {
                 </div>
               ) : null}
               {me.data?.role === "platform" &&
+              photographerPackage.data?.active &&
               !photographerSale.data &&
               w.approval_status === "approved" &&
               w.assigned_photographers?.length ? (
                 <div className="event-photographer-approval">
                   <strong>Fotoğrafçı paketini satışa sun</strong>
                   <p>
-                    4.000 TL KDV dâhil paket, organizasyon sahibinin ticari
+                    {photographerPackage.data ? money(photographerPackage.data.grossPriceCents) : "Güncel fiyat"} KDV dâhil paket, organizasyon sahibinin ticari
                     onayına gönderilir. Onay verilmeden hakediş oluşmaz.
                   </p>
                   <button
@@ -714,13 +722,13 @@ export default function EventDetail() {
                       <strong>Fotoğrafçı paketi satın alma onayı</strong>
                       <p>
                         Atanmış fotoğrafçının profesyonel çekim hizmeti için
-                        toplam fiyat 4.000 TL&apos;dir ve KDV dâhildir. Bu kayıt
+                        toplam fiyat {money(photographerSale.data.settlement_snapshot.grossCents)} ve KDV dâhildir. Bu kayıt
                         hukuki sözleşme yerine geçmez; onaylı ticari paket
                         seçiminizi belgeler.
                       </p>
                       <label className="finance-check">
                         <input type="checkbox" id="photographer-package-consent" />
-                        <span>4.000 TL KDV dâhil paket seçimini onaylıyorum.</span>
+                        <span>{money(photographerSale.data.settlement_snapshot.grossCents)} KDV dâhil paket seçimini onaylıyorum.</span>
                       </label>
                       <button
                         className="admin-button primary"
