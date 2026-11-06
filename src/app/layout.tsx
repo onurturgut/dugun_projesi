@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Providers } from "./providers";
 import { ConsentManager } from "@/components/legal/ConsentManager";
+import { PwaRegistrar } from "@/components/system/PwaRegistrar";
 import "../styles.css";
 const authThemeScript = `try { const key = "shineqr-auth-theme"; const saved = localStorage.getItem(key); const theme = saved === "light" || saved === "dark" ? saved : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); document.documentElement.dataset.authTheme = theme; } catch (_) { document.documentElement.dataset.authTheme = "light"; }`;
 export const metadata: Metadata = {
@@ -11,10 +12,31 @@ export const metadata: Metadata = {
   title: { default: "ShineQR | Özel Anılar İçin", template: "%s | ShineQR" },
   description:
     "Düğün ve etkinlik fotoğraflarını QR kodla tek bir özel albümde toplayın.",
-  icons: {
-    icon: "/brand/shineqr-mark.png",
-    apple: "/brand/shineqr-mark.png",
+  applicationName: "ShineQR",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "ShineQR",
   },
+  formatDetection: { telephone: false },
+  icons: {
+    icon: [
+      { url: "/pwa/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/pwa/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/pwa/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+};
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f1e8" },
+    { media: "(prefers-color-scheme: dark)", color: "#120b08" },
+  ],
+  colorScheme: "light dark",
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +47,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Script>
         <Providers>{children}</Providers>
         <ConsentManager />
+        <PwaRegistrar />
       </body>
     </html>
   );
