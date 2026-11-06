@@ -2,7 +2,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { MongoServerError } from "mongodb";
+import { MongoServerError, type ClientSession, type Db } from "mongodb";
 import { z } from "zod";
 import {
   PutObjectCommand,
@@ -130,6 +130,59 @@ const validAddOnEffect = (effectType: NonNullable<AddOnProduct["effect_type"]>, 
   effectType === "print_quantity"
     ? Number.isInteger(effectValue) && effectValue >= 1 && effectValue <= 10_000
     : addOnEffectValues[effectType].includes(effectValue);
+async function ensureSaleDraft(
+  database: Db,
+  event: Wedding,
+  actorId: string,
+  transaction?: ClientSession,
+) {
+  if (!event.package_code) return null;
+  const existing = await database.collection<SaleRecord>("sales").findOne(
+    { wedding_id: event.id },
+    { projection: { _id: 0 }, session: transaction },
+  );
+  if (existing) return existing;
+  const selectedPackage = event.package_snapshot || await currentPackage(database, event.package_code);
+  const pricing = event.price_snapshot || priceSnapshotForPackage(selectedPackage as PackageConfiguration, [], []);
+  const vatRateBps = (selectedPackage as Partial<PackageConfiguration>).vat_rate_bps ?? 2000;
+  const netCents = pricing.net_cents ?? netFromVatIncluded(pricing.gross_cents, vatRateBps);
+  const now = new Date().toISOString();
+  const draft: SaleRecord = {
+    id: randomUUID(),
+    idempotency_key: `wedding-draft-${event.id}`,
+    partner_id: event.seller_partner_id || event.partner_id,
+    wedding_id: event.id,
+    package_code: event.package_code,
+    status: "draft",
+    period: istanbulCalendarMonth(now),
+    occurred_at: now,
+    recorded_at: now,
+    recorded_by: actorId,
+    net_cents: netCents,
+    vat_rate_bps: vatRateBps,
+    vat_cents: pricing.gross_cents - netCents,
+    gross_cents: pricing.gross_cents,
+    qualifying_ordinal: null,
+    commission_rate_bps: 0,
+    commission_cents: 0,
+    package_snapshot: structuredClone(selectedPackage),
+    platform_cents: 0,
+    price_snapshot: structuredClone(pricing),
+    variable_cost_cents:
+      ((selectedPackage as Partial<PackageConfiguration>).variable_cost_cents || 0) +
+      pricing.add_ons.reduce((sum, item) => sum + (item.line_cost_cents || 0), 0),
+    payment_reference: null,
+    paid_at: null,
+    paid_by: null,
+    refunded_at: null,
+    refunded_by: null,
+  };
+  return database.collection<SaleRecord>("sales").findOneAndUpdate(
+    { wedding_id: event.id },
+    { $setOnInsert: draft },
+    { upsert: true, returnDocument: "after", projection: { _id: 0 }, session: transaction },
+  );
+}
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
     status,
@@ -2441,9 +2494,9 @@ export async function handle(
         database.collection<SaleRecord>("sales").find(scope, { projection: { _id: 0 } }).toArray(),
         user.role === "platform" ? database.collection<ExpenseRecord>("expense_records").find({ payment_status: "paid", estimated: false, $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }).toArray() : Promise.resolve([]),
       ]);
-      const totals = salesRows.reduce((sum, sale) => ({ gross_cents: sum.gross_cents + sale.gross_cents, net_cents: sum.net_cents + sale.net_cents, vat_cents: sum.vat_cents + sale.vat_cents, commission_cents: sum.commission_cents + sale.commission_cents }), { gross_cents: 0, net_cents: 0, vat_cents: 0, commission_cents: 0 });
+      const totals = salesRows.reduce((sum, sale) => ({ gross_cents: sum.gross_cents + sale.gross_cents, net_cents: sum.net_cents + sale.net_cents, vat_cents: sum.vat_cents + sale.vat_cents, commission_cents: sum.commission_cents + sale.commission_cents, variable_cost_cents: sum.variable_cost_cents + (sale.variable_cost_cents || 0) }), { gross_cents: 0, net_cents: 0, vat_cents: 0, commission_cents: 0, variable_cost_cents: 0 });
       const expenseCents = expenses.reduce((sum, item) => sum + item.amount_cents, 0);
-      return json({ sales_count: salesRows.length, ...totals, expense_cents: expenseCents, operating_contribution_cents: totals.net_cents - totals.commission_cents - expenseCents });
+      return json({ sales_count: salesRows.length, ...totals, expense_cents: expenseCents, operating_contribution_cents: totals.net_cents - totals.commission_cents - totals.variable_cost_cents - expenseCents });
     }
     if (route === "admin/add-ons" && user) {
       const products = database.collection<AddOnProduct>("add_on_products");
@@ -2637,6 +2690,12 @@ export async function handle(
                   paid_sales: {
                     $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] },
                   },
+                  draft_sales: {
+                    $sum: { $cond: [{ $eq: ["$status", "draft"] }, 1, 0] },
+                  },
+                  draft_gross_cents: {
+                    $sum: { $cond: [{ $eq: ["$status", "draft"] }, "$gross_cents", 0] },
+                  },
                   gross_cents: {
                     $sum: {
                       $cond: [{ $eq: ["$status", "paid"] }, "$gross_cents", 0],
@@ -2703,6 +2762,8 @@ export async function handle(
           })),
           totals: totals || {
             paid_sales: 0,
+            draft_sales: 0,
+            draft_gross_cents: 0,
             gross_cents: 0,
             net_cents: 0,
             commission_cents: 0,
@@ -2715,15 +2776,8 @@ export async function handle(
         const input = z
           .object({
             wedding_id: z.string().uuid(),
-            idempotency_key: z.string().trim().min(8).max(120),
-            occurred_at: z.string().datetime().optional(),
           })
           .parse(await req.json());
-        const existing = await sales.findOne(
-          { idempotency_key: input.idempotency_key },
-          { projection: { _id: 0 } },
-        );
-        if (existing) return json(existing);
         const event = await weddings.findOne({
           id: input.wedding_id,
           approval_status: "approved",
@@ -2733,124 +2787,63 @@ export async function handle(
             409,
             "Onaylı paket bilgisi bulunan bir organizasyon gerekli.",
           );
-        const occurredAt = input.occurred_at || new Date().toISOString();
-        const period = istanbulCalendarMonth(occurredAt);
-        const selectedPackage = event.package_snapshot || await currentPackage(database, event.package_code);
-        const taxConfiguration = await database.collection<TaxConfiguration>("tax_configurations").findOne({ id: "default" });
-        const vatRateBps = (selectedPackage as Partial<PackageConfiguration>).vat_rate_bps ?? taxConfiguration?.default_vat_rate_bps ?? 2000;
-        const partnerId = event.seller_partner_id || event.partner_id;
-        const transaction = (await mongoClient()).startSession();
-        let created: SaleRecord | null = null;
-        try {
-          await transaction.withTransaction(async () => {
-            const commissionPolicy = await currentCommissionPolicy(
-              database,
-              partnerId,
-              occurredAt,
-              transaction,
-            );
-            let ordinal: number | null = null;
-            if (
-              commissionPolicy.tiered &&
-              commissionPolicy.qualifying_package_codes.includes(event.package_code!)
-            ) {
-              const counter = await database
-                .collection("monthly_sales_counters")
-                .findOneAndUpdate(
-                  {
-                    partner_id: partnerId,
-                    period,
-                  },
-                  {
-                    $setOnInsert: {
-                      partner_id: partnerId,
-                      period,
-                      refunded_count: 0,
-                    },
-                    $inc: { paid_count: 1, net_count: 1 },
-                    $set: { updated_at: new Date().toISOString() },
-                  },
-                  {
-                    upsert: true,
-                    returnDocument: "after",
-                    session: transaction,
-                  },
-                );
-              ordinal = Number(counter?.net_count || 1);
-            }
-            const pricing =
-              event.price_snapshot ||
-              priceSnapshotForPackage(selectedPackage as PackageConfiguration, [], []);
-            const grossCents = pricing.gross_cents;
-            const netCents = pricing.net_cents ?? netFromVatIncluded(grossCents, vatRateBps);
-            const eligibleNetCents = pricing.commissionable_net_cents ?? netFromVatIncluded(pricing.commissionable_gross_cents, vatRateBps);
-            const commissionRateBps = commissionRateForOrdinal(
-              commissionPolicy,
-              event.package_code!,
-              ordinal,
-            );
-            const commissionCents = calculateCommissionCents(
-              eligibleNetCents,
-              commissionRateBps,
-            );
-            created = {
-              id: randomUUID(),
-              idempotency_key: input.idempotency_key,
-              partner_id: partnerId,
-              wedding_id: event.id,
-              package_code: event.package_code!,
-              status: "paid",
-              period,
-              occurred_at: occurredAt,
-              recorded_at: new Date().toISOString(),
-              recorded_by: user.id,
-              net_cents: netCents,
-              vat_rate_bps: vatRateBps,
-              vat_cents: grossCents - netCents,
-              gross_cents: grossCents,
-              qualifying_ordinal: ordinal,
-              commission_rate_bps: commissionRateBps,
-              commission_cents: commissionCents,
-              commission_policy_snapshot: commissionPolicy,
-              package_snapshot: structuredClone(selectedPackage),
-              platform_cents: netCents - commissionCents,
-              price_snapshot: pricing,
-              refunded_at: null,
-              refunded_by: null,
-            };
-            await sales.insertOne(created, { session: transaction });
-            await database.collection("commission_ledger").insertOne(
-              {
-                id: randomUUID(),
-                sale_id: created.id,
-                partner_id: created.partner_id,
-                type: "accrual",
-                amount_cents: created.commission_cents,
-                period,
-                created_at: created.recorded_at,
-                created_by: user.id,
-              },
-              { session: transaction },
-            );
-          });
-        } catch (reason) {
-          if (reason instanceof MongoServerError && reason.code === 11000) {
-            const raced = await sales.findOne(
-              { idempotency_key: input.idempotency_key },
-              { projection: { _id: 0 } },
-            );
-            if (raced) created = raced;
-            else throw reason;
-          } else throw reason;
-        } finally {
-          await transaction.endSession();
-        }
-        await audit(req, "sale.recorded", user, {
-          sale_id: created!.id,
+        const draft = await ensureSaleDraft(database, event, user.id);
+        await audit(req, "sale.draft_created", user, {
+          sale_id: draft!.id,
           wedding_id: event.id,
         });
-        return json(created, 201);
+        return json(draft, 201);
       }
+    }
+    if (path.length === 4 && path[0] === "admin" && path[1] === "sales" && path[3] === "confirm-payment" && method === "POST" && user) {
+      requirePermission(user, "commission.manage");
+      const payment = z.object({
+        payment_method: z.enum(["bank_transfer", "cash", "card", "other"]),
+        payment_reference: z.string().trim().min(3).max(120),
+        paid_at: z.string().datetime(),
+      }).parse(await req.json());
+      const sales = database.collection<SaleRecord>("sales");
+      const draft = await sales.findOne({ id: path[2], status: "draft" });
+      if (!draft) {
+        const existing = await sales.findOne({ id: path[2] }, { projection: { _id: 0 } });
+        if (existing?.status === "paid") return json(existing);
+        throw new HttpError(409, "SatÄ±ÅŸ taslaÄŸÄ± bulunamadÄ± veya Ã¶deme onayÄ±na uygun deÄŸil.");
+      }
+      const period = istanbulCalendarMonth(payment.paid_at);
+      const transaction = (await mongoClient()).startSession();
+      let paid: SaleRecord | null = null;
+      try {
+        await transaction.withTransaction(async () => {
+          const commissionPolicy = await currentCommissionPolicy(database, draft.partner_id, payment.paid_at, transaction);
+          let ordinal: number | null = null;
+          if (commissionPolicy.tiered && commissionPolicy.qualifying_package_codes.includes(draft.package_code)) {
+            const counter = await database.collection("monthly_sales_counters").findOneAndUpdate(
+              { partner_id: draft.partner_id, period },
+              { $setOnInsert: { partner_id: draft.partner_id, period, refunded_count: 0 }, $inc: { paid_count: 1, net_count: 1 }, $set: { updated_at: new Date().toISOString() } },
+              { upsert: true, returnDocument: "after", session: transaction },
+            );
+            ordinal = Number(counter?.net_count || 1);
+          }
+          const eligibleNetCents = draft.price_snapshot?.commissionable_net_cents ?? netFromVatIncluded(draft.price_snapshot?.commissionable_gross_cents || draft.gross_cents, draft.vat_rate_bps);
+          const commissionRateBps = commissionRateForOrdinal(commissionPolicy, draft.package_code, ordinal);
+          const commissionCents = calculateCommissionCents(eligibleNetCents, commissionRateBps);
+          paid = await sales.findOneAndUpdate(
+            { id: draft.id, status: "draft" },
+            { $set: { status: "paid", period, occurred_at: payment.paid_at, paid_at: payment.paid_at, paid_by: user.id, payment_method: payment.payment_method, payment_reference: payment.payment_reference, qualifying_ordinal: ordinal, commission_rate_bps: commissionRateBps, commission_cents: commissionCents, commission_policy_snapshot: commissionPolicy, platform_cents: draft.net_cents - commissionCents } },
+            { returnDocument: "after", session: transaction },
+          );
+          if (!paid) throw new HttpError(409, "SatÄ±ÅŸ baÅŸka bir oturumda onaylandÄ±.");
+          await database.collection("commission_ledger").insertOne({ id: randomUUID(), sale_id: paid.id, partner_id: paid.partner_id, type: "accrual", amount_cents: paid.commission_cents, period, created_at: payment.paid_at, created_by: user.id }, { session: transaction });
+        });
+      } catch (reason) {
+        if (reason instanceof MongoServerError && reason.code === 11000)
+          throw new HttpError(409, "Bu ödeme referansı daha önce kullanılmış.");
+        throw reason;
+      } finally {
+        await transaction.endSession();
+      }
+      await audit(req, "sale.payment_confirmed", user, { sale_id: paid!.id, wedding_id: paid!.wedding_id, payment_reference: payment.payment_reference });
+      return json(paid);
     }
     if (
       path.length === 4 &&
@@ -5469,6 +5462,7 @@ export async function handle(
             await database
               .collection("organization_approval_requests")
               .deleteOne({ wedding_id: id }, { session: transaction });
+            await ensureSaleDraft(database, event, user.id, transaction);
           });
         } finally {
           await transaction.endSession();
@@ -5675,6 +5669,7 @@ export async function handle(
               },
               { session: transaction },
             );
+            await ensureSaleDraft(database, event, user.id, transaction);
           });
         } finally {
           await transaction.endSession();

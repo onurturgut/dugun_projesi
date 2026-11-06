@@ -147,7 +147,7 @@ export interface SaleRecord {
   partner_id: string;
   wedding_id: string;
   package_code: PackageCode;
-  status: "paid" | "refunded";
+  status: "draft" | "paid" | "cancelled" | "refunded";
   period: string;
   occurred_at: string;
   recorded_at: string;
@@ -162,6 +162,14 @@ export interface SaleRecord {
   commission_policy_snapshot?: import("./finance").CommissionPolicySnapshot;
   package_snapshot?: PackagePolicy;
   platform_cents: number;
+  variable_cost_cents?: number;
+  payment_method?: "bank_transfer" | "cash" | "card" | "other";
+  payment_reference?: string | null;
+  paid_at?: string | null;
+  paid_by?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
+  cancellation_reason?: string | null;
   price_snapshot?: PriceSnapshot;
   refunded_at?: string | null;
   refunded_by?: string | null;

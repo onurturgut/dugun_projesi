@@ -46,6 +46,8 @@ try {
     db
       .collection("sales")
       .createIndex({ idempotency_key: 1 }, { unique: true }),
+    db.collection("sales").createIndex({ wedding_id: 1 }, { unique: true }),
+    db.collection("sales").createIndex({ payment_reference: 1 }, { unique: true, partialFilterExpression: { payment_reference: { $type: "string" } } }),
     db
       .collection("sales")
       .createIndex({ partner_id: 1, period: 1, occurred_at: -1 }),

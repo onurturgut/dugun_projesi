@@ -60,6 +60,10 @@ try {
       .filter((field) => item[field] == null),
   })).filter((item) => item.missing.length > 0);
   const photographerPackage = photographerPackages.find((item) => item.code === expectedPhotographerPackage.code);
+  const duplicateWeddingSales = await database.collection("sales").aggregate([
+    { $group: { _id: "$wedding_id", count: { $sum: 1 }, sale_ids: { $push: "$id" } } },
+    { $match: { count: { $gt: 1 } } },
+  ]).toArray();
   const photographerPackageConflicts = photographerPackage
     ? Object.entries(expectedPhotographerPackage)
       .filter(([field, value]) => photographerPackage[field] !== value)
@@ -96,6 +100,7 @@ try {
       duplicate_commission_policy_versions: duplicatePolicyVersions,
       orphan_active_policy_ids: orphanPolicyIds,
       add_ons_missing_finance_fields: addOnMissingFields,
+      duplicate_wedding_sales: duplicateWeddingSales,
     },
     rollback: {
       automatic: false,
@@ -104,7 +109,7 @@ try {
   };
   console.log(JSON.stringify(report, null, 2));
   if (
-    duplicatePackageCodes.length || duplicatePolicyVersions.length || orphanPolicyIds.length
+    duplicatePackageCodes.length || duplicatePolicyVersions.length || orphanPolicyIds.length || duplicateWeddingSales.length
   ) process.exitCode = 3;
 } finally {
   await client.close();

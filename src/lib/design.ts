@@ -147,6 +147,7 @@ export const introTypes = {
   video: "Klasik bordo video",
   envelope: "Altın mühürlü davetiye",
   album: "Altın düğün albümü",
+  "autumn-phone": "Sonbahar telefon davetiyesi",
 } as const;
 export const videoIntroAssets = {
   video: {
@@ -166,6 +167,12 @@ export const videoIntroAssets = {
     poster: "/intro/wedding-album-loading-9x16-poster.jpg",
     final: "/intro/wedding-album-loading-9x16-final.jpg",
     description: "Altın detaylı düğün albümü açılış filmi",
+  },
+  "autumn-phone": {
+    video: "/intro/autumn-phone-loading-9x16.mp4",
+    poster: "/intro/autumn-phone-loading-9x16-poster.jpg",
+    final: "/intro/autumn-phone-loading-9x16-final.jpg",
+    description: "Kahverengi telefon ekranında zarif davetiye açılış filmi",
   },
 } as const;
 export function isVideoIntro(intro: string): intro is keyof typeof videoIntroAssets {
@@ -314,7 +321,7 @@ export const designSchema = z
   .object({
     version: z.literal(2),
     theme: z.enum(themeIds),
-    intro: z.enum(["curtain", "monogram", "fade", "campus", "video", "envelope", "album"]),
+    intro: z.enum(["curtain", "monogram", "fade", "campus", "video", "envelope", "album", "autumn-phone"]),
     speed: z.number().min(0.75).max(2),
     cardTemplate: z.enum(["floral", "ribbon", "couple", "minimal", "night"]),
     linked: z.boolean(),

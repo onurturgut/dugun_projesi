@@ -123,6 +123,8 @@ try {
     db.collection("weddings").createIndex({ slug: 1 }, { unique: true }),
     db.collection("media").createIndex({ storage_path: 1 }, { unique: true }),
     db.collection("print_jobs").createIndex({ id: 1 }, { unique: true }),
+    db.collection("sales").createIndex({ wedding_id: 1 }, { unique: true }),
+    db.collection("sales").createIndex({ payment_reference: 1 }, { unique: true, partialFilterExpression: { payment_reference: { $type: "string" } } }),
     db
       .collection("photographer_sales")
       .createIndex({ idempotency_key: 1 }, { unique: true }),
@@ -629,23 +631,38 @@ try {
       ).data,
     false,
   );
+  const automaticSaleDraft = await db.collection("sales").findOne({ wedding_id: eventA.id });
+  assert.equal(automaticSaleDraft?.status, "draft");
   const recordedSale = (
     await call(
       "/admin/sales",
       "POST",
       {
         wedding_id: eventA.id,
-        idempotency_key: `integration-${eventA.id}`,
-        vat_rate_bps: 2000,
       },
       platform,
       201,
     )
   ).data;
+  assert.equal(recordedSale.status, "draft");
   assert.equal(recordedSale.net_cents, 416_667);
   assert.equal(recordedSale.gross_cents, 500_000);
-  assert.equal(recordedSale.commission_cents, 125_000);
-  assert.equal(recordedSale.qualifying_ordinal, 1);
+  assert.equal(recordedSale.commission_cents, 0);
+  assert.equal(
+    await db.collection("commission_ledger").countDocuments({ sale_id: recordedSale.id }),
+    0,
+  );
+  const paidSale = (
+    await call(
+      `/admin/sales/${recordedSale.id}/confirm-payment`,
+      "POST",
+      { payment_method: "bank_transfer", payment_reference: "BANKA-INTEGRATION-1", paid_at: new Date().toISOString() },
+      platform,
+    )
+  ).data;
+  assert.equal(paidSale.status, "paid");
+  assert.equal(paidSale.commission_cents, 125_000);
+  assert.equal(paidSale.qualifying_ordinal, 1);
   assert.equal(
     (
       await call(
@@ -653,19 +670,17 @@ try {
         "POST",
         {
           wedding_id: eventA.id,
-          idempotency_key: `integration-${eventA.id}`,
-          vat_rate_bps: 2000,
         },
         platform,
+        201,
       )
     ).data.id,
-    recordedSale.id,
-    "idempotent sale must return the original record",
+    paidSale.id,
+    "one organization must return the original sale record",
   );
-  assert.equal(
-    (await call("/admin/sales", "GET", undefined, a)).data.items.length,
-    1,
-  );
+  const partnerSales = (await call("/admin/sales", "GET", undefined, a)).data;
+  assert.equal(partnerSales.totals.paid_sales, 1);
+  assert.equal(partnerSales.items.find((item) => item.wedding_id === eventA.id)?.status, "paid");
   await call(
     `/admin/weddings/${eventA.id}/storage-limit`,
     "PATCH",
@@ -703,8 +718,6 @@ try {
     "POST",
     {
       wedding_id: eventA.id,
-      idempotency_key: `partner-cannot-${eventA.id}`,
-      vat_rate_bps: 2000,
     },
     a,
     403,

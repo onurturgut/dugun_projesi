@@ -13,7 +13,7 @@ const percent = (bps = 0) => `%${new Intl.NumberFormat("tr-TR", { maximumFractio
 const toCents = (value: string) => Math.round(Number(value.replace(",", ".")) * 100);
 const toBps = (value: string) => Math.round(Number(value.replace(",", ".")) * 100);
 type PackageResponse = { source: "database" | "partial_database_migration_required" | "legacy_catalog_migration_required"; items: PackageConfiguration[] };
-type Overview = { sales_count: number; gross_cents: number; net_cents: number; vat_cents: number; commission_cents: number; expense_cents: number; operating_contribution_cents: number };
+type Overview = { sales_count: number; gross_cents: number; net_cents: number; vat_cents: number; commission_cents: number; variable_cost_cents: number; expense_cents: number; operating_contribution_cents: number };
 type PartnerRow = { id: string; name: string; period: string; monthly_valid_sales: number; policy: PartnerCommissionPolicy | null };
 type ProfitRow = PackageConfiguration & { commission_rate_bps: number; net_cents: number; vat_cents: number; commission_cents: number; contribution_cents: number; contribution_margin_bps: number; break_even_gross_cents: number | null; target_gross_cents: number | null; calculation_warning?: string | null; sales_count: number };
 type ProfitResponse = { packages: ProfitRow[]; monthly_fixed_cents: number; weighted_contribution_cents: number; monthly_break_even_units: number | null; payment_cost_assumption: { configured: boolean } };
@@ -84,7 +84,7 @@ export function FinanceCenter() {
 }
 
 function OverviewPanel({ data }: { data?: Overview }) {
-  return <><section className="partner-stat-grid"><article><span>Satış</span><strong>{data?.sales_count || 0}</strong></article><article><span>KDV dahil gelir</span><strong>{money(data?.gross_cents)}</strong></article><article><span>KDV hariç gelir</span><strong>{money(data?.net_cents)}</strong></article><article><span>Partner komisyonu</span><strong>{money(data?.commission_cents)}</strong></article><article><span>Gerçekleşen gider</span><strong>{money(data?.expense_cents)}</strong></article><article><span>Faaliyet katkısı</span><strong>{money(data?.operating_contribution_cents)}</strong></article></section><section className="admin-panel"><p className="admin-hint">Faaliyet katkısı vergi sonrası net kâr değildir. Tahsil edilen KDV, indirilebilir alış KDV’si ve dönemsel gelir/kurumlar vergisi ayrı değerlendirilir.</p></section></>;
+  return <><section className="partner-stat-grid"><article><span>Satış</span><strong>{data?.sales_count || 0}</strong></article><article><span>KDV dahil gelir</span><strong>{money(data?.gross_cents)}</strong></article><article><span>KDV hariç gelir</span><strong>{money(data?.net_cents)}</strong></article><article><span>Partner komisyonu</span><strong>{money(data?.commission_cents)}</strong></article><article><span>Satış maliyeti</span><strong>{money(data?.variable_cost_cents)}</strong></article><article><span>Gerçekleşen gider</span><strong>{money(data?.expense_cents)}</strong></article><article><span>Faaliyet katkısı</span><strong>{money(data?.operating_contribution_cents)}</strong></article></section><section className="admin-panel"><p className="admin-hint">Faaliyet katkısı vergi sonrası net kâr değildir. Tahsil edilen KDV, indirilebilir alış KDV’si ve dönemsel gelir/kurumlar vergisi ayrı değerlendirilir.</p></section></>;
 }
 
 function PackagePanel({ items, canEdit, pending, onSave }: { items: PackageConfiguration[]; canEdit: boolean; pending: boolean; onSave: (code: string, changes: object) => void }) {

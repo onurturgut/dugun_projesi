@@ -65,6 +65,8 @@ const actionLabels: Record<string, string> = {
   "wedding.changes_requested": "Organizasyon için düzeltme istendi",
   "wedding.rejected": "Organizasyon reddedildi",
   "sale.recorded": "Tahsil edilmiş satış kaydedildi",
+  "sale.draft_created": "Satış taslağı oluşturuldu",
+  "sale.payment_confirmed": "Satış ödemesi onaylandı",
   "sale.refunded": "Satış iade edildi",
   "add_on.created": "Ek ürün oluşturuldu",
   "add_on.updated": "Ek ürün güncellendi",

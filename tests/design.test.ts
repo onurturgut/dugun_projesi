@@ -74,21 +74,46 @@ test("template libraries expose only available templates", () => {
     );
   }
 });
+test("design center catalog metadata includes titles and display properties", () => {
+  assert.equal(weddingTemplates.length, 11);
+  for (const template of weddingTemplates) {
+    assert.ok(template.name.length > 0);
+    assert.ok(template.description.length > 0);
+    assert.ok(["arch", "full", "polaroid"].includes(template.imageTreatment));
+    assert.match(template.reference, /^\/wedding-designs\/.+\.png$/);
+  }
+  for (const template of availableTemplates("loading")) {
+    assert.ok(template.name.length > 0);
+    assert.ok(template.description.length > 0);
+    assert.ok(template.version >= 1);
+  }
+});
 test("loading library keeps the legacy video and adds the portrait videos", () => {
   const templates = availableTemplates("loading");
   const legacy = templates.find((template) => template.id === "video");
   const envelope = templates.find((template) => template.id === "envelope");
   const album = templates.find((template) => template.id === "album");
+  const autumnPhone = templates.find(
+    (template) => template.id === "autumn-phone",
+  );
 
   assert.equal(legacy?.asset, "/intro/shineqr-portrait-v2.mp4");
   assert.equal(envelope?.asset, "/intro/wedding-envelope-loading-9x16.mp4");
   assert.equal(album?.asset, "/intro/wedding-album-loading-9x16.mp4");
+  assert.equal(
+    autumnPhone?.asset,
+    "/intro/autumn-phone-loading-9x16.mp4",
+  );
   assert.equal(
     designSchema.safeParse({ ...defaultDesign, intro: "envelope" }).success,
     true,
   );
   assert.equal(
     designSchema.safeParse({ ...defaultDesign, intro: "album" }).success,
+    true,
+  );
+  assert.equal(
+    designSchema.safeParse({ ...defaultDesign, intro: "autumn-phone" }).success,
     true,
   );
   assert.equal(

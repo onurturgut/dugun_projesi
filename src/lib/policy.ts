@@ -38,7 +38,10 @@ export function weddingScope(user: Account) {
   if (user.role === "partner") {
     const base = { partner_id: user.partner_id || "__unassigned__" };
     if (effectiveStaffRole(user) === "partner_owner") return base;
-    return { id: { $in: user.assigned_event_ids || [] } };
+    // Keep the assignment constraint under $and so callers can safely add an
+    // exact `id` filter without one condition overwriting the other via object
+    // spread. This is especially important for photographer detail routes.
+    return { $and: [{ id: { $in: user.assigned_event_ids || [] } }] };
   }
   return { partner_id: user.partner_id || "__unassigned__", owner_id: user.id };
 }

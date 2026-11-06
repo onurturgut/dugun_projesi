@@ -428,7 +428,7 @@ export function EventWizard({
                   <span>Satışı yapan partner</span>
                   <SelectField value={sellerPartnerId} onValueChange={setSellerPartnerId}>
                     <option value="platform">ShineQR Platform</option>
-                    {partners.data?.filter((partner) => partner.active).map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}
+                    {partners.data?.filter((partner) => partner.active && partner.id !== "platform").map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}
                   </SelectField>
                   <small>Finansal hak ediş bu işletmeye yazılır ve satıştan sonra değişmez.</small>
                 </label>

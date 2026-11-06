@@ -4937,6 +4937,7 @@ html[data-admin-theme="dark"] .admin-calendar-menu .rdp-day_button {
 .finance-status-warning { border-color: color-mix(in srgb, var(--admin-gold) 38%, transparent); background: color-mix(in srgb, var(--admin-gold) 12%, transparent); color: var(--admin-gold); }
 .finance-status-danger { border-color: color-mix(in srgb, #d35f5f 32%, transparent); background: color-mix(in srgb, #d35f5f 11%, transparent); color: #e98984; }
 .finance-status-neutral { border-color: var(--admin-border); background: var(--admin-raised); color: var(--admin-muted); }
+.finance-payment-approval{display:grid;gap:6px;margin-top:8px;min-width:190px}.finance-payment-approval input,.finance-payment-approval select{min-width:0;padding:8px;border:1px solid var(--admin-border);border-radius:8px;background:var(--admin-raised);color:var(--admin-text);font:inherit}.finance-payment-approval .admin-button{justify-content:center}
 .finance-payout-controls { padding: 16px 18px; border-bottom: 1px solid var(--admin-border); background: color-mix(in srgb, var(--admin-surface) 90%, var(--admin-raised)); }
 .finance-payout-controls .finance-report-filters { display: flex; align-items: end; gap: 12px; margin: 0; }
 .finance-payout-controls .finance-report-filters label { min-width: min(240px, 100%); }

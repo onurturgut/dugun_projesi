@@ -250,6 +250,8 @@ export type AddOnSnapshot = AddOnSelection & {
   line_net_cents?: number;
   line_vat_cents?: number;
   commissionable: boolean;
+  unit_cost_cents?: number;
+  line_cost_cents?: number;
   pricing_type?: "fixed" | "package_percentage_discount";
   percentage_bps?: number;
   effect_type?: string;
@@ -285,6 +287,7 @@ export function priceSnapshot(
     name: string;
     gross_price_cents: number;
     commissionable: boolean;
+    unit_cost_cents?: number;
     pricing_type?: "fixed" | "package_percentage_discount";
     percentage_bps?: number;
     effect_type?: string;
@@ -332,6 +335,8 @@ export function priceSnapshot(
       line_net_cents: lineNet,
       line_vat_cents: lineGross - lineNet,
       commissionable: true,
+      unit_cost_cents: product.unit_cost_cents || 0,
+      line_cost_cents: (product.unit_cost_cents || 0) * selection.quantity,
       pricing_type: product.pricing_type || "fixed",
       percentage_bps: product.percentage_bps,
       effect_type: product.effect_type,

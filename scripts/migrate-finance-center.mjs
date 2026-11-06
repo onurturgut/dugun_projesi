@@ -52,6 +52,8 @@ try {
       db.collection("expense_records").createIndex({ payment_date: -1, kind: 1, payment_status: 1 }),
       db.collection("tax_configurations").createIndex({ id: 1 }, { unique: true }),
       db.collection("payment_quotes").createIndex({ id: 1 }, { unique: true }),
+      db.collection("sales").createIndex({ wedding_id: 1 }, { unique: true }),
+      db.collection("sales").createIndex({ payment_reference: 1 }, { unique: true, partialFilterExpression: { payment_reference: { $type: "string" } } }),
     ]);
     for (const item of missingPackages) await db.collection("package_configurations").updateOne(
       { code: item.code },

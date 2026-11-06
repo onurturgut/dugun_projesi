@@ -57,7 +57,17 @@ test("partner staff can access only explicitly assigned events", () => {
   } as Account;
   assert.equal(canAccess(staff, event), true);
   assert.equal(canAccess({ ...staff, assigned_event_ids: [] }, event), false);
-  assert.deepEqual(weddingScope(staff), { id: { $in: ["one"] } });
+  assert.deepEqual(weddingScope(staff), {
+    $and: [{ id: { $in: ["one"] } }],
+  });
+
+  assert.deepEqual(
+    { id: "two", ...weddingScope(staff) },
+    {
+      id: "two",
+      $and: [{ id: { $in: ["one"] } }],
+    },
+  );
 });
 test("photographers can cross tenant boundaries only through explicit event assignment", () => {
   const photographer = {

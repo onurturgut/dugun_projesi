@@ -39,7 +39,7 @@ const dateTime = (value: string) =>
     minute: "2-digit",
   });
 const saleStatusText = (status: SaleRecord["status"]) =>
-  status === "refunded" ? "İade edildi" : "Tahsil edildi";
+  status === "draft" ? "Ödeme bekliyor" : status === "cancelled" ? "İptal edildi" : status === "refunded" ? "İade edildi" : "Tahsil edildi";
 const payoutStatusText: Record<ServicePayoutLedgerEntry["status"], string> = {
   pending_delivery: "Teslimat bekliyor",
   pending_customer_approval: "Müşteri onayı bekliyor",
@@ -66,6 +66,8 @@ type SalesResponse = {
   items: Array<SaleRecord & { partner_name?: string; wedding_title?: string }>;
   totals: {
     paid_sales: number;
+    draft_sales: number;
+    draft_gross_cents: number;
     gross_cents: number;
     net_cents: number;
     commission_cents: number;
@@ -184,6 +186,14 @@ export default function FinancePage() {
         }),
       ]),
   });
+  const confirmSalePayment = useMutation({
+    mutationFn: ({ saleId, payment_method, payment_reference, paid_at }: { saleId: string; payment_method: "bank_transfer" | "cash" | "card" | "other"; payment_reference: string; paid_at: string }) =>
+      api(`/admin/sales/${saleId}/confirm-payment`, { method: "POST", body: JSON.stringify({ payment_method, payment_reference, paid_at }) }),
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["sales"] }),
+      queryClient.invalidateQueries({ queryKey: ["finance-overview"] }),
+    ]),
+  });
   async function uploadPaymentProof(
     saleId: string,
     payoutId: string,
@@ -229,6 +239,7 @@ export default function FinancePage() {
           <span>Aktif satış</span>
           <strong>{sales.data?.totals.paid_sales || 0}</strong>
           <small>Tahsil edilmiş satış adedi</small>
+          <small>{sales.data?.totals.draft_sales || 0} taslak · {money(sales.data?.totals.draft_gross_cents || 0)} bekliyor</small>
         </article>
         <article>
           <Banknote size={20} aria-hidden="true" />
@@ -276,7 +287,9 @@ export default function FinancePage() {
             <span className="sr-only">Satış durumu</span>
             <select value={ledgerStatus} onChange={(event) => setLedgerStatus(event.target.value)}>
               <option value="">Tüm satışlar</option>
+              <option value="draft">Ödeme bekliyor</option>
               <option value="paid">Tahsil edildi</option>
+              <option value="cancelled">İptal edildi</option>
               <option value="refunded">İade edildi</option>
             </select>
           </label>
@@ -289,10 +302,10 @@ export default function FinancePage() {
           {filteredSales.map((sale) => (
             <div className="finance-ledger-row" role="row" key={sale.id}>
               <div data-label="Organizasyon"><strong>{sale.wedding_title || sale.wedding_id}</strong><small>{sale.partner_name || sale.partner_id}</small></div>
-              <div data-label="Paket / tarih"><strong>{sale.package_code.toUpperCase()}</strong><small>{dateTime(sale.occurred_at)} · {sale.period}</small></div>
+              <div data-label="Paket / tarih"><strong>{sale.package_code.toUpperCase()}</strong><small>{dateTime(sale.paid_at || sale.recorded_at)} · {sale.period}</small></div>
               <div className="finance-money-cell" data-label="Tahsilat"><strong>{money(sale.gross_cents)}</strong><small>Net {money(sale.net_cents)}</small></div>
-              <div className="finance-money-cell" data-label="Dağılım"><strong>Partner {money(sale.commission_cents)}</strong><small>ShineQR {money(sale.platform_cents)}</small></div>
-              <div data-label="Durum"><span className={`finance-status finance-status-${sale.status === "refunded" ? "danger" : "success"}`}>{saleStatusText(sale.status)}</span></div>
+              <div className="finance-money-cell" data-label="Dağılım">{sale.status === "paid" || sale.status === "refunded" ? <><strong>Partner {money(sale.commission_cents)}</strong><small>ShineQR {money(sale.platform_cents)} · maliyet {money(sale.variable_cost_cents || 0)}</small></> : <><strong>Henüz hesaplanmadı</strong><small>Ödeme onayında kesinleşir</small></>}</div>
+              <div data-label="Durum"><span className={`finance-status finance-status-${sale.status === "refunded" || sale.status === "cancelled" ? "danger" : sale.status === "draft" ? "warning" : "success"}`}>{saleStatusText(sale.status)}</span>{sale.status === "draft" && me.data && accountHasPermission(me.data, "commission.manage") ? <PaymentApprovalForm sale={sale} busy={confirmSalePayment.isPending} onConfirm={(input) => confirmSalePayment.mutate({ saleId: sale.id, ...input })} /> : null}</div>
             </div>
           ))}
         </div>
@@ -488,4 +501,26 @@ export default function FinancePage() {
       </section>
     </AdminShell>
   );
+}
+
+function PaymentApprovalForm({ sale, busy, onConfirm }: { sale: SaleRecord; busy: boolean; onConfirm: (input: { payment_method: "bank_transfer" | "cash" | "card" | "other"; payment_reference: string; paid_at: string }) => void }) {
+  const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState<"bank_transfer" | "cash" | "card" | "other">("bank_transfer");
+  const [reference, setReference] = useState("");
+  const [paidAt, setPaidAt] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  });
+  if (!open) return <button className="admin-button" type="button" onClick={() => setOpen(true)}>Ödemeyi onayla</button>;
+  return <form className="finance-payment-approval" onSubmit={(event) => {
+    event.preventDefault();
+    if (!reference.trim() || !window.confirm(`${money(sale.gross_cents)} tahsil edildi olarak kaydedilsin mi? Komisyon ve maliyet kayıtları oluşturulacak.`)) return;
+    onConfirm({ payment_method: method, payment_reference: reference.trim(), paid_at: new Date(paidAt).toISOString() });
+  }}>
+    <select aria-label="Ödeme yöntemi" value={method} onChange={(event) => setMethod(event.target.value as typeof method)}><option value="bank_transfer">Banka transferi</option><option value="cash">Nakit</option><option value="card">Kart</option><option value="other">Diğer</option></select>
+    <input required maxLength={120} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="İşlem / banka referansı" />
+    <input required type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} />
+    <button className="admin-button primary" disabled={busy}>Tahsilatı kesinleştir</button>
+    <button className="admin-button" type="button" disabled={busy} onClick={() => setOpen(false)}>Vazgeç</button>
+  </form>;
 }

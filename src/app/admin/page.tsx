@@ -88,8 +88,8 @@ export default function Events() {
     await qc.invalidateQueries({ queryKey: ["admin-weddings"] });
   }
   async function recordSale(id: string) {
-    if (!window.confirm("Bu organizasyon için tahsil edilmiş satış kaydı oluşturulsun mu?")) return;
-    await api("/admin/sales", { method: "POST", body: JSON.stringify({ wedding_id: id, idempotency_key: `manual-${id}` , vat_rate_bps: 2000 }) });
+    if (!window.confirm("Bu organizasyon için ödeme bekleyen satış taslağı oluşturulsun mu?")) return;
+    await api("/admin/sales", { method: "POST", body: JSON.stringify({ wedding_id: id }) });
     await qc.invalidateQueries({ queryKey: ["sales"] });
   }
   return (
@@ -294,7 +294,7 @@ export default function Events() {
               </div>
             ) : null}
             {me.data?.role === "platform" && w.approval_status === "approved" ? (
-              <button className="admin-button admin-event-approve" onClick={() => void recordSale(w.id)}><ReceiptText size={15} /> Tahsil edilmiş satış kaydet</button>
+              <button className="admin-button admin-event-approve" onClick={() => void recordSale(w.id)}><ReceiptText size={15} /> Satış taslağını hazırla</button>
             ) : null}
             </div>
           ))}
