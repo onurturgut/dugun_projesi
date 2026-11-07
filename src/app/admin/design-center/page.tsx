@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import { ChevronDown, GitBranch, History, MonitorSmartphone, PackageOpen, Palette, QrCode, Sparkles, Type } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { LoadingTemplateCatalog } from "@/components/admin/LoadingTemplateCatalog";
 import { QrThemeAccordion } from "@/components/admin/QrThemeAccordion";
 import { availableTemplates, isVideoIntro, qrCollectionReferences, videoIntroAssets } from "@/lib/design";
 import { weddingTemplates } from "@/lib/wedding-templates";
@@ -11,7 +12,7 @@ import "./design-center.css";
 const modules = [
   { id: "qr", title: "QR Tasarımları", detail: "1 yayınlanmış · 4 onay bekliyor", description: "QR ürün tasarımlarını ve onay durumlarını tek koleksiyonda inceleyin.", Icon: QrCode },
   { id: "wedding", title: "Wedding Tasarımları", detail: "Mevcut yükleme deneyimi korunuyor", description: "Organizasyonların wedding ekranı şablonlarını ve mevcut deneyimi yönetin.", Icon: MonitorSmartphone },
-  { id: "loading", title: "Loading Page Tasarımları", detail: "8 mevcut açılış", description: "Yükleme sırasında kullanılan açılış tasarımlarını bir arada değerlendirin.", Icon: Sparkles },
+  { id: "loading", title: "Loading Page Tasarımları", detail: "3 mevcut açılış", description: "Yükleme sırasında kullanılan açılış tasarımlarını bir arada değerlendirin.", Icon: Sparkles },
   { id: "colors", title: "Renk ve Gradient Kütüphanesi", detail: "3 onaylı renk preset’i", description: "Onaylı renk ve gradient preset’lerini tasarım yüzeylerinde tutarlı biçimde kullanın.", Icon: Palette },
   { id: "fonts", title: "Font Kütüphanesi", detail: "2 onaylı eşleşme", description: "Onaylı tipografi eşleşmelerini ve kullanım bağlamlarını görüntüleyin.", Icon: Type },
   { id: "physical", title: "Fiziksel QR Ürünleri", detail: "Mini QR ve karşılama tabelası", description: "Baskıya hazırlanan fiziksel QR ürünlerinin format ve güvenli alanlarını inceleyin.", Icon: PackageOpen },
@@ -20,6 +21,16 @@ const modules = [
 ] as const;
 
 const loadingTemplates = availableTemplates("loading");
+const loadingVideos = loadingTemplates.flatMap((template) => {
+  if (!isVideoIntro(template.id)) return [];
+  const media = videoIntroAssets[template.id];
+  return [{
+    id: template.id,
+    name: template.name,
+    video: media.video,
+    poster: media.poster,
+  }];
+});
 const imageTreatmentLabels = { arch: "Kemer kadraj", full: "Tam ekran", polaroid: "Polaroid kolaj" } as const;
 
 export default async function DesignCenterPage() {
@@ -52,7 +63,7 @@ export default async function DesignCenterPage() {
           </> : id === "wedding" ? <>
             <div className="design-center__collection-head"><div><span>WEDDING COLLECTION</span><h3>Wedding tema kütüphanesi</h3></div><small>{weddingTemplates.length} yayınlanmış tema</small></div>
             <div className="design-center__catalog design-center__catalog--wedding">{weddingTemplates.map((template) => <article key={template.id}>
-              <div className="design-center__catalog-media"><Image src={template.reference} alt={`${template.name} wedding tema önizlemesi`} fill sizes="(max-width: 640px) 100vw, (max-width: 1000px) 50vw, 33vw"/></div>
+              <div className="design-center__catalog-media"><Image src={`/design-center/mockups/wedding-phone/${template.id}.png`} alt={`${template.name} wedding tema telefon önizlemesi`} fill sizes="(max-width: 640px) 100vw, (max-width: 1000px) 50vw, 33vw"/></div>
               <div className="design-center__catalog-copy"><header><span>{template.number}</span><div><h3>{template.name}</h3><p>{template.description}</p></div></header>
                 <dl><div><dt>Görsel yaklaşımı</dt><dd>{imageTreatmentLabels[template.imageTreatment]}</dd></div><div><dt>Renk modu</dt><dd>{template.monochrome ? "Monokrom" : "Renkli"}</dd></div></dl>
                 <div className="design-center__swatches" aria-label={`${template.name} renk paleti`}>{[template.base, template.light, template.accent, template.ink].map((color) => <i key={color} style={{ backgroundColor: color }} title={color}/>)}</div>
@@ -60,15 +71,7 @@ export default async function DesignCenterPage() {
             </article>)}</div>
           </> : id === "loading" ? <>
             <div className="design-center__collection-head"><div><span>LOADING COLLECTION</span><h3>Loading Page tasarımları</h3></div><small>{loadingTemplates.length} yayınlanmış açılış</small></div>
-            <div className="design-center__catalog design-center__catalog--loading">{loadingTemplates.map((template, index) => {
-              const video = isVideoIntro(template.id) ? videoIntroAssets[template.id] : undefined;
-              return <article key={template.id}>
-                <div className="design-center__loading-preview" data-static={!video} data-transparent={template.id === "autumn-phone" || undefined} style={video ? undefined : { "--preview-hue": (index * 47 + 338) % 360 } as React.CSSProperties}>
-                  {video ? <video src={video.video} poster={video.poster} aria-label={`${template.name} loading page önizlemesi`} autoPlay muted loop playsInline preload="metadata"/> : <><Sparkles size={24}/><strong>{template.name}</strong></>}
-                </div>
-                <h3 className="design-center__loading-title">{template.name}</h3>
-              </article>;
-            })}</div>
+            <LoadingTemplateCatalog templates={loadingVideos}/>
           </> : id === "physical" ? <QrThemeAccordion/> : <div className="design-center__empty-state"><Icon size={22}/><span>{detail}</span></div>}
         </div>
       </details>)}

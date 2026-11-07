@@ -148,6 +148,10 @@ export const introTypes = {
   envelope: "Altın mühürlü davetiye",
   album: "Altın düğün albümü",
   "autumn-phone": "Sonbahar telefon davetiyesi",
+  "autumn-phone-source": "Sonbahar telefon bildirimi",
+  "autumn-phone-variant-1": "Sonbahar telefon bildirimi II",
+  "autumn-phone-variant-2": "Sonbahar telefon bildirimi II",
+  "autumn-phone-variant-3": "Sonbahar telefon bildirimi III",
 } as const;
 export const videoIntroAssets = {
   video: {
@@ -173,6 +177,30 @@ export const videoIntroAssets = {
     poster: "/intro/autumn-phone-loading-9x16-poster.jpg",
     final: "/intro/autumn-phone-loading-9x16-final.jpg",
     description: "Kahverengi telefon ekranında zarif davetiye açılış filmi",
+  },
+  "autumn-phone-source": {
+    video: "/intro/autumn-phone-source-loading-9x16.mp4",
+    poster: "/intro/autumn-phone-source-loading-9x16-poster.jpg",
+    final: "/intro/autumn-phone-source-loading-9x16-final.jpg",
+    description: "Kahverengi telefon ekranı sonbahar bildirimi açılış filmi",
+  },
+  "autumn-phone-variant-1": {
+    video: "/intro/autumn-phone-variant-1-loading-9x16.mp4",
+    poster: "/intro/autumn-phone-variant-1-loading-9x16-poster.jpg",
+    final: "/intro/autumn-phone-variant-1-loading-9x16-final.jpg",
+    description: "Kahverengi telefon ekranı sonbahar bildirimi ikinci açılış filmi",
+  },
+  "autumn-phone-variant-2": {
+    video: "/intro/autumn-phone-variant-2-loading-9x16.mp4",
+    poster: "/intro/autumn-phone-variant-2-loading-9x16-poster.jpg",
+    final: "/intro/autumn-phone-variant-2-loading-9x16-final.jpg",
+    description: "Kahverengi telefon ekranı sonbahar bildirimi ikinci açılış filmi",
+  },
+  "autumn-phone-variant-3": {
+    video: "/intro/autumn-phone-variant-3-loading-9x16.mp4",
+    poster: "/intro/autumn-phone-variant-3-loading-9x16-poster.jpg",
+    final: "/intro/autumn-phone-variant-3-loading-9x16-final.jpg",
+    description: "Kahverengi telefon ekranı sonbahar bildirimi üçüncü açılış filmi",
   },
 } as const;
 export function isVideoIntro(intro: string): intro is keyof typeof videoIntroAssets {
@@ -288,11 +316,16 @@ export const cardPresets = [
 export const pageTemplates = {
   filmstrip: "Hareketli film şeridi",
 } as const;
+const publishedLoadingTemplateIds = new Set([
+  "autumn-phone-source",
+  "autumn-phone-variant-2",
+  "autumn-phone-variant-3",
+]);
 export const templateCatalog: readonly TemplateMetadata[] = [
   { id: "filmstrip", name: pageTemplates.filmstrip, surface: "wedding", version: 1, available: true, description: "Hareketli iki sıralı fotoğraf alanı" },
   ...weddingTemplates.map((template) => ({ id: template.id, name: template.name, surface: "wedding" as const, version: 1, available: true, asset: template.reference, description: template.description })),
-  ...Object.entries(introTypes).filter(([id]) => !isVideoIntro(id)).map(([id, name]) => ({ id, name, surface: "loading" as const, version: 1, available: true, description: "Hazır animasyonlu açılış" })),
-  ...Object.entries(videoIntroAssets).map(([id, media]) => ({ id, name: introTypes[id as keyof typeof videoIntroAssets], surface: "loading" as const, version: 1, available: true, asset: media.video, description: media.description })),
+  ...Object.entries(introTypes).filter(([id]) => !isVideoIntro(id)).map(([id, name]) => ({ id, name, surface: "loading" as const, version: 1, available: false, description: "Hazır animasyonlu açılış" })),
+  ...Object.entries(videoIntroAssets).map(([id, media]) => ({ id, name: introTypes[id as keyof typeof videoIntroAssets], surface: "loading" as const, version: 1, available: publishedLoadingTemplateIds.has(id), asset: media.video, description: media.description })),
   ...cardPresets.map((preset) => ({ id: preset.id, name: preset.name, surface: "qr" as const, version: 1, available: true, asset: preset.image, description: `${cardTemplates[preset.template]} QR kartı` })),
 ];
 export function availableTemplates(surface: TemplateSurface) {
@@ -321,7 +354,7 @@ export const designSchema = z
   .object({
     version: z.literal(2),
     theme: z.enum(themeIds),
-    intro: z.enum(["curtain", "monogram", "fade", "campus", "video", "envelope", "album", "autumn-phone"]),
+    intro: z.enum(["curtain", "monogram", "fade", "campus", "video", "envelope", "album", "autumn-phone", "autumn-phone-source", "autumn-phone-variant-1", "autumn-phone-variant-2", "autumn-phone-variant-3"]),
     speed: z.number().min(0.75).max(2),
     cardTemplate: z.enum(["floral", "ribbon", "couple", "minimal", "night"]),
     linked: z.boolean(),

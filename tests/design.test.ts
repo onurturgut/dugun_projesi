@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import {
   defaultDesign,
   designSchema,
@@ -10,6 +11,7 @@ import {
   cardTemplates,
   cardPresets,
   availableTemplates,
+  templateCatalog,
 } from "../src/lib/design";
 import { buildQrCards } from "../src/lib/qr-card";
 import {
@@ -64,6 +66,14 @@ test("retired QR collection and table-card selections migrate without losing the
   assert.equal(migrated.qrProductId, "portrait-mini-75x100-duplex");
 });
 test("template libraries expose only available templates", () => {
+  assert.deepEqual(
+    availableTemplates("loading").map((template) => template.id),
+    [
+      "autumn-phone-source",
+      "autumn-phone-variant-2",
+      "autumn-phone-variant-3",
+    ],
+  );
   for (const surface of ["wedding", "loading", "qr"] as const) {
     const templates = availableTemplates(surface);
     assert.ok(templates.length > 0);
@@ -81,6 +91,12 @@ test("design center catalog metadata includes titles and display properties", ()
     assert.ok(template.description.length > 0);
     assert.ok(["arch", "full", "polaroid"].includes(template.imageTreatment));
     assert.match(template.reference, /^\/wedding-designs\/.+\.png$/);
+    assert.equal(
+      existsSync(
+        `public/design-center/mockups/wedding-phone/${template.id}.png`,
+      ),
+      true,
+    );
   }
   for (const template of availableTemplates("loading")) {
     assert.ok(template.name.length > 0);
@@ -88,14 +104,25 @@ test("design center catalog metadata includes titles and display properties", ()
     assert.ok(template.version >= 1);
   }
 });
-test("loading library keeps the legacy video and adds the portrait videos", () => {
-  const templates = availableTemplates("loading");
+test("retired loading templates remain valid historical records", () => {
+  const templates = templateCatalog.filter(
+    (template) => template.surface === "loading",
+  );
   const legacy = templates.find((template) => template.id === "video");
   const envelope = templates.find((template) => template.id === "envelope");
   const album = templates.find((template) => template.id === "album");
   const autumnPhone = templates.find(
     (template) => template.id === "autumn-phone",
   );
+  const uploadedAutumnPhones = [
+    "autumn-phone-source",
+    "autumn-phone-variant-1",
+    "autumn-phone-variant-2",
+    "autumn-phone-variant-3",
+  ].map((id) => templates.find((template) => template.id === id));
+
+  assert.ok(templates.length > 0);
+  assert.equal(templates.filter((template) => template.available).length, 3);
 
   assert.equal(legacy?.asset, "/intro/shineqr-portrait-v2.mp4");
   assert.equal(envelope?.asset, "/intro/wedding-envelope-loading-9x16.mp4");
@@ -103,6 +130,15 @@ test("loading library keeps the legacy video and adds the portrait videos", () =
   assert.equal(
     autumnPhone?.asset,
     "/intro/autumn-phone-loading-9x16.mp4",
+  );
+  assert.deepEqual(
+    uploadedAutumnPhones.map((template) => template?.asset),
+    [
+      "/intro/autumn-phone-source-loading-9x16.mp4",
+      "/intro/autumn-phone-variant-1-loading-9x16.mp4",
+      "/intro/autumn-phone-variant-2-loading-9x16.mp4",
+      "/intro/autumn-phone-variant-3-loading-9x16.mp4",
+    ],
   );
   assert.equal(
     designSchema.safeParse({ ...defaultDesign, intro: "envelope" }).success,
@@ -116,6 +152,17 @@ test("loading library keeps the legacy video and adds the portrait videos", () =
     designSchema.safeParse({ ...defaultDesign, intro: "autumn-phone" }).success,
     true,
   );
+  for (const intro of [
+    "autumn-phone-source",
+    "autumn-phone-variant-1",
+    "autumn-phone-variant-2",
+    "autumn-phone-variant-3",
+  ]) {
+    assert.equal(
+      designSchema.safeParse({ ...defaultDesign, intro }).success,
+      true,
+    );
+  }
   assert.equal(
     designSchema.safeParse({ ...defaultDesign, intro: "campus" }).success,
     true,
