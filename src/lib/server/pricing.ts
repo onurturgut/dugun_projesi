@@ -147,8 +147,8 @@ export function selectionsWithExtraQr(
       ? packageConfig.tableQrCount || 0
       : packageConfig.miniQrCount;
     const extra = Math.max(0, selection.total_quantity - included);
-    if (extra > (product.maximum_quantity || 100))
-      throw new Error("İstenen ekstra QR adedi ürün üst sınırını aşıyor.");
+    if (extra > (product.quantity ?? product.maximum_quantity ?? 100))
+      throw new Error("İstenen ekstra QR adedi ürün adet sayısını aşıyor.");
     if (extra > 0) normalized.push({ product_id: product.id, quantity: extra });
     return {
       product_id: product.id,

@@ -45,17 +45,22 @@ const actionLabels: Record<string, string> = {
   "print_job.status_changed": "Baskı işi durumu değiştirildi",
   "print_job.pdf_uploaded": "Baskı PDF'i yüklendi",
   "print_job.pdf_downloaded": "Baskı PDF'i indirildi",
-  "print_job.pdf_preflight_failed": "Baskı PDF'i ön kontrolden geçemedi",
   "print_job.printer_preflight_confirmed": "Matbaa kontrolü onaylandı",
   "print_job.delivery_proof_uploaded": "Teslim kanıtı yüklendi",
   "photographer.delivery_completed": "Fotoğrafçı teslimatı tamamlandı",
-  "photographer_delivery.customer_approved": "Fotoğrafçı teslimatı müşteri tarafından onaylandı",
+  "photographer_delivery.customer_approved":
+    "Fotoğrafçı teslimatı müşteri tarafından onaylandı",
   "photographer_payout.approved": "Fotoğrafçı hakedişi onaylandı",
-  "photographer_payout.marked_paid": "Fotoğrafçı hakedişi ödendi olarak kaydedildi",
-  "photographer_payout.proof_uploaded": "Fotoğrafçı hakedişi ödeme belgesi yüklendi",
-  "photographer_payout.proof_viewed": "Fotoğrafçı hakedişi ödeme belgesi görüntülendi",
-  "photographer_payout.csv_exported": "Fotoğrafçı hakedişleri CSV olarak dışa aktarıldı",
-  "photographer_sale.customer_consented": "Fotoğrafçı paketi müşteri tarafından onaylandı",
+  "photographer_payout.marked_paid":
+    "Fotoğrafçı hakedişi ödendi olarak kaydedildi",
+  "photographer_payout.proof_uploaded":
+    "Fotoğrafçı hakedişi ödeme belgesi yüklendi",
+  "photographer_payout.proof_viewed":
+    "Fotoğrafçı hakedişi ödeme belgesi görüntülendi",
+  "photographer_payout.csv_exported":
+    "Fotoğrafçı hakedişleri CSV olarak dışa aktarıldı",
+  "photographer_sale.customer_consented":
+    "Fotoğrafçı paketi müşteri tarafından onaylandı",
   "digital_invitation.draft_saved": "Dijital davetiye taslağı kaydedildi",
   "digital_invitation.published": "Dijital davetiye yayınlandı",
   "photographer.invitation_created": "Fotoğrafçı daveti oluşturuldu",
@@ -70,6 +75,7 @@ const actionLabels: Record<string, string> = {
   "sale.refunded": "Satış iade edildi",
   "add_on.created": "Ek ürün oluşturuldu",
   "add_on.updated": "Ek ürün güncellendi",
+  "add_on.deleted": "Ek ürün silindi",
   "agent_report.created": "Agent raporu oluşturuldu",
   "agent_report.reviewed": "Agent raporu incelendi",
   "account.preview_started": "Salt okunur hesap görünümü başlatıldı",

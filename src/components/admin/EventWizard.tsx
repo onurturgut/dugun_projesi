@@ -34,6 +34,9 @@ type DraftState = {
   logo_url: string;
   customer_name: string;
   customer_email: string;
+  customer_phone: string;
+  photographer_package_requested: boolean;
+  custom_design_request: NonNullable<Wedding["custom_design_request"]>;
   upload_days: number;
   trash_days: number;
   package_code: PackageCode;
@@ -77,6 +80,9 @@ function initialState(event?: Wedding): DraftState {
     logo_url: event?.logo_url || "",
     customer_name: event?.customer_name || "",
     customer_email: event?.customer_email || "",
+    customer_phone: event?.customer_phone || "",
+    photographer_package_requested: event?.photographer_package_requested || false,
+    custom_design_request: event?.custom_design_request || { description: "", colors: "", text_content: "", main_image_url: "", reference_image_urls: [], surfaces: [], due_date: "", notes: "" },
     upload_days: event?.upload_days || 7,
     trash_days: event?.trash_days || 7,
     package_code: event?.package_code || "plan-1",
@@ -140,6 +146,10 @@ export function EventWizard({
     queryKey: ["finance-packages"],
     queryFn: () => api<{ items: PackageConfiguration[] }>("/admin/finance/packages"),
   });
+  const photographerPackage = useQuery({
+    queryKey: ["finance-photographer-package"],
+    queryFn: () => api<{ grossPriceCents: number; active: boolean }>("/admin/finance/photographer-package"),
+  });
   const packageCatalog = Object.fromEntries((packages.data?.items || []).map((item) => [item.code, item])) as Partial<Record<PackageCode, PackageConfiguration>>;
   const activeAddOns = addOns.data?.filter((item) => item.active) || [];
   const qrProducts = activeAddOns.filter((item) => item.category === "qr_print" && item.effect_type === "print_quantity" && item.unit === "item" && item.effect_value === 1);
@@ -151,6 +161,7 @@ export function EventWizard({
     );
     return product ? [{ ...selection, product }] : [];
   });
+  const customDesignSelected = selectedAddOns.some((item) => item.product.effect_type === "custom_design");
   const selectedPackage = packageCatalog[data.package_code] || (initialEvent?.package_snapshot as PackageConfiguration | undefined);
   const packageGrossCents = selectedPackage?.grossPriceCents || 0;
   const addOnUnitGross = (product: AddOnProduct) =>
@@ -180,6 +191,8 @@ export function EventWizard({
     setData((current) => ({ ...current, [key]: value }));
     setError("");
   };
+  const setCustomDesign = <K extends keyof DraftState["custom_design_request"]>(key: K, value: DraftState["custom_design_request"][K]) =>
+    set("custom_design_request", { ...data.custom_design_request, [key]: value });
   function toggleAddOn(productId: string, checked: boolean) {
     set(
       "add_on_selections",
@@ -224,11 +237,13 @@ export function EventWizard({
     if (step === 5 && !data.slug.trim()) return "Sayfa adresini girin.";
     if (
       step === 6 &&
-      (!data.customer_name.trim() || !data.customer_email.trim())
+      (!data.customer_name.trim() || !data.customer_email.trim() || !/^0[0-9]{10}$/.test(data.customer_phone))
     )
-      return "Müşteri adı ve e-posta adresi gerekli.";
+      return "Müşteri adı, e-posta adresi ve 11 haneli telefonu gerekli.";
+    if (step === 6 && customDesignSelected && (!data.custom_design_request.description.trim() || !data.custom_design_request.colors.trim() || !data.custom_design_request.text_content.trim() || !data.custom_design_request.main_image_url || !data.custom_design_request.surfaces.length || !data.custom_design_request.due_date))
+      return "Kişiye özel tasarımın açıklama, renk, metin, ana görsel, yüzey ve teslim tarihi alanlarını tamamlayın.";
     return "";
-  }, [data, step]);
+  }, [customDesignSelected, data, step]);
 
   async function saveDraft(nextStep = step) {
     const payload = {
@@ -439,7 +454,7 @@ export function EventWizard({
                     const included = product.print_format === "table_card" ? selectedPackage?.tableQrCount || 0 : selectedPackage?.miniQrCount || 0;
                     const total = data.qr_quantity_selections.find((item) => item.product_id === product.id)?.total_quantity ?? included;
                     const extra = Math.max(0, total - included);
-                    return <label className="event-wizard-add-on" key={product.id}><span><strong>{product.name}</strong><small>Pakete dahil {included} · ekstra {extra} × {money(product.gross_price_cents)} = {money(extra * product.gross_price_cents)}</small></span><input aria-label={`${product.name} toplam adedi`} type="number" min={included} max={included + (product.maximum_quantity || 100)} value={total} onChange={(event) => setQrTotal(product.id, Number(event.target.value))} /></label>;
+                    return <label className="event-wizard-add-on" key={product.id}><span><strong>{product.name}</strong><small>Pakete dahil {included} · ekstra {extra} × {money(product.gross_price_cents)} = {money(extra * product.gross_price_cents)}</small></span><input aria-label={`${product.name} toplam adedi`} type="number" min={included} max={included + (product.quantity ?? product.maximum_quantity ?? 100)} value={total} onChange={(event) => setQrTotal(product.id, Number(event.target.value))} /></label>;
                   })}
                 </div> : null}
                 <div className="event-wizard-add-ons">
@@ -615,6 +630,28 @@ export function EventWizard({
                 onChange={(e) => set("customer_email", e.target.value)}
                 maxLength={254}
               />
+              <Field
+                label="Müşteri telefonu"
+                inputMode="numeric"
+                value={data.customer_phone}
+                onChange={(e) => set("customer_phone", e.target.value.replace(/\D/g, "").slice(0, 11))}
+                maxLength={11}
+                placeholder="05xxxxxxxxx"
+              />
+              {photographerPackage.data?.active ? <label className="finance-check">
+                <input type="checkbox" checked={data.photographer_package_requested} disabled={!photographerId} onChange={(event) => set("photographer_package_requested", event.target.checked)} />
+                <span>Fotoğrafçı paketini müşteriye satışa sun{!photographerId ? " (fotoğrafçı ataması gerekli)" : ""}</span>
+              </label> : null}
+              {customDesignSelected ? <fieldset className="admin-panel">
+                <legend>Kişiye özel tasarım bilgileri</legend>
+                <label className="form-field"><span>Ayrıntılı açıklama</span><textarea value={data.custom_design_request.description} onChange={(e) => setCustomDesign("description", e.target.value)} maxLength={2000} /></label>
+                <label className="form-field"><span>Tercih edilen renkler</span><input value={data.custom_design_request.colors} onChange={(e) => setCustomDesign("colors", e.target.value)} maxLength={500} /></label>
+                <label className="form-field"><span>Kullanılacak metinler</span><textarea value={data.custom_design_request.text_content} onChange={(e) => setCustomDesign("text_content", e.target.value)} maxLength={2000} /></label>
+                <label className="form-field"><span>Ana görsel</span><select value={data.custom_design_request.main_image_url} onChange={(e) => setCustomDesign("main_image_url", e.target.value)}><option value="">Organizasyon görsellerinden seçin</option>{covers.map((url, index) => <option key={url} value={url}>{index + 1}. görsel</option>)}</select></label>
+                <div className="finance-check">{([['qr_card','QR kartı'],['loading_page','Loading page'],['wedding_page','Wedding page'],['welcome_sign','Karşılama panosu']] as const).map(([value,label]) => <label key={value}><input type="checkbox" checked={data.custom_design_request.surfaces.includes(value)} onChange={(e) => setCustomDesign("surfaces", e.target.checked ? [...data.custom_design_request.surfaces, value] : data.custom_design_request.surfaces.filter((item) => item !== value))} /><span>{label}</span></label>)}</div>
+                <label className="form-field"><span>Son teslim tarihi</span><input type="date" value={data.custom_design_request.due_date} onChange={(e) => setCustomDesign("due_date", e.target.value)} /></label>
+                <label className="form-field"><span>Ek notlar</span><textarea value={data.custom_design_request.notes} onChange={(e) => setCustomDesign("notes", e.target.value)} maxLength={2000} /></label>
+              </fieldset> : null}
               <div className="event-wizard-security">
                 <strong>Parola taslağa kaydedilmez.</strong>
                 <p>
@@ -644,7 +681,7 @@ export function EventWizard({
                 <div>
                   <dt>Müşteri</dt>
                   <dd>
-                    {data.customer_name} · {data.customer_email}
+                    {data.customer_name} · {data.customer_email} · {data.customer_phone}
                   </dd>
                 </div>
                 <div>

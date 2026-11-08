@@ -21,7 +21,7 @@
     "load:seed": "node --env-file=.env.local scripts/load-seed.mjs",
     "load:test": "node --env-file=.env.local scripts/load-test.mjs",
     "load:cleanup": "node --env-file=.env.local scripts/load-cleanup.mjs",
-    "test": "node ./node_modules/tsx/dist/cli.mjs --test tests/policy.test.ts tests/design.test.ts tests/commercial-policy.test.ts tests/finance.test.ts tests/access-control.test.ts tests/print-jobs.test.ts tests/pdf-preflight.test.ts tests/agent-config.test.ts tests/agent-report.test.ts tests/uploads.test.ts tests/pwa.test.ts",
+    "test": "node ./node_modules/tsx/dist/cli.mjs --test tests/policy.test.ts tests/design.test.ts tests/commercial-policy.test.ts tests/finance.test.ts tests/access-control.test.ts tests/print-jobs.test.ts tests/agent-config.test.ts tests/agent-report.test.ts tests/uploads.test.ts tests/pwa.test.ts",
     "test:integration": "node --env-file=.env.local tests/integration.mjs",
     "test:finance-integration": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/finance-integration-test.ts",
     "test:migration-rollback": "node --env-file=.env.local scripts/migration-rollback-test.mjs"

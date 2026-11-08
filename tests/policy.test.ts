@@ -148,9 +148,11 @@ test("drafts retain safe profile fields but never retain a password", () => {
     wizard_step: 6,
     customer_name: "Hilal Oğuz",
     customer_email: "hilal@example.com",
+    customer_phone: "05321234567",
     password: "this-must-never-be-saved",
   });
   assert.equal(parsed.customer_email, "hilal@example.com");
+  assert.equal(parsed.customer_phone, "05321234567");
   assert.equal("password" in parsed, false);
 });
 test("early wizard drafts omit names that are required only in later steps", () => {

@@ -55,6 +55,19 @@ test("finance managers can approve and record payouts", () => {
   assert.equal(hasPermission("partner_owner", "payout.mark_paid"), false);
 });
 
+test("design workflow roles expose selection and approval capabilities", () => {
+  assert.equal(hasPermission("organization_owner", "design.select"), true);
+  assert.equal(
+    hasPermission("organization_owner", "design.approve_for_print"),
+    true,
+  );
+  assert.equal(hasPermission("design_manager", "design.select"), true);
+  assert.equal(
+    hasPermission("design_manager", "design.approve_for_print"),
+    true,
+  );
+});
+
 test("print vendors can operate assigned jobs but cannot access albums", () => {
   assert.equal(hasPermission("print_vendor", "print_job.view_assigned"), true);
   assert.equal(hasPermission("print_vendor", "print_job.update_status"), true);

@@ -3,12 +3,18 @@ import QRCode from "qrcode";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
-export function QrPanel({ slug }: { slug: string }) {
+export function QrPanel({ slug, active = true }: { slug: string; active?: boolean }) {
   const [png, setPng] = useState<string>("");
   const [svg, setSvg] = useState<string>("");
   const [url, setUrl] = useState<string>("");
 
   useEffect(() => {
+    if (!active) {
+      setPng("");
+      setSvg("");
+      setUrl("");
+      return;
+    }
     const target = `${window.location.origin}/wedding/${slug}`;
     setUrl(target);
     const options = {
@@ -22,7 +28,7 @@ export function QrPanel({ slug }: { slug: string }) {
     QRCode.toString(target, { ...options, type: "svg" })
       .then(setSvg)
       .catch(() => undefined);
-  }, [slug]);
+  }, [active, slug]);
 
   const download = (href: string, name: string) => {
     const a = document.createElement("a");
@@ -34,6 +40,7 @@ export function QrPanel({ slug }: { slug: string }) {
   return (
     <div className="card-luxe rounded-2xl px-5 py-6">
       <h3 className="text-xs uppercase tracking-[0.24em] text-gold">QR Kod</h3>
+      {!active ? <p className="admin-notice mt-4">QR kodu ve misafir bağlantısı, ödeme onayından sonra ShineQR tarafından yayınlandığında aktif olur.</p> : null}
       {png && (
         <img
           src={png}

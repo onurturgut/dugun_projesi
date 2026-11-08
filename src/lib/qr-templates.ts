@@ -474,5 +474,47 @@ export function resolvePhysicalQrBackground(
       : folder === "obsidian-black" && format === "portrait-mini"
         ? "back"
         : face;
+  if (format === "welcome-sign-500x700")
+    return `/design-center/templates/velvet-flow/${folder}/${format}/velvet-flow-${folder}-welcome-sign-${availableFace}-base-clean.png`;
   return `/design-center/templates/velvet-flow/${folder}/${format}/velvet-flow-${folder}-${format}-${availableFace}-base-clean.png`;
+}
+
+/** Returns the untouched published 2D face used by the field-map UI. */
+export function resolveQrFieldMapFace(
+  templateId: QrCollectionId,
+  variantId: QrColorVariantId,
+  productId: string,
+  face: "front" | "back" = "front",
+) {
+  const original = resolveQrVariant(templateId, variantId)[face];
+  if (
+    templateId === "aurora" ||
+    (templateId === "modern-arch" &&
+      productId === "welcome-sign-500x700-duplex" &&
+      variantId !== "cream") ||
+    (face === "front" &&
+      templateId === "velvet-flow" &&
+      variantId === "black" &&
+      productId === "portrait-mini-75x100-duplex")
+  )
+    return original;
+  return (
+    resolvePhysicalQrBackground(templateId, variantId, face, productId) ||
+    original
+  );
+}
+
+export function resolveGeneratedQrFieldMapFace(
+  templateId: QrCollectionId,
+  variantId: QrColorVariantId,
+  productId: string,
+  face: "front" | "back",
+) {
+  const format =
+    productId === "portrait-mini-75x100-duplex"
+      ? "portrait-mini"
+      : productId === "landscape-mini-100x75-duplex"
+        ? "landscape-mini"
+        : "welcome-sign-500x700";
+  return `/design-center/field-map/generated/faces/${templateId}-${variantId}-${format}-${face}-v1.png`;
 }

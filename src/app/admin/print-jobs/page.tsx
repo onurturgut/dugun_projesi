@@ -1,24 +1,25 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Clock3, Download, PackageCheck, Printer, Truck } from "lucide-react";
+import {
+  CircleCheck,
+  Clock3,
+  Download,
+  PackageCheck,
+  Printer,
+  Truck,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AdminShell } from "@/components/admin/AdminShell";
-import { Field, Notice, TextField } from "@/components/admin/Fields";
-import { api, type Account, type Wedding } from "@/lib/api";
+import { Notice } from "@/components/admin/Fields";
+import { api, type Account } from "@/lib/api";
 import type { PrintJob, PrintJobStatus } from "@/lib/models";
 import {
   allowedPrintJobTransitions,
   PRINT_JOB_STATUS_LABELS,
 } from "@/lib/print-jobs";
 
-type PrinterAccount = {
-  id: string;
-  display_name: string;
-  partner_id: string;
-};
-type WeddingsResponse = { items: Wedding[] };
 const dateTime = (value: string) =>
   new Intl.DateTimeFormat("tr-TR", {
     dateStyle: "medium",
@@ -28,12 +29,6 @@ const dateTime = (value: string) =>
 
 export default function PrintJobsPage() {
   const queryClient = useQueryClient();
-  const [weddingId, setWeddingId] = useState("");
-  const [printerId, setPrinterId] = useState("");
-  const [description, setDescription] = useState("");
-  const [quantity, setQuantity] = useState("1");
-  const [dueDate, setDueDate] = useState("");
-  const [notes, setNotes] = useState("");
   const [jobNotes, setJobNotes] = useState<Record<string, string>>({});
   const [carriers, setCarriers] = useState<Record<string, string>>({});
   const [trackingCodes, setTrackingCodes] = useState<Record<string, string>>(
@@ -50,35 +45,6 @@ export default function PrintJobsPage() {
   const jobs = useQuery({
     queryKey: ["print-jobs"],
     queryFn: () => api<PrintJob[]>("/admin/print-jobs"),
-  });
-  const weddings = useQuery({
-    queryKey: ["weddings", "print-jobs"],
-    queryFn: () => api<WeddingsResponse>("/admin/weddings?limit=250"),
-    enabled: me.data?.role === "platform",
-  });
-  const printers = useQuery({
-    queryKey: ["print-vendors"],
-    queryFn: () => api<PrinterAccount[]>("/admin/print-vendors"),
-    enabled: me.data?.role === "platform",
-  });
-  const createJob = useMutation({
-    mutationFn: (payload: object) =>
-      api<PrintJob>("/admin/print-jobs", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      setDescription("");
-      setQuantity("1");
-      setDueDate("");
-      setNotes("");
-      queryClient.invalidateQueries({ queryKey: ["print-jobs"] });
-      toast.success("Baskı işi oluşturuldu ve baskıcıya atandı.");
-    },
-    onError: (reason) =>
-      toast.error(
-        reason instanceof Error ? reason.message : "Baskı işi oluşturulamadı.",
-      ),
   });
   const updateStatus = useMutation({
     mutationFn: ({
@@ -110,32 +76,6 @@ export default function PrintJobsPage() {
       toast.error(
         reason instanceof Error ? reason.message : "Durum güncellenemedi.",
       ),
-  });
-  const uploadPdf = useMutation({
-    mutationFn: async ({ job, file }: { job: PrintJob; file: File }) => {
-      const form = new FormData();
-      form.set("file", file);
-      const response = await fetch(
-        `/api/admin/print-jobs/${job.id}/production-pdf`,
-        {
-          method: "POST",
-          body: form,
-        },
-      );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "PDF yüklenemedi.");
-      return data as PrintJob;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["print-jobs"] });
-      toast.success("Baskıya hazır PDF güvenli olarak yüklendi.");
-    },
-    onError: (reason) => {
-      queryClient.invalidateQueries({ queryKey: ["print-jobs"] });
-      toast.error(
-        reason instanceof Error ? reason.message : "PDF yüklenemedi.",
-      );
-    },
   });
   const confirmPrinterPreflight = useMutation({
     mutationFn: ({ job, note }: { job: PrintJob; note: string }) =>
@@ -188,39 +128,36 @@ export default function PrintJobsPage() {
       ),
   });
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    createJob.mutate({
-      wedding_id: weddingId,
-      printer_account_id: printerId,
-      product_description: description,
-      quantity: Number(quantity),
-      due_date: dueDate || null,
-      production_notes: notes,
-    });
-  }
-
   const actor = me.data?.role === "platform" ? "platform" : "printer";
   const printJobs = jobs.data || [];
   const operationSummary = [
     {
       label: "Aktif işler",
-      value: printJobs.filter((job) => !["delivered_to_partner", "cancelled"].includes(job.status)).length,
+      value: printJobs.filter(
+        (job) => !["delivered_to_partner", "cancelled"].includes(job.status),
+      ).length,
       icon: Clock3,
     },
     {
       label: "Baskıda",
-      value: printJobs.filter((job) => ["downloaded", "printing"].includes(job.status)).length,
+      value: printJobs.filter((job) =>
+        ["downloaded", "printing"].includes(job.status),
+      ).length,
       icon: Printer,
     },
     {
       label: "Teslim süreci",
-      value: printJobs.filter((job) => ["ready", "received_by_shineqr", "quality_checked"].includes(job.status)).length,
+      value: printJobs.filter((job) =>
+        ["ready", "received_by_shineqr", "quality_checked"].includes(
+          job.status,
+        ),
+      ).length,
       icon: Truck,
     },
     {
       label: "Tamamlanan",
-      value: printJobs.filter((job) => job.status === "delivered_to_partner").length,
+      value: printJobs.filter((job) => job.status === "delivered_to_partner")
+        .length,
       icon: CircleCheck,
     },
   ];
@@ -235,95 +172,23 @@ export default function PrintJobsPage() {
           </p>
         </div>
       </div>
-      <section className="print-operation-summary" aria-label="Baskı operasyonu özeti">
+      <section
+        className="print-operation-summary"
+        aria-label="Baskı operasyonu özeti"
+      >
         {operationSummary.map(({ label, value, icon: Icon }) => (
           <article key={label}>
-            <span><Icon size={18} aria-hidden="true" /></span>
-            <div><small>{label}</small><strong>{value}</strong></div>
+            <span>
+              <Icon size={18} aria-hidden="true" />
+            </span>
+            <div>
+              <small>{label}</small>
+              <strong>{value}</strong>
+            </div>
           </article>
         ))}
       </section>
       {jobs.error ? <Notice>{jobs.error.message}</Notice> : null}
-      {me.data?.role === "platform" ? (
-        <section className="admin-panel detail-list print-create-panel">
-          <header>
-            <Printer />
-            <div>
-              <span>YENİ ÜRETİM</span>
-              <h2>Baskı işi oluştur</h2>
-            </div>
-          </header>
-          <form className="finance-add-on-form print-create-form" onSubmit={submit}>
-            <label className="form-field">
-              <span>Baskı onaylı organizasyon</span>
-              <select
-                value={weddingId}
-                onChange={(event) => setWeddingId(event.target.value)}
-                required
-              >
-                <option value="">Seçin</option>
-                {weddings.data?.items
-                  .filter((item) => item.design_status === "approved_for_print")
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label className="form-field">
-              <span>Baskıcı</span>
-              <select
-                value={printerId}
-                onChange={(event) => setPrinterId(event.target.value)}
-                required
-              >
-                <option value="">Seçin</option>
-                {printers.data?.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.display_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Field
-              label="Ürün / uygulama tanımı"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              minLength={3}
-              maxLength={240}
-              required
-            />
-            <Field
-              label="Adet"
-              type="number"
-              min={1}
-              max={100000}
-              value={quantity}
-              onChange={(event) => setQuantity(event.target.value)}
-              required
-            />
-            <Field
-              label="Hedef teslim tarihi"
-              type="date"
-              value={dueDate}
-              onValueChange={setDueDate}
-            />
-            <TextField
-              label="Üretim notu"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              maxLength={2000}
-            />
-            <button
-              className="admin-button primary"
-              disabled={createJob.isPending}
-            >
-              Baskıcıya ata
-            </button>
-          </form>
-        </section>
-      ) : null}
       <section className="admin-panel detail-list print-jobs-panel">
         <header>
           <PackageCheck />
@@ -350,7 +215,9 @@ export default function PrintJobsPage() {
                 <div className="print-job-title-row">
                   <div>
                     <strong>{job.wedding_title}</strong>
-                    <small>{job.product_description} · {job.quantity} adet</small>
+                    <small>
+                      {job.product_description} · {job.quantity} adet
+                    </small>
                   </div>
                   <span className={`print-job-status status-${job.status}`}>
                     {PRINT_JOB_STATUS_LABELS[job.status]}
@@ -363,25 +230,6 @@ export default function PrintJobsPage() {
                 </div>
                 {job.production_notes ? (
                   <p className="print-job-note">{job.production_notes}</p>
-                ) : null}
-                {job.pdf_preflight ? (
-                  <div className={`print-preflight-summary ${job.pdf_preflight.passed ? "passed" : "failed"}`}>
-                    <strong>PDF ön kontrolü: {job.pdf_preflight.passed ? "kontroller geçti" : "düzeltme gerekli"}</strong>
-                    <small>
-                    {job.pdf_preflight.checks
-                      .map(
-                        (check) =>
-                          `${check.label}: ${
-                            check.status === "passed"
-                              ? "geçti"
-                              : check.status === "failed"
-                                ? "başarısız"
-                                : "matbaa kontrolü"
-                          }`,
-                      )
-                      .join(" · ")}
-                    </small>
-                  </div>
                 ) : null}
                 <details className="print-job-timeline">
                   <summary>Operasyon zaman çizelgesi</summary>
@@ -416,22 +264,6 @@ export default function PrintJobsPage() {
                 </details>
               </div>
               <div className="account-actions print-job-actions">
-                {me.data?.role === "platform" ? (
-                  <label className="admin-button">
-                    PDF yükle / değiştir
-                    <input
-                      className="sr-only"
-                      type="file"
-                      accept="application/pdf,.pdf"
-                      disabled={uploadPdf.isPending}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) uploadPdf.mutate({ job, file });
-                        event.target.value = "";
-                      }}
-                    />
-                  </label>
-                ) : null}
                 {job.production_pdf ? (
                   <a
                     className="admin-button"

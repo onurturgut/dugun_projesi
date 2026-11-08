@@ -15,13 +15,48 @@ export const themeIds = [
 ] as const;
 export type ThemeId = (typeof themeIds)[number];
 export type TemplateSurface = "wedding" | "loading" | "qr";
-export const qrCollectionIds = ["velvet-flow", "botanical", "modern-arch", "aurora"] as const;
+export const qrCollectionIds = [
+  "velvet-flow",
+  "botanical",
+  "modern-arch",
+  "aurora",
+] as const;
 export type QrCollectionId = (typeof qrCollectionIds)[number];
-export const qrCollectionReferences: ReadonlyArray<{ id: QrCollectionId; number: string; name: string; tagline: string; image: string }> = [
-  { id: "velvet-flow", number: "02", name: "VELVET FLOW", tagline: "Modern lüks ve etkileyici", image: "/design-reference/02-velvet-flow.png" },
-  { id: "botanical", number: "03", name: "BOTANICAL", tagline: "Doğal ve modern", image: "/design-reference/03-botanical.png" },
-  { id: "modern-arch", number: "04", name: "MINIMAL", tagline: "Sade ve çağdaş", image: "/qr-templates/modern-arch/01_Krem_On_Yuz.webp" },
-  { id: "aurora", number: "05", name: "AURORA", tagline: "Sanatsal ve özgün", image: "/design-reference/05-aurora.png" },
+export const qrCollectionReferences: ReadonlyArray<{
+  id: QrCollectionId;
+  number: string;
+  name: string;
+  tagline: string;
+  image: string;
+}> = [
+  {
+    id: "velvet-flow",
+    number: "02",
+    name: "VELVET FLOW",
+    tagline: "Modern lüks ve etkileyici",
+    image: "/design-reference/02-velvet-flow.png",
+  },
+  {
+    id: "botanical",
+    number: "03",
+    name: "BOTANICAL",
+    tagline: "Doğal ve modern",
+    image: "/design-reference/03-botanical.png",
+  },
+  {
+    id: "modern-arch",
+    number: "04",
+    name: "MINIMAL",
+    tagline: "Sade ve çağdaş",
+    image: "/qr-templates/modern-arch/01_Krem_On_Yuz.webp",
+  },
+  {
+    id: "aurora",
+    number: "05",
+    name: "AURORA",
+    tagline: "Sanatsal ve özgün",
+    image: "/design-reference/05-aurora.png",
+  },
 ];
 export const editorialPresetIds = [
   "editorial-cream",
@@ -76,6 +111,7 @@ export type TemplateMetadata = {
   version: number;
   available: boolean;
   asset?: string;
+  poster?: string;
   description: string;
 };
 export const themes: Record<
@@ -152,6 +188,10 @@ export const introTypes = {
   "autumn-phone-variant-1": "Sonbahar telefon bildirimi II",
   "autumn-phone-variant-2": "Sonbahar telefon bildirimi II",
   "autumn-phone-variant-3": "Sonbahar telefon bildirimi III",
+  "blush-floral-envelope": "Pudra çiçekli davetiye",
+  "pink-velvet-curtain": "Pembe kadife perde",
+  "phone-pink-curtain": "Telefonda pembe perde",
+  "phone-floral-envelope": "Telefonda çiçekli davetiye",
 } as const;
 export const videoIntroAssets = {
   video: {
@@ -188,22 +228,51 @@ export const videoIntroAssets = {
     video: "/intro/autumn-phone-variant-1-loading-9x16.mp4",
     poster: "/intro/autumn-phone-variant-1-loading-9x16-poster.jpg",
     final: "/intro/autumn-phone-variant-1-loading-9x16-final.jpg",
-    description: "Kahverengi telefon ekranı sonbahar bildirimi ikinci açılış filmi",
+    description:
+      "Kahverengi telefon ekranı sonbahar bildirimi ikinci açılış filmi",
   },
   "autumn-phone-variant-2": {
     video: "/intro/autumn-phone-variant-2-loading-9x16.mp4",
     poster: "/intro/autumn-phone-variant-2-loading-9x16-poster.jpg",
     final: "/intro/autumn-phone-variant-2-loading-9x16-final.jpg",
-    description: "Kahverengi telefon ekranı sonbahar bildirimi ikinci açılış filmi",
+    description:
+      "Kahverengi telefon ekranı sonbahar bildirimi ikinci açılış filmi",
   },
   "autumn-phone-variant-3": {
     video: "/intro/autumn-phone-variant-3-loading-9x16.mp4",
     poster: "/intro/autumn-phone-variant-3-loading-9x16-poster.jpg",
     final: "/intro/autumn-phone-variant-3-loading-9x16-final.jpg",
-    description: "Kahverengi telefon ekranı sonbahar bildirimi üçüncü açılış filmi",
+    description:
+      "Kahverengi telefon ekranı sonbahar bildirimi üçüncü açılış filmi",
+  },
+  "blush-floral-envelope": {
+    video: "/intro/blush-floral-envelope-loading-9x16.mp4",
+    poster: "/intro/blush-floral-envelope-loading-9x16-poster.jpg",
+    final: "/intro/blush-floral-envelope-loading-9x16-final.jpg",
+    description: "Pudra tonlarında çiçekli davetiye açılış filmi",
+  },
+  "pink-velvet-curtain": {
+    video: "/intro/pink-velvet-curtain-loading-9x16.mp4",
+    poster: "/intro/pink-velvet-curtain-loading-9x16-poster.jpg",
+    final: "/intro/pink-velvet-curtain-loading-9x16-final.jpg",
+    description: "Altın detaylı pembe kadife perde açılış filmi",
+  },
+  "phone-pink-curtain": {
+    video: "/intro/phone-pink-curtain-loading-9x16.mp4",
+    poster: "/intro/phone-pink-curtain-loading-9x16-poster.jpg",
+    final: "/intro/phone-pink-curtain-loading-9x16-final.jpg",
+    description: "Telefon ekranında açılan altın detaylı pembe perde filmi",
+  },
+  "phone-floral-envelope": {
+    video: "/intro/phone-floral-envelope-loading-9x16.mp4",
+    poster: "/intro/phone-floral-envelope-loading-9x16-poster.jpg",
+    final: "/intro/phone-floral-envelope-loading-9x16-final.jpg",
+    description: "Telefon ekranında açılan çiçekli davetiye filmi",
   },
 } as const;
-export function isVideoIntro(intro: string): intro is keyof typeof videoIntroAssets {
+export function isVideoIntro(
+  intro: string,
+): intro is keyof typeof videoIntroAssets {
   return intro in videoIntroAssets;
 }
 export const cardTemplates = {
@@ -320,16 +389,95 @@ const publishedLoadingTemplateIds = new Set([
   "autumn-phone-source",
   "autumn-phone-variant-2",
   "autumn-phone-variant-3",
+  "phone-pink-curtain",
+  "phone-floral-envelope",
 ]);
 export const templateCatalog: readonly TemplateMetadata[] = [
-  { id: "filmstrip", name: pageTemplates.filmstrip, surface: "wedding", version: 1, available: true, description: "Hareketli iki sıralı fotoğraf alanı" },
-  ...weddingTemplates.map((template) => ({ id: template.id, name: template.name, surface: "wedding" as const, version: 1, available: true, asset: template.reference, description: template.description })),
-  ...Object.entries(introTypes).filter(([id]) => !isVideoIntro(id)).map(([id, name]) => ({ id, name, surface: "loading" as const, version: 1, available: false, description: "Hazır animasyonlu açılış" })),
-  ...Object.entries(videoIntroAssets).map(([id, media]) => ({ id, name: introTypes[id as keyof typeof videoIntroAssets], surface: "loading" as const, version: 1, available: publishedLoadingTemplateIds.has(id), asset: media.video, description: media.description })),
-  ...cardPresets.map((preset) => ({ id: preset.id, name: preset.name, surface: "qr" as const, version: 1, available: true, asset: preset.image, description: `${cardTemplates[preset.template]} QR kartı` })),
+  {
+    id: "filmstrip",
+    name: pageTemplates.filmstrip,
+    surface: "wedding",
+    version: 1,
+    available: true,
+    description: "Hareketli iki sıralı fotoğraf alanı",
+  },
+  ...weddingTemplates.map((template) => ({
+    id: template.id,
+    name: template.name,
+    surface: "wedding" as const,
+    version: 1,
+    available: true,
+    asset: template.reference,
+    description: template.description,
+  })),
+  ...Object.entries(introTypes)
+    .filter(([id]) => !isVideoIntro(id))
+    .map(([id, name]) => ({
+      id,
+      name,
+      surface: "loading" as const,
+      version: 1,
+      available: false,
+      description: "Hazır animasyonlu açılış",
+    })),
+  ...Object.entries(videoIntroAssets).map(([id, media]) => ({
+    id,
+    name: introTypes[id as keyof typeof videoIntroAssets],
+    surface: "loading" as const,
+    version: 1,
+    available: publishedLoadingTemplateIds.has(id),
+    asset: media.video,
+    description: media.description,
+  })),
+  ...cardPresets.map((preset) => ({
+    id: preset.id,
+    name: preset.name,
+    surface: "qr" as const,
+    version: 1,
+    available: true,
+    asset: preset.image,
+    description: `${cardTemplates[preset.template]} QR kartı`,
+  })),
 ];
 export function availableTemplates(surface: TemplateSurface) {
-  return templateCatalog.filter((template) => template.surface === surface && template.available);
+  return templateCatalog.filter(
+    (template) => template.surface === surface && template.available,
+  );
+}
+export const designRequestTemplateCatalog: readonly TemplateMetadata[] = [
+  ...qrCollectionReferences.map((template) => ({
+    id: template.id,
+    name: template.name,
+    surface: "qr" as const,
+    version: 1,
+    available: true,
+    asset: template.image,
+    description: template.tagline,
+  })),
+  ...weddingTemplates.map((template) => ({
+    id: template.id,
+    name: template.name,
+    surface: "wedding" as const,
+    version: 1,
+    available: true,
+    asset: `/design-center/mockups/wedding-phone/${template.id}.png`,
+    description: template.description,
+  })),
+  ...availableTemplates("loading").map((template) => {
+    const media = isVideoIntro(template.id)
+      ? videoIntroAssets[template.id]
+      : null;
+    return {
+      ...template,
+      asset: media?.video || template.asset,
+      poster: media?.poster,
+    };
+  }),
+];
+export function availableDesignRequestTemplates(surface: TemplateSurface) {
+  return designRequestTemplateCatalog.filter(
+    (template) => template.surface === surface && template.available,
+  );
 }
 const hex = z
   .string()
@@ -354,7 +502,24 @@ export const designSchema = z
   .object({
     version: z.literal(2),
     theme: z.enum(themeIds),
-    intro: z.enum(["curtain", "monogram", "fade", "campus", "video", "envelope", "album", "autumn-phone", "autumn-phone-source", "autumn-phone-variant-1", "autumn-phone-variant-2", "autumn-phone-variant-3"]),
+    intro: z.enum([
+      "curtain",
+      "monogram",
+      "fade",
+      "campus",
+      "video",
+      "envelope",
+      "album",
+      "autumn-phone",
+      "autumn-phone-source",
+      "autumn-phone-variant-1",
+      "autumn-phone-variant-2",
+      "autumn-phone-variant-3",
+      "blush-floral-envelope",
+      "pink-velvet-curtain",
+      "phone-pink-curtain",
+      "phone-floral-envelope",
+    ]),
     speed: z.number().min(0.75).max(2),
     cardTemplate: z.enum(["floral", "ribbon", "couple", "minimal", "night"]),
     linked: z.boolean(),
@@ -373,20 +538,39 @@ export const designSchema = z
     loadingCompleted: z.boolean().default(false),
     qrPresetId: z.enum(editorialPresetIds).default("editorial-cream"),
     qrFontPairId: z.enum(editorialFontPairIds).default("cormorant-manrope"),
-    qrHook: z.string().trim().min(1).max(72).default("Bu günün bir karesi de senden olsun."),
-    qrDescription: z.string().trim().min(1).max(110).default("Fotoğraf ve videolarını bizimle paylaş."),
-    qrCta: z.string().trim().min(1).max(48).default("QR kodu okut ve anılarını yükle."),
-    qrLayout: z.object({
-      qrHook: qrElementLayoutSchema,
-      qrDescription: qrElementLayoutSchema,
-      qrCta: qrElementLayoutSchema,
-      names: qrElementLayoutSchema,
-      message: qrElementLayoutSchema,
-      qr: qrElementLayoutSchema,
-      icons: qrElementLayoutSchema.default(defaultQrLayout.icons),
-      divider: qrElementLayoutSchema.default(defaultQrLayout.divider),
-    }).default(defaultQrLayout),
-    pageTemplate: z.enum(["filmstrip", ...weddingTemplateIds]).default("filmstrip"),
+    qrHook: z
+      .string()
+      .trim()
+      .min(1)
+      .max(72)
+      .default("Bu günün bir karesi de senden olsun."),
+    qrDescription: z
+      .string()
+      .trim()
+      .min(1)
+      .max(110)
+      .default("Fotoğraf ve videolarını bizimle paylaş."),
+    qrCta: z
+      .string()
+      .trim()
+      .min(1)
+      .max(48)
+      .default("QR kodu okut ve anılarını yükle."),
+    qrLayout: z
+      .object({
+        qrHook: qrElementLayoutSchema,
+        qrDescription: qrElementLayoutSchema,
+        qrCta: qrElementLayoutSchema,
+        names: qrElementLayoutSchema,
+        message: qrElementLayoutSchema,
+        qr: qrElementLayoutSchema,
+        icons: qrElementLayoutSchema.default(defaultQrLayout.icons),
+        divider: qrElementLayoutSchema.default(defaultQrLayout.divider),
+      })
+      .default(defaultQrLayout),
+    pageTemplate: z
+      .enum(["filmstrip", ...weddingTemplateIds])
+      .default("filmstrip"),
     weddingTemplateVersion: z.number().int().min(1).default(1),
     weddingImage: z.string().trim().max(2048).default(""),
     weddingImagePositionX: z.number().min(0).max(100).default(50),
@@ -444,7 +628,8 @@ export const designSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["weddingImage"],
-        message: "Wedding aşamasını tamamlamak için bir organizasyon fotoğrafı seçin.",
+        message:
+          "Wedding aşamasını tamamlamak için bir organizasyon fotoğrafı seçin.",
       });
     }
   });
@@ -488,11 +673,19 @@ export const defaultDesign: WeddingDesign = {
   uploadTitle: "Fotoğraf / Video Yükle",
   uploadPrompt: "Fotoğraf veya video seçin",
 };
-export function resolveDesign(value?: WeddingDesign | Record<string, unknown>): WeddingDesign {
+export function resolveDesign(
+  value?: WeddingDesign | Record<string, unknown>,
+): WeddingDesign {
   const migrated = { ...value } as Record<string, unknown>;
-  if (migrated.qrTemplateId === "the-editorial") migrated.qrTemplateId = "botanical";
-  if (migrated.qrProductId === "table-card-150x200-duplex") migrated.qrProductId = "portrait-mini-75x100-duplex";
-  const parsed = designSchema.safeParse({ ...defaultDesign, ...migrated, version: 2 });
+  if (migrated.qrTemplateId === "the-editorial")
+    migrated.qrTemplateId = "botanical";
+  if (migrated.qrProductId === "table-card-150x200-duplex")
+    migrated.qrProductId = "portrait-mini-75x100-duplex";
+  const parsed = designSchema.safeParse({
+    ...defaultDesign,
+    ...migrated,
+    version: 2,
+  });
   return parsed.success ? parsed.data : { ...defaultDesign };
 }
 export function designNames(design: WeddingDesign, title: string) {

@@ -4,6 +4,7 @@ import {
   commissionSnapshot,
   priceSnapshot,
   GIB,
+  hasCustomDesignEntitlement,
   PACKAGE_CATALOG,
   PACKAGE_CATALOG_V1,
   PACKAGE_CATALOG_V2,
@@ -17,6 +18,27 @@ import {
   packageStorageLimit,
   storageBytesInUse,
 } from "../src/lib/commercial-policy";
+
+test("custom design requires Plan 3 or the frozen custom-design add-on", () => {
+  assert.equal(hasCustomDesignEntitlement(packageSnapshot("plan-3")), true);
+  assert.equal(hasCustomDesignEntitlement(packageSnapshot("plan-1")), false);
+  assert.equal(
+    hasCustomDesignEntitlement(packageSnapshot("plan-2"), {
+      add_ons: [
+        {
+          product_id: "custom-design",
+          quantity: 1,
+          name: "Özel Tasarım",
+          unit_gross_cents: 100_000,
+          line_gross_cents: 100_000,
+          commissionable: true,
+          effect_type: "custom_design",
+        },
+      ],
+    }),
+    true,
+  );
+});
 
 test("package catalog reflects approved commercial rules", () => {
   assert.equal(PACKAGE_CATALOG, PACKAGE_CATALOG_V2);
@@ -51,7 +73,14 @@ test("package catalog reflects approved commercial rules", () => {
 test("storage policy includes trash and active upload reservations", () => {
   assert.equal(packageStorageLimit(PACKAGE_CATALOG["plan-1"]), 30 * GIB);
   assert.equal(packageStorageLimit(PACKAGE_CATALOG["plan-2"]), 50 * GIB);
-  assert.equal(storageBytesInUse({ media_bytes: 10, trashed_bytes: 20, reserved_upload_bytes: 30 }), 60);
+  assert.equal(
+    storageBytesInUse({
+      media_bytes: 10,
+      trashed_bytes: 20,
+      reserved_upload_bytes: 30,
+    }),
+    60,
+  );
 });
 
 test("commission is calculated from VAT-exclusive cents", () => {
@@ -112,7 +141,14 @@ test("photographer package settlement freezes an edited finance configuration", 
   assert.equal(snapshot.packageVersion, 2);
   assert.equal(snapshot.grossCents, 450_000);
   assert.equal(snapshot.photographerGrossCents, 330_000);
-  assert.throws(() => photographerSettlementSnapshot({ ...PHOTOGRAPHER_PACKAGE, platformGrossCents: 40_000 }), /toplamına eşit/);
+  assert.throws(
+    () =>
+      photographerSettlementSnapshot({
+        ...PHOTOGRAPHER_PACKAGE,
+        platformGrossCents: 40_000,
+      }),
+    /toplamına eşit/,
+  );
 });
 
 test("legacy organizations resolve a conservative package without replacing a historical snapshot", () => {
@@ -124,13 +160,30 @@ test("legacy organizations resolve a conservative package without replacing a hi
 });
 
 test("all add-ons update the frozen customer total and earn commission", () => {
-  const pricing = priceSnapshot("plan-2", [
-    { product_id: "print", quantity: 2 },
-    { product_id: "shipping", quantity: 1 },
-  ], [
-    { id: "print", name: "Ek baskı", gross_price_cents: 25_000, commissionable: true, effect_type: "print_quantity", effect_value: 20, print_format: "vertical_mini" },
-    { id: "shipping", name: "Özel teslimat", gross_price_cents: 30_000, commissionable: false },
-  ]);
+  const pricing = priceSnapshot(
+    "plan-2",
+    [
+      { product_id: "print", quantity: 2 },
+      { product_id: "shipping", quantity: 1 },
+    ],
+    [
+      {
+        id: "print",
+        name: "Ek baskı",
+        gross_price_cents: 25_000,
+        commissionable: true,
+        effect_type: "print_quantity",
+        effect_value: 20,
+        print_format: "vertical_mini",
+      },
+      {
+        id: "shipping",
+        name: "Özel teslimat",
+        gross_price_cents: 30_000,
+        commissionable: false,
+      },
+    ],
+  );
   assert.equal(pricing.add_on_gross_cents, 80_000);
   assert.equal(pricing.gross_cents, 580_000);
   assert.equal(pricing.commissionable_gross_cents, 580_000);
@@ -141,20 +194,58 @@ test("all add-ons update the frozen customer total and earn commission", () => {
   assert.equal(commission.commissionCents, 145_000);
 });
 
+test("add-on quantity is the single catalog limit while legacy ranges remain readable", () => {
+  const product = {
+    id: "qr-card",
+    name: "QR kart",
+    gross_price_cents: 1_000,
+    commissionable: true,
+    quantity: 25,
+    minimum_quantity: 20,
+    maximum_quantity: 100,
+  };
+
+  assert.doesNotThrow(() =>
+    priceSnapshot(
+      "plan-1",
+      [{ product_id: product.id, quantity: 25 }],
+      [product],
+    ),
+  );
+  assert.throws(
+    () =>
+      priceSnapshot(
+        "plan-1",
+        [{ product_id: product.id, quantity: 26 }],
+        [product],
+      ),
+    /1 ile 25/,
+  );
+  assert.doesNotThrow(() =>
+    priceSnapshot(
+      "plan-1",
+      [{ product_id: "legacy", quantity: 20 }],
+      [{ ...product, id: "legacy", quantity: undefined }],
+    ),
+  );
+});
+
 test("second organization discount reduces both sale total and commission base", () => {
   const pricing = priceSnapshot(
     "plan-2",
     [{ product_id: "second-event", quantity: 1 }],
-    [{
-      id: "second-event",
-      name: "İkinci organizasyon",
-      gross_price_cents: 0,
-      commissionable: true,
-      pricing_type: "package_percentage_discount",
-      percentage_bps: 1000,
-      effect_type: "second_event",
-      effect_value: 1,
-    }],
+    [
+      {
+        id: "second-event",
+        name: "İkinci organizasyon",
+        gross_price_cents: 0,
+        commissionable: true,
+        pricing_type: "package_percentage_discount",
+        percentage_bps: 1000,
+        effect_type: "second_event",
+        effect_value: 1,
+      },
+    ],
   );
   assert.equal(pricing.add_ons[0].unit_gross_cents, -50_000);
   assert.equal(pricing.gross_cents, 450_000);
@@ -164,28 +255,42 @@ test("second organization discount reduces both sale total and commission base",
   assert.equal(commission.netCents, 375_000);
   assert.equal(commission.commissionCents, 112_500);
   assert.throws(
-    () => priceSnapshot("plan-2", [{ product_id: "second-event", quantity: 2 }], [{
-      id: "second-event",
-      name: "İkinci organizasyon",
-      gross_price_cents: 0,
-      commissionable: true,
-      pricing_type: "package_percentage_discount",
-      percentage_bps: 1000,
-    }]),
+    () =>
+      priceSnapshot(
+        "plan-2",
+        [{ product_id: "second-event", quantity: 2 }],
+        [
+          {
+            id: "second-event",
+            name: "İkinci organizasyon",
+            gross_price_cents: 0,
+            commissionable: true,
+            pricing_type: "package_percentage_discount",
+            percentage_bps: 1000,
+          },
+        ],
+      ),
     /yalnızca bir kez/,
   );
   assert.throws(
-    () => priceSnapshot("plan-2", [
-      { product_id: "second-event", quantity: 1 },
-      { product_id: "second-event", quantity: 1 },
-    ], [{
-      id: "second-event",
-      name: "İkinci organizasyon",
-      gross_price_cents: 0,
-      commissionable: true,
-      pricing_type: "package_percentage_discount",
-      percentage_bps: 1000,
-    }]),
+    () =>
+      priceSnapshot(
+        "plan-2",
+        [
+          { product_id: "second-event", quantity: 1 },
+          { product_id: "second-event", quantity: 1 },
+        ],
+        [
+          {
+            id: "second-event",
+            name: "İkinci organizasyon",
+            gross_price_cents: 0,
+            commissionable: true,
+            pricing_type: "package_percentage_discount",
+            percentage_bps: 1000,
+          },
+        ],
+      ),
     /birden fazla satır/,
   );
 });

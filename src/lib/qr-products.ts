@@ -25,16 +25,19 @@ const welcomeSignTemplates = [
   "velvet-flow",
   "botanical",
   "modern-arch",
+  "aurora",
 ] as const;
 const portraitMiniTemplates = [
   "velvet-flow",
   "botanical",
   "modern-arch",
+  "aurora",
 ] as const;
 const landscapeMiniTemplates = [
   "velvet-flow",
   "botanical",
   "modern-arch",
+  "aurora",
 ] as const;
 export const qrProducts: readonly QrProduct[] = [
   {
@@ -107,7 +110,7 @@ export function qrProductEntitlement(
     return {
       allowed: false,
       includedQuantity,
-      reason: "Bu ürün mevcut pakete dâhil değil.",
+      reason: "Paket seçimi nedeniyle kapalıdır; mevcut pakete dâhil değildir.",
     };
   return {
     allowed: true,

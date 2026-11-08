@@ -26,6 +26,7 @@ import {
   Workflow,
   Camera,
   Printer,
+  ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Account } from "@/lib/api";
@@ -78,6 +79,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             label: "Tasarım Merkezi",
             icon: Palette,
           },
+          { href: "/admin/design-plans", label: "Tasarım Planları", icon: ClipboardList },
           { href: "/admin/partners", label: "İşletmeler", icon: Building2 },
           {
             href: "/admin/photographers",

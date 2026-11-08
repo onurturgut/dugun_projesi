@@ -8,7 +8,6 @@ import { eventFor, HttpError, requireAccount, requireManager } from "./access";
 
 const prefix = "/api/covers/";
 export async function uploadCover(req: Request, user: Account) {
-  requireManager(user);
   if (Number(req.headers.get("content-length")) > 3 * 1024 * 1024)
     throw new HttpError(413, "Kapak dosyası en fazla 2 MB olabilir.");
   const form = await req.formData();
@@ -21,6 +20,8 @@ export async function uploadCover(req: Request, user: Account) {
   const database = await db();
   const eventId = String(form.get("event_id") || "");
   const event = eventId ? await eventFor(user, eventId) : null;
+  // Organization owners may attach references only to their own event.
+  if (!event) requireManager(user);
   const partnerId =
     event?.partner_id ??
     (user.role === "platform"
@@ -128,6 +129,18 @@ export async function coverResponse(id: string) {
     if (user.role !== "platform" && user.partner_id !== asset.partner_id)
       throw new HttpError(404, "Kapak bulunamadı.");
   }
+  return coverAssetResponse(url);
+}
+
+export async function coverAssetResponse(url: string) {
+  if (!url.startsWith(prefix)) throw new HttpError(404, "Kapak bulunamadı.");
+  const id = url.slice(prefix.length);
+  const asset = await (
+    await db()
+  )
+    .collection("cover_assets")
+    .findOne({ id, ready: true, deleting: { $ne: true } });
+  if (!asset) throw new HttpError(404, "Kapak bulunamadı.");
   const { client, bucket } = storage();
   const object = await client.send(
     new GetObjectCommand({ Bucket: bucket, Key: asset.storage_path }),
@@ -154,7 +167,19 @@ export async function cleanupCovers(now: Date, errors: string[]) {
     if (!row.deleting) {
       const referenced = await Promise.all([
         database.collection("weddings").findOne({
-          $or: [{ cover_images: row.url }, { logo_url: row.url }],
+          $or: [
+            { cover_images: row.url },
+            { logo_url: row.url },
+            {
+              "design_request.surfaces.qr.delivery.preview_url": row.url,
+            },
+            {
+              "design_request.surfaces.loading.delivery.preview_url": row.url,
+            },
+            {
+              "design_request.surfaces.wedding.delivery.preview_url": row.url,
+            },
+          ],
           purged_at: null,
           expires_at: { $gt: now.toISOString() },
         }),

@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   Banknote,
   Building2,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Download,
   Landmark,
@@ -23,7 +25,9 @@ import type {
   SaleRecord,
   ServicePayoutLedgerEntry,
 } from "@/lib/models";
-import { accountHasPermission } from "@/lib/access-control";
+import { accountHasPermission, effectiveStaffRole } from "@/lib/access-control";
+import { introTypes, qrCollectionReferences } from "@/lib/design";
+import { weddingTemplates } from "@/lib/wedding-templates";
 
 const money = (cents: number) =>
   new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(
@@ -62,8 +66,25 @@ const beneficiaryText: Record<ServicePayoutLedgerEntry["beneficiary_type"], stri
   originating_partner: "İşletme hakedişi",
   platform: "ShineQR payı",
 };
+type SaleDetail = {
+  customer_name: string | null;
+  customer_email: string | null;
+  couple: string | null;
+  wedding_date: string | null;
+  venue: string | null;
+  organizer_name: string | null;
+  organizer_email: string | null;
+  organizer_partner_name: string | null;
+  organizer_partner_phone: string | null;
+  organizer_partner_address: string | null;
+  photographers: Array<{ name: string; email: string | null; assigned_at: string | null; assigned_by: string }>;
+  package_name: string;
+  add_ons: Array<{ name: string; quantity: number; line_gross_cents: number; effect_type: string | null }>;
+  custom_design_requested: boolean;
+  design: { qr_template_id: string; loading_template_id: string; wedding_template_id: string; status: string; revision_reason: string | null } | null;
+};
 type SalesResponse = {
-  items: Array<SaleRecord & { partner_name?: string; wedding_title?: string }>;
+  items: Array<SaleRecord & { partner_name?: string; wedding_title?: string; detail: SaleDetail }>;
   totals: {
     paid_sales: number;
     draft_sales: number;
@@ -73,6 +94,13 @@ type SalesResponse = {
     commission_cents: number;
     platform_cents: number;
   };
+};
+const qrTemplateNames = new Map<string, string>(qrCollectionReferences.map((item) => [item.id, item.name]));
+const weddingTemplateNames = new Map<string, string>(weddingTemplates.map((item) => [item.id, item.name]));
+const designStatusText: Record<string, string> = {
+  draft: "Taslak",
+  revision_requested: "Revizyon istendi",
+  approved_for_print: "Baskı için onaylandı",
 };
 type PhotographerSaleView = PhotographerSaleRecord & {
   wedding_title: string;
@@ -87,9 +115,28 @@ type PayoutReconciliation = {
   paid: { count: number; gross_cents: number };
   anomalies: Array<{ id: string; sale_id: string; gross_cents: number }>;
 };
+type PartnerSummaryResponse = {
+  generated_at: string;
+  items: Array<{
+    partner_id: string;
+    partner_name: string;
+    phone: string | null;
+    address: string | null;
+    active: boolean;
+    paid_sales: number;
+    draft_sales: number;
+    refunded_sales: number;
+    gross_cents: number;
+    commission_cents: number;
+    last_sale_at: string | null;
+    monthly: Array<{ period: string; paid_sales: number; refunded_sales: number; gross_cents: number; commission_cents: number }>;
+    organizations: Array<{ wedding_id: string; title: string; customer_name: string | null; wedding_date: string | null; paid_sales: number; refunded_sales: number; gross_cents: number; commission_cents: number; last_sale_at: string }>;
+  }>;
+};
 
 export default function FinancePage() {
   const queryClient = useQueryClient();
+  const [workspaceTab, setWorkspaceTab] = useState<"overview" | "sales" | "payouts" | "reconciliation">("overview");
   const [proofUploading, setProofUploading] = useState<string | null>(null);
   const [ledgerSearch, setLedgerSearch] = useState("");
   const [ledgerStatus, setLedgerStatus] = useState("");
@@ -107,16 +154,14 @@ export default function FinancePage() {
     queryFn: () => api<SalesResponse>("/admin/sales"),
     enabled: !!me.data,
   });
+  const partnerSummary = useQuery({
+    queryKey: ["sales-partner-summary"],
+    queryFn: () => api<PartnerSummaryResponse>("/admin/sales/partner-summary"),
+    enabled: !!me.data,
+  });
   const photographerSales = useQuery({
-    queryKey: ["photographer-sales", photographerSaleStatus, payoutStatus],
-    queryFn: () => {
-      const params = new URLSearchParams();
-      if (photographerSaleStatus) params.set("sale_status", photographerSaleStatus);
-      if (payoutStatus) params.set("payout_status", payoutStatus);
-      return api<PhotographerSaleView[]>(
-        `/admin/photographer-sales${params.size ? `?${params}` : ""}`,
-      );
-    },
+    queryKey: ["photographer-sales"],
+    queryFn: () => api<PhotographerSaleView[]>("/admin/photographer-sales"),
     enabled: !!me.data,
   });
   const exportUrl = useMemo(() => {
@@ -137,6 +182,25 @@ export default function FinancePage() {
         .some((value) => String(value).toLocaleLowerCase("tr-TR").includes(query));
     });
   }, [ledgerSearch, ledgerStatus, sales.data?.items]);
+  const filteredPhotographerSales = useMemo(
+    () => (photographerSales.data || []).filter((sale) => {
+      if (photographerSaleStatus && sale.status !== photographerSaleStatus) return false;
+      if (payoutStatus && !sale.payouts.some((payout) => payout.status === payoutStatus)) return false;
+      return true;
+    }),
+    [photographerSaleStatus, photographerSales.data, payoutStatus],
+  );
+  const payoutMetrics = useMemo(() => {
+    const payouts = (photographerSales.data || []).flatMap((sale) => sale.payouts);
+    const total = (statuses: ServicePayoutLedgerEntry["status"][]) =>
+      payouts.filter((payout) => statuses.includes(payout.status)).reduce((sum, payout) => sum + payout.gross_cents, 0);
+    return {
+      awaitingCount: payouts.filter((payout) => payout.status === "payable" || payout.status === "approved").length,
+      awaitingCents: total(["payable", "approved"]),
+      accountedCount: payouts.filter((payout) => payout.status === "paid" || payout.status === "recognized").length,
+      accountedCents: total(["paid", "recognized"]),
+    };
+  }, [photographerSales.data]);
   const reconciliation = useQuery({
     queryKey: ["photographer-payout-reconciliation"],
     queryFn: () =>
@@ -189,10 +253,21 @@ export default function FinancePage() {
   const confirmSalePayment = useMutation({
     mutationFn: ({ saleId, payment_method, payment_reference, paid_at }: { saleId: string; payment_method: "bank_transfer" | "cash" | "card" | "other"; payment_reference: string; paid_at: string }) =>
       api(`/admin/sales/${saleId}/confirm-payment`, { method: "POST", body: JSON.stringify({ payment_method, payment_reference, paid_at }) }),
-    onSuccess: () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["sales"] }),
-      queryClient.invalidateQueries({ queryKey: ["finance-overview"] }),
-    ]),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["sales"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-partner-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["finance-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-weddings"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-wedding"] }),
+      ]);
+      toast.success("Ödeme onaylandı. Organizasyon artık süperadmin tarafından yayınlanabilir.");
+    },
+  });
+  const confirmPhotographerPayment = useMutation({
+    mutationFn: ({ saleId, payment_reference }: { saleId: string; payment_reference: string }) =>
+      api(`/admin/photographer-sales/${saleId}/confirm-payment`, { method: "POST", body: JSON.stringify({ payment_method: "bank_transfer", payment_reference, paid_at: new Date().toISOString() }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photographer-sales"] }),
   });
   async function uploadPaymentProof(
     saleId: string,
@@ -220,6 +295,8 @@ export default function FinancePage() {
     );
     window.open(result.url, "_blank", "noopener,noreferrer");
   }
+  if (me.data?.role === "partner")
+    return <AdminShell><div className="admin-heading"><div><p className="admin-kicker">KOMİSYON VE KAZANÇ</p><h1>İşletme finansı</h1><p className="admin-subtitle">Platform finansı bu hesaba kapalıdır. Kendi satış, komisyon ve grafiklerinizi komisyon panelinden izleyin.</p></div></div><a className="admin-button primary" href="/admin/finance-center">Komisyon paneline git</a></AdminShell>;
   return (
     <AdminShell>
       <div className="admin-heading finance-ledger-heading">
@@ -232,7 +309,27 @@ export default function FinancePage() {
         </div>
         <div className="finance-ledger-context"><Clock3 size={16} aria-hidden="true" /><span>Europe/Istanbul</span></div>
       </div>
+      <nav className="finance-workspace-tabs" aria-label="Finans operasyon alanları">
+        {[
+          ["overview", "Genel Bakış", "Finansal durum"],
+          ["sales", "Satış Defteri", `${sales.data?.items.length || 0} kayıt`],
+          ["payouts", "Hakedişler", `${payoutMetrics.awaitingCount} bekliyor`],
+          ["reconciliation", "Mutabakat", `${reconciliation.data?.anomalies.length || 0} uyarı`],
+        ].map(([id, label, detail]) => (
+          <button
+            key={id}
+            type="button"
+            aria-current={workspaceTab === id ? "page" : undefined}
+            className={workspaceTab === id ? "is-active" : ""}
+            onClick={() => setWorkspaceTab(id as typeof workspaceTab)}
+          >
+            <strong>{label}</strong>
+            <small>{detail}</small>
+          </button>
+        ))}
+      </nav>
       {sales.error ? <Notice>{sales.error.message}</Notice> : null}
+      {workspaceTab === "overview" ? <>
       <section className="partner-stat-grid finance-ledger-kpis" aria-label="Satış özeti">
         <article>
           <ReceiptText size={20} aria-hidden="true" />
@@ -265,7 +362,28 @@ export default function FinancePage() {
           <strong>{money(sales.data?.totals.platform_cents || 0)}</strong>
           <small>KDV ve komisyon sonrası</small>
         </article>
+        <article>
+          <Landmark size={20} aria-hidden="true" />
+          <span>Hesaplanan KDV</span>
+          <strong>{money((sales.data?.totals.gross_cents || 0) - (sales.data?.totals.net_cents || 0))}</strong>
+          <small>KDV dahil tahsilat ile net matrah farkı</small>
+        </article>
+        <article>
+          <Clock3 size={20} aria-hidden="true" />
+          <span>Bekleyen hakediş</span>
+          <strong>{money(payoutMetrics.awaitingCents)}</strong>
+          <small>{payoutMetrics.awaitingCount} finans işlemi bekliyor</small>
+        </article>
+        <article>
+          <CheckCircle2 size={20} aria-hidden="true" />
+          <span>Muhasebeleşen / ödenen</span>
+          <strong>{money(payoutMetrics.accountedCents)}</strong>
+          <small>{payoutMetrics.accountedCount} tamamlanmış hakediş</small>
+        </article>
       </section>
+      <PartnerPerformance data={partnerSummary.data} loading={partnerSummary.isLoading} error={partnerSummary.error} />
+      </> : null}
+      {workspaceTab === "sales" ? (
       <section className="admin-panel detail-list finance-ledger-section">
         <header>
           <div className="finance-section-title">
@@ -300,13 +418,17 @@ export default function FinancePage() {
             <span>Organizasyon</span><span>Paket / tarih</span><span>Tahsilat</span><span>Dağılım</span><span>Durum</span>
           </div>
           {filteredSales.map((sale) => (
-            <div className="finance-ledger-row" role="row" key={sale.id}>
+            <details className="finance-ledger-accordion" key={sale.id}>
+              <summary className="finance-ledger-row" role="row">
               <div data-label="Organizasyon"><strong>{sale.wedding_title || sale.wedding_id}</strong><small>{sale.partner_name || sale.partner_id}</small></div>
-              <div data-label="Paket / tarih"><strong>{sale.package_code.toUpperCase()}</strong><small>{dateTime(sale.paid_at || sale.recorded_at)} · {sale.period}</small></div>
+              <div data-label="Paket / tarih"><strong>{sale.detail.package_name}</strong><small>{dateTime(sale.paid_at || sale.recorded_at)} · {sale.period}</small></div>
               <div className="finance-money-cell" data-label="Tahsilat"><strong>{money(sale.gross_cents)}</strong><small>Net {money(sale.net_cents)}</small></div>
               <div className="finance-money-cell" data-label="Dağılım">{sale.status === "paid" || sale.status === "refunded" ? <><strong>Partner {money(sale.commission_cents)}</strong><small>ShineQR {money(sale.platform_cents)} · maliyet {money(sale.variable_cost_cents || 0)}</small></> : <><strong>Henüz hesaplanmadı</strong><small>Ödeme onayında kesinleşir</small></>}</div>
-              <div data-label="Durum"><span className={`finance-status finance-status-${sale.status === "refunded" || sale.status === "cancelled" ? "danger" : sale.status === "draft" ? "warning" : "success"}`}>{saleStatusText(sale.status)}</span>{sale.status === "draft" && me.data && accountHasPermission(me.data, "commission.manage") ? <PaymentApprovalForm sale={sale} busy={confirmSalePayment.isPending} onConfirm={(input) => confirmSalePayment.mutate({ saleId: sale.id, ...input })} /> : null}</div>
-            </div>
+              <div className="finance-ledger-status-cell" data-label="Durum"><span className={`finance-status finance-status-${sale.status === "refunded" || sale.status === "cancelled" ? "danger" : sale.status === "draft" ? "warning" : "success"}`}>{saleStatusText(sale.status)}</span><ChevronDown size={17} aria-hidden="true" /></div>
+              </summary>
+              <SaleDetailPanel sale={sale} />
+              {sale.status === "draft" && me.data && accountHasPermission(me.data, "commission.manage") ? <div className="finance-ledger-approval"><PaymentApprovalForm sale={sale} busy={confirmSalePayment.isPending} onConfirm={(input) => confirmSalePayment.mutate({ saleId: sale.id, ...input })} /></div> : null}
+            </details>
           ))}
         </div>
         {sales.data && filteredSales.length === 0 ? (
@@ -316,6 +438,8 @@ export default function FinancePage() {
           </div>
         ) : null}
       </section>
+      ) : null}
+      {workspaceTab === "payouts" ? (
       <section className="admin-panel detail-list finance-payout-section">
         <header>
           <div className="finance-section-title">
@@ -332,7 +456,7 @@ export default function FinancePage() {
         </header>
         <div className="finance-payout-controls">
           <div className="finance-report-filters" aria-label="Hakediş listesi filtreleri">
-            <label><span>Satış durumu</span><select value={photographerSaleStatus} onChange={(event) => setPhotographerSaleStatus(event.target.value)}><option value="">Tümü</option><option value="pending_customer_consent">Müşteri onayı bekliyor</option><option value="paid">Aktif</option><option value="refunded">İade</option></select></label>
+            <label><span>Satış durumu</span><select value={photographerSaleStatus} onChange={(event) => setPhotographerSaleStatus(event.target.value)}><option value="">Tümü</option><option value="pending_customer_consent">Müşteri onayı bekliyor</option><option value="pending_payment">Ödeme onayı bekliyor</option><option value="paid">Aktif</option><option value="refunded">İade</option></select></label>
             <label><span>Hakediş durumu</span><select value={payoutStatus} onChange={(event) => setPayoutStatus(event.target.value)}><option value="">Tümü</option><option value="pending_delivery">Teslimat bekliyor</option><option value="pending_customer_approval">Müşteri onayı bekliyor</option><option value="payable">Finans onayı bekliyor</option><option value="approved">Ödemeye hazır</option><option value="paid">Ödendi</option><option value="recognized">ShineQR payı</option><option value="reversed">Ters kayıt</option></select></label>
             {(photographerSaleStatus || payoutStatus) ? <button className="admin-button" type="button" onClick={() => { setPhotographerSaleStatus(""); setPayoutStatus(""); }}><RotateCcw size={15} aria-hidden="true" /> Listeyi temizle</button> : null}
           </div>
@@ -367,7 +491,7 @@ export default function FinancePage() {
         {refundPhotographerSale.error ? (
           <Notice>{refundPhotographerSale.error.message}</Notice>
         ) : null}
-        {photographerSales.data?.map((sale) => (
+        {filteredPhotographerSales.map((sale) => (
           <article className="finance-photographer-sale" key={sale.id}>
             <div className="finance-photographer-head">
               <div>
@@ -381,12 +505,17 @@ export default function FinancePage() {
               <span className={`finance-status finance-status-${sale.status === "refunded" ? "danger" : sale.customer_approval_status === "approved" ? "success" : "warning"}`}>
                 {sale.status === "refunded"
                   ? "İade edildi"
+                  : sale.status === "pending_customer_consent"
+                    ? "Müşteri paket onayı bekleniyor"
+                  : sale.status === "pending_payment"
+                    ? "ShineQR ödeme onayı bekleniyor"
                   : sale.customer_approval_status === "approved"
                     ? "Müşteri onayladı"
                     : sale.customer_approval_status === "pending"
                       ? "Müşteri onayı bekleniyor"
                       : "Teslimat bekleniyor"}
               </span>
+              {me.data && sale.status === "pending_payment" && accountHasPermission(me.data, "commission.manage") ? <button className="admin-button primary" disabled={confirmPhotographerPayment.isPending} onClick={() => { const reference = window.prompt("Ödeme / banka referansını girin:"); if (reference?.trim()) confirmPhotographerPayment.mutate({ saleId: sale.id, payment_reference: reference.trim() }); }}>Fotoğrafçı paketi ödemesini onayla</button> : null}
               {me.data &&
               sale.status === "paid" &&
               !sale.payouts.some((payout) => payout.status === "paid") &&
@@ -427,7 +556,9 @@ export default function FinancePage() {
                   </button>
                 ) : null}
                 {me.data &&
-                payout.status === "payable" &&
+                (payout.status === "payable" ||
+                  (payout.status === "approved" &&
+                    effectiveStaffRole(me.data) === "platform_admin")) &&
                 accountHasPermission(me.data, "payout.approve") ? (
                   <button
                     className="admin-button"
@@ -440,7 +571,7 @@ export default function FinancePage() {
                       })
                     }
                   >
-                    Hakedişi onayla
+                    {effectiveStaffRole(me.data) === "platform_admin" ? "Onayla ve muhasebeleştir" : "Hakedişi onayla"}
                   </button>
                 ) : me.data &&
                   payout.status === "approved" &&
@@ -492,15 +623,152 @@ export default function FinancePage() {
             ))}
           </article>
         ))}
-        {photographerSales.data && !photographerSales.data.length ? (
+        {photographerSales.data && !filteredPhotographerSales.length ? (
           <div className="admin-empty">
             <WalletCards size={26} aria-hidden="true" />
             <p>Seçili filtrelerde fotoğrafçı paketi finans kaydı yok.</p>
           </div>
         ) : null}
       </section>
+      ) : null}
+      {workspaceTab === "reconciliation" ? (
+        <section className="admin-panel detail-list finance-reconciliation-section">
+          <header>
+            <div className="finance-section-title">
+              <AlertTriangle size={20} aria-hidden="true" />
+              <div>
+                <span>KONTROL MASASI</span>
+                <h2>Mutabakat ve eksik kayıtlar</h2>
+                <p>Ödeme referansı, belge veya denetim alanı eksik finans hareketlerini tek yerde inceleyin.</p>
+              </div>
+            </div>
+          </header>
+          {reconciliation.data ? <>
+            <div className="partner-stat-grid finance-reconciliation-grid">
+              <article><Clock3 size={19} aria-hidden="true" /><span>Ödemeye hazır</span><strong>{money(reconciliation.data.ready_to_pay.gross_cents)}</strong><small>{reconciliation.data.ready_to_pay.count} hakediş</small></article>
+              <article><CheckCircle2 size={19} aria-hidden="true" /><span>Ödendi kaydı</span><strong>{money(reconciliation.data.paid.gross_cents)}</strong><small>{reconciliation.data.paid.count} hakediş</small></article>
+              <article><AlertTriangle size={19} aria-hidden="true" /><span>Kontrol uyarısı</span><strong>{reconciliation.data.anomalies.length}</strong><small>Eksik finansal kanıt veya denetim alanı</small></article>
+            </div>
+            <div className="finance-anomaly-table" role="table" aria-label="Mutabakat uyarıları">
+              <div className="finance-anomaly-head" role="row"><span>Satış</span><span>Hakediş kaydı</span><span>Tutar</span><span>Kontrol</span></div>
+              {reconciliation.data.anomalies.map((anomaly) => (
+                <div className="finance-anomaly-row" role="row" key={anomaly.id}>
+                  <span>{anomaly.sale_id}</span><span>{anomaly.id}</span><strong>{money(anomaly.gross_cents)}</strong><span className="finance-status finance-status-danger">Eksik alan</span>
+                </div>
+              ))}
+            </div>
+            {!reconciliation.data.anomalies.length ? <div className="admin-empty finance-clean-state"><CheckCircle2 size={28} aria-hidden="true" /><strong>Mutabakat temiz</strong><p>Eksik referans, belge veya denetim alanı bulunmuyor.</p></div> : null}
+          </> : <div className="admin-empty"><Clock3 size={26} aria-hidden="true" /><p>Mutabakat verileri yükleniyor.</p></div>}
+        </section>
+      ) : null}
     </AdminShell>
   );
+}
+
+function PartnerPerformance({ data, loading, error }: { data?: PartnerSummaryResponse; loading: boolean; error: Error | null }) {
+  return (
+    <section className="admin-panel finance-partner-section" aria-labelledby="partner-performance-title">
+      <header>
+        <div className="finance-section-title">
+          <Building2 size={20} aria-hidden="true" />
+          <div><span>PARTNER PERFORMANSI</span><h2 id="partner-performance-title">Partner satışları ve komisyonları</h2><p>Bir işletmeye tıklayarak organizasyonlarını ve aylık geçmişini inceleyin.</p></div>
+        </div>
+      </header>
+      {loading ? <div className="admin-empty"><p>Partner verileri yükleniyor…</p></div> : null}
+      {error ? <Notice>{error.message}</Notice> : null}
+      {data?.items.length ? <div className="finance-partner-list">{data.items.map((partner) => {
+        const highestMonthlyCommission = Math.max(1, ...partner.monthly.map((month) => month.commission_cents));
+        return <details className="finance-partner-accordion" key={partner.partner_id}>
+          <summary>
+            <div className="finance-partner-identity"><span className="finance-partner-avatar"><Building2 size={19} aria-hidden="true" /></span><div><strong>{partner.partner_name}</strong><small>{partner.active ? "Aktif partner" : "Pasif partner"}{partner.last_sale_at ? ` · Son satış ${dateTime(partner.last_sale_at)}` : " · Satış yok"}</small></div></div>
+            <div><small>Tahsil edilmiş satış</small><strong>{partner.paid_sales}</strong></div>
+            <div><small>Satış hacmi</small><strong>{money(partner.gross_cents)}</strong></div>
+            <div><small>Kazanılan komisyon</small><strong>{money(partner.commission_cents)}</strong></div>
+            <ChevronDown size={18} aria-hidden="true" />
+          </summary>
+          <div className="finance-partner-detail">
+            <div className="finance-partner-mini-stats"><article><span>Taslak</span><strong>{partner.draft_sales}</strong></article><article><span>İade</span><strong>{partner.refunded_sales}</strong></article><article><span>Organizasyon</span><strong>{partner.organizations.length}</strong></article><article><span>Telefon</span><strong>{partner.phone || "Belirtilmemiş"}</strong></article></div>
+            <section><div className="finance-partner-subhead"><div><span>AYLIK GEÇMİŞ</span><h3>Satış ve komisyon seyri</h3></div><small>{partner.monthly.length} dönem</small></div>
+              {partner.monthly.length ? <div className="finance-partner-months">{partner.monthly.map((month) => <div key={month.period}><strong>{monthLabel(month.period)}</strong><span>{month.paid_sales} satış{month.refunded_sales ? ` · ${month.refunded_sales} iade` : ""}</span><div className="finance-partner-bar" aria-hidden="true"><i style={{ width: `${Math.max(3, Math.round(month.commission_cents / highestMonthlyCommission * 100))}%` }} /></div><b>{money(month.gross_cents)}</b><em>{money(month.commission_cents)} komisyon</em></div>)}</div> : <p className="finance-ledger-empty-value">Aylık satış geçmişi bulunmuyor.</p>}
+            </section>
+            <section><div className="finance-partner-subhead"><div><span>ORGANİZASYONLAR</span><h3>Partnerin açtığı organizasyonlar</h3></div><small>{partner.organizations.length} kayıt</small></div>
+              {partner.organizations.length ? <div className="finance-partner-organizations">{partner.organizations.map((organization) => <a href={`/admin/${organization.wedding_id}`} key={organization.wedding_id}><div><strong>{organization.title}</strong><small>{organization.customer_name || "Müşteri belirtilmemiş"}{organization.wedding_date ? ` · ${organization.wedding_date}` : ""}</small></div><span>{organization.paid_sales} satış</span><b>{money(organization.commission_cents)} komisyon</b></a>)}</div> : <p className="finance-ledger-empty-value">Satışa bağlı organizasyon bulunmuyor.</p>}
+            </section>
+          </div>
+        </details>;
+      })}</div> : !loading && !error ? <div className="admin-empty"><p>Gösterilecek partner bulunmuyor.</p></div> : null}
+    </section>
+  );
+}
+
+function monthLabel(period: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(period);
+  if (!match) return period;
+  return new Date(Number(match[1]), Number(match[2]) - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+}
+
+function SaleDetailPanel({ sale }: { sale: SalesResponse["items"][number] }) {
+  const detail = sale.detail;
+  const design = detail.design;
+  const weddingDate = detail.wedding_date
+    ? new Date(`${detail.wedding_date}T12:00:00`).toLocaleDateString("tr-TR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })
+    : "Belirtilmemiş";
+  return (
+    <div className="finance-ledger-detail">
+      <section>
+        <h3>Organizasyon ve müşteri</h3>
+        <dl>
+          <DetailValue label="Organizasyon sahibi" value={detail.customer_name} />
+          <DetailValue label="Çift" value={detail.couple} />
+          <DetailValue label="Organizasyon tarihi" value={weddingDate} />
+          <DetailValue label="Mekân" value={detail.venue} />
+          <DetailValue label="E-posta" value={detail.customer_email} href={detail.customer_email ? `mailto:${detail.customer_email}` : undefined} />
+        </dl>
+      </section>
+      <section>
+        <h3>Organizasyonu oluşturan</h3>
+        <dl>
+          <DetailValue label="Yetkili" value={detail.organizer_name} />
+          <DetailValue label="İşletme" value={detail.organizer_partner_name} />
+          <DetailValue label="Yetkili e-postası" value={detail.organizer_email} href={detail.organizer_email ? `mailto:${detail.organizer_email}` : undefined} />
+          <DetailValue label="İşletme telefonu" value={detail.organizer_partner_phone} href={detail.organizer_partner_phone ? `tel:${detail.organizer_partner_phone}` : undefined} />
+          <DetailValue label="İşletme adresi" value={detail.organizer_partner_address} />
+        </dl>
+      </section>
+      <section>
+        <h3>Paket ve ek ürünler</h3>
+        <dl>
+          <DetailValue label="Paket" value={detail.package_name} />
+          <DetailValue label="Paket bedeli" value={sale.price_snapshot ? money(sale.price_snapshot.package_gross_cents) : null} />
+          <DetailValue label="Toplam" value={money(sale.gross_cents)} />
+          <DetailValue label="Kişisel tasarım" value={detail.custom_design_requested ? "Evet, istendi" : "Hayır"} tone={detail.custom_design_requested ? "accent" : undefined} />
+        </dl>
+        {detail.add_ons.length ? <ul className="finance-ledger-addons">{detail.add_ons.map((addOn, index) => <li key={`${addOn.name}:${index}`}><span>{addOn.name} × {addOn.quantity}</span><strong>{money(addOn.line_gross_cents)}</strong></li>)}</ul> : <p className="finance-ledger-empty-value">Ek ürün seçilmemiş.</p>}
+      </section>
+      <section>
+        <h3>Atanan fotoğrafçı</h3>
+        {detail.photographers.length ? <div className="finance-ledger-photographers">{detail.photographers.map((photographer, index) => <article key={`${photographer.name}:${index}`}><strong>{photographer.name}</strong><small>{photographer.email || "E-posta belirtilmemiş"}</small><small>{photographer.assigned_at ? `${dateTime(photographer.assigned_at)} tarihinde ${photographer.assigned_by} tarafından atandı` : `Atayan: ${photographer.assigned_by}`}</small></article>)}</div> : <p className="finance-ledger-empty-value">Fotoğrafçı atanmamış.</p>}
+      </section>
+      <section className="finance-ledger-design-section">
+        <h3>İstenen tasarımlar</h3>
+        {design ? <div className="finance-ledger-design-grid">
+          <DetailValue label="QR tasarımı" value={qrTemplateNames.get(design.qr_template_id) || design.qr_template_id} />
+          <DetailValue label="Loading Page" value={(introTypes as Record<string, string>)[design.loading_template_id] || design.loading_template_id} />
+          <DetailValue label="Wedding tasarımı" value={weddingTemplateNames.get(design.wedding_template_id) || design.wedding_template_id} />
+          <DetailValue label="Tasarım durumu" value={designStatusText[design.status] || design.status} />
+          {design.revision_reason ? <DetailValue label="Revizyon talebi" value={design.revision_reason} /> : null}
+        </div> : <p className="finance-ledger-empty-value">Henüz tasarım seçimi kaydedilmemiş.</p>}
+      </section>
+    </div>
+  );
+}
+
+function DetailValue({ label, value, href, tone }: { label: string; value: string | null | undefined; href?: string; tone?: "accent" }) {
+  return <div className={tone === "accent" ? "finance-detail-accent" : undefined}><dt>{label}</dt><dd>{href && value ? <a href={href}>{value}</a> : value || "Belirtilmemiş"}</dd></div>;
 }
 
 function PaymentApprovalForm({ sale, busy, onConfirm }: { sale: SaleRecord; busy: boolean; onConfirm: (input: { payment_method: "bank_transfer" | "cash" | "card" | "other"; payment_reference: string; paid_at: string }) => void }) {

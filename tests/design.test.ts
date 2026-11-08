@@ -11,6 +11,7 @@ import {
   cardTemplates,
   cardPresets,
   availableTemplates,
+  availableDesignRequestTemplates,
   templateCatalog,
 } from "../src/lib/design";
 import { buildQrCards } from "../src/lib/qr-card";
@@ -22,7 +23,12 @@ import {
   withPrintMarks,
 } from "../src/lib/qr-products";
 import { packageSnapshot } from "../src/lib/commercial-policy";
-import { resolvePhysicalQrBackground } from "../src/lib/qr-templates";
+import {
+  qrTemplates,
+  resolvePhysicalQrBackground,
+  resolveGeneratedQrFieldMapFace,
+  resolveQrFieldMapFace,
+} from "../src/lib/qr-templates";
 import {
   auroraPresentationSet,
   botanicalLandscapeMiniPresentations,
@@ -72,6 +78,8 @@ test("template libraries expose only available templates", () => {
       "autumn-phone-source",
       "autumn-phone-variant-2",
       "autumn-phone-variant-3",
+      "phone-pink-curtain",
+      "phone-floral-envelope",
     ],
   );
   for (const surface of ["wedding", "loading", "qr"] as const) {
@@ -104,6 +112,23 @@ test("design center catalog metadata includes titles and display properties", ()
     assert.ok(template.version >= 1);
   }
 });
+test("design request reuses the published Design Center visuals", () => {
+  assert.deepEqual(
+    availableDesignRequestTemplates("qr").map((template) => template.id),
+    ["velvet-flow", "botanical", "modern-arch", "aurora"],
+  );
+  for (const template of availableDesignRequestTemplates("wedding")) {
+    assert.equal(
+      template.asset,
+      `/design-center/mockups/wedding-phone/${template.id}.png`,
+    );
+    assert.equal(existsSync(`public${template.asset}`), true);
+  }
+  for (const template of availableDesignRequestTemplates("loading")) {
+    assert.match(template.asset || "", /^\/intro\/.+\.mp4$/);
+    assert.match(template.poster || "", /^\/intro\/.+\.(jpg|png|webp)$/);
+  }
+});
 test("retired loading templates remain valid historical records", () => {
   const templates = templateCatalog.filter(
     (template) => template.surface === "loading",
@@ -122,15 +147,12 @@ test("retired loading templates remain valid historical records", () => {
   ].map((id) => templates.find((template) => template.id === id));
 
   assert.ok(templates.length > 0);
-  assert.equal(templates.filter((template) => template.available).length, 3);
+  assert.equal(templates.filter((template) => template.available).length, 5);
 
   assert.equal(legacy?.asset, "/intro/shineqr-portrait-v2.mp4");
   assert.equal(envelope?.asset, "/intro/wedding-envelope-loading-9x16.mp4");
   assert.equal(album?.asset, "/intro/wedding-album-loading-9x16.mp4");
-  assert.equal(
-    autumnPhone?.asset,
-    "/intro/autumn-phone-loading-9x16.mp4",
-  );
+  assert.equal(autumnPhone?.asset, "/intro/autumn-phone-loading-9x16.mp4");
   assert.deepEqual(
     uploadedAutumnPhones.map((template) => template?.asset),
     [
@@ -167,6 +189,38 @@ test("retired loading templates remain valid historical records", () => {
     designSchema.safeParse({ ...defaultDesign, intro: "campus" }).success,
     true,
   );
+});
+
+test("non-phone counterparts remain valid history but are hidden from customers", () => {
+  const publishedIds = availableDesignRequestTemplates("loading").map(
+    (template) => template.id,
+  );
+  for (const id of ["blush-floral-envelope", "pink-velvet-curtain"] as const) {
+    assert.equal(publishedIds.includes(id), false);
+    assert.equal(
+      designSchema.safeParse({ ...defaultDesign, intro: id }).success,
+      true,
+    );
+  }
+});
+
+test("customer phone loading designs are shared by Design Center and organization flow", () => {
+  const templates = availableDesignRequestTemplates("loading");
+  for (const [id, name] of [
+    ["phone-pink-curtain", "Telefonda pembe perde"],
+    ["phone-floral-envelope", "Telefonda çiçekli davetiye"],
+  ] as const) {
+    const template = templates.find((item) => item.id === id);
+    assert.equal(template?.name, name);
+    assert.equal(template?.asset, `/intro/${id}-loading-9x16.mp4`);
+    assert.equal(template?.poster, `/intro/${id}-loading-9x16-poster.jpg`);
+    assert.equal(existsSync(`public${template?.asset}`), true);
+    assert.equal(existsSync(`public${template?.poster}`), true);
+    assert.equal(
+      designSchema.safeParse({ ...defaultDesign, intro: id }).success,
+      true,
+    );
+  }
 });
 test("all QR reference designs are available as valid presets", () => {
   assert.equal(cardPresets.length, 10);
@@ -637,4 +691,52 @@ test("QR product access uses the frozen package snapshot and artwork readiness",
   assert.equal(qrProductEntitlement(portrait, plan1).allowed, true);
   assert.equal(qrProductEntitlement(welcome, plan2).includedQuantity, 1);
   assert.equal(qrProductEntitlement(welcome, plan2).allowed, true);
+  assert.equal(
+    qrProductEntitlement(welcome, plan1).reason,
+    "Paket seçimi nedeniyle kapalıdır; mevcut pakete dâhil değildir.",
+  );
+});
+
+test("every QR collection supports every active physical product", () => {
+  for (const template of Object.values(qrTemplates))
+    for (const product of qrProducts)
+      assert.equal(
+        product.compatibleTemplates.includes(template.id),
+        true,
+        `${template.id} must support ${product.id}`,
+      );
+});
+
+test("every physical QR color and size resolves to an existing 2D field-map face", () => {
+  for (const template of Object.values(qrTemplates)) {
+    for (const variant of template.variants) {
+      for (const product of qrProducts) {
+        for (const side of product.sides) {
+          const face = resolveQrFieldMapFace(
+            template.id,
+            variant.id,
+            product.id,
+            side,
+          );
+          assert.equal(existsSync(`public${face}`), true, face);
+          assert.equal(face.includes("/presentations/"), false, face);
+        }
+      }
+    }
+  }
+});
+
+test("ImageGen field-map catalog contains every collection color size and face", () => {
+  for (const template of Object.values(qrTemplates))
+    for (const variant of template.variants)
+      for (const product of qrProducts)
+        for (const face of ["front", "back"] as const) {
+          const asset = resolveGeneratedQrFieldMapFace(
+            template.id,
+            variant.id,
+            product.id,
+            face,
+          );
+          assert.equal(existsSync(`public${asset}`), true, asset);
+        }
 });

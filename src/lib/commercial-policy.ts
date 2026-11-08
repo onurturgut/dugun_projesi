@@ -82,7 +82,9 @@ export const PACKAGE_CATALOG_V1: Readonly<
   }),
 });
 
-export const PACKAGE_CATALOG_V2: Readonly<Record<PackageCode, Readonly<PackagePolicy>>> = Object.freeze({
+export const PACKAGE_CATALOG_V2: Readonly<
+  Record<PackageCode, Readonly<PackagePolicy>>
+> = Object.freeze({
   "plan-1": {
     code: "plan-1",
     version: 2,
@@ -218,7 +220,9 @@ export const FAIR_USE_POLICY = {
   allowedContent: ["photo", "video"] as const,
 };
 
-export function packageStorageLimit(policy: Pick<PackagePolicy, "hardStorageBytes" | "fairUseSoftCapBytes">) {
+export function packageStorageLimit(
+  policy: Pick<PackagePolicy, "hardStorageBytes" | "fairUseSoftCapBytes">,
+) {
   return policy.hardStorageBytes ?? policy.fairUseSoftCapBytes;
 }
 
@@ -227,9 +231,11 @@ export function storageBytesInUse(value: {
   trashed_bytes?: number;
   reserved_upload_bytes?: number;
 }) {
-  return Math.max(0, value.media_bytes || 0) +
+  return (
+    Math.max(0, value.media_bytes || 0) +
     Math.max(0, value.trashed_bytes || 0) +
-    Math.max(0, value.reserved_upload_bytes || 0);
+    Math.max(0, value.reserved_upload_bytes || 0)
+  );
 }
 
 export type CommissionSnapshot = {
@@ -279,6 +285,20 @@ export type PriceSnapshot = {
   }>;
 };
 
+export function hasCustomDesignEntitlement(
+  policy?: Pick<PackagePolicy, "code"> | null,
+  pricing?: Pick<PriceSnapshot, "add_ons"> | null,
+) {
+  return (
+    policy?.code === "plan-3" ||
+    Boolean(
+      pricing?.add_ons.some(
+        (item) => item.effect_type === "custom_design" && item.quantity > 0,
+      ),
+    )
+  );
+}
+
 export function priceSnapshot(
   code: PackageCode,
   selections: AddOnSelection[],
@@ -293,6 +313,7 @@ export function priceSnapshot(
     effect_type?: string;
     effect_value?: number;
     print_format?: "vertical_mini" | "table_card";
+    quantity?: number;
     minimum_quantity?: number;
     maximum_quantity?: number;
     eligible_package_codes?: PackageCode[];
@@ -300,32 +321,57 @@ export function priceSnapshot(
   }>,
 ): PriceSnapshot {
   const byId = new Map(products.map((product) => [product.id, product]));
-  if (new Set(selections.map((selection) => selection.product_id)).size !== selections.length)
+  if (
+    new Set(selections.map((selection) => selection.product_id)).size !==
+    selections.length
+  )
     throw new Error("Aynı ek ürün satışa birden fazla satır olarak eklenemez.");
   const packageGross = PACKAGE_CATALOG[code].grossPriceCents;
   const addOns = selections.map((selection) => {
     const product = byId.get(selection.product_id);
     if (!product) throw new Error("Ek ürün bulunamadı veya satışa kapalı.");
-    const minimum = product.minimum_quantity || 1;
-    const maximum = product.maximum_quantity || 100;
-    if (!Number.isInteger(selection.quantity) || selection.quantity < minimum || selection.quantity > maximum)
-      throw new Error("Ek ürün adedi 1 ile 100 arasında olmalı.");
-    if (product.eligible_package_codes?.length && !product.eligible_package_codes.includes(code))
+    const minimum =
+      product.quantity === undefined ? product.minimum_quantity || 1 : 1;
+    const maximum = product.quantity ?? product.maximum_quantity ?? 100;
+    if (
+      !Number.isInteger(selection.quantity) ||
+      selection.quantity < minimum ||
+      selection.quantity > maximum
+    )
+      throw new Error(
+        `Ek ürün adedi ${minimum} ile ${maximum} arasında olmalı.`,
+      );
+    if (
+      product.eligible_package_codes?.length &&
+      !product.eligible_package_codes.includes(code)
+    )
       throw new Error("Ek ürün seçilen paketle birlikte sunulmuyor.");
-    if (product.pricing_type === "package_percentage_discount" && selection.quantity !== 1)
+    if (
+      product.pricing_type === "package_percentage_discount" &&
+      selection.quantity !== 1
+    )
       throw new Error("Yüzde indirimli ek ürün yalnızca bir kez seçilebilir.");
     if (
       product.pricing_type === "package_percentage_discount" &&
-      (!Number.isInteger(product.percentage_bps) || product.percentage_bps! < 1 || product.percentage_bps! > 9000)
+      (!Number.isInteger(product.percentage_bps) ||
+        product.percentage_bps! < 1 ||
+        product.percentage_bps! > 9000)
     )
-      throw new Error("Yüzde indirimli ek ürün için geçerli bir indirim oranı gerekli.");
-    const unitGross = product.pricing_type === "package_percentage_discount"
-      ? -Math.round((packageGross * (product.percentage_bps || 0)) / 10_000)
-      : product.gross_price_cents;
+      throw new Error(
+        "Yüzde indirimli ek ürün için geçerli bir indirim oranı gerekli.",
+      );
+    const unitGross =
+      product.pricing_type === "package_percentage_discount"
+        ? -Math.round((packageGross * (product.percentage_bps || 0)) / 10_000)
+        : product.gross_price_cents;
     const lineGross = unitGross * selection.quantity;
-    const lineNet = lineGross >= 0
-      ? netCentsFromVatIncluded(lineGross, product.vat_rate_bps ?? 2000)
-      : -netCentsFromVatIncluded(Math.abs(lineGross), product.vat_rate_bps ?? 2000);
+    const lineNet =
+      lineGross >= 0
+        ? netCentsFromVatIncluded(lineGross, product.vat_rate_bps ?? 2000)
+        : -netCentsFromVatIncluded(
+            Math.abs(lineGross),
+            product.vat_rate_bps ?? 2000,
+          );
     return {
       ...selection,
       name: product.name,
@@ -344,9 +390,13 @@ export function priceSnapshot(
       print_format: product.print_format,
     };
   });
-  const addOnGross = addOns.reduce((sum, item) => sum + item.line_gross_cents, 0);
+  const addOnGross = addOns.reduce(
+    (sum, item) => sum + item.line_gross_cents,
+    0,
+  );
   const gross = packageGross + addOnGross;
-  if (gross < 0) throw new Error("Ek ürünler satış toplamını sıfırın altına düşüremez.");
+  if (gross < 0)
+    throw new Error("Ek ürünler satış toplamını sıfırın altına düşüremez.");
   return {
     package_gross_cents: packageGross,
     add_ons: addOns,
@@ -356,11 +406,16 @@ export function priceSnapshot(
   };
 }
 
-export function netCentsFromVatIncluded(grossCents: number, vatRateBps: number) {
+export function netCentsFromVatIncluded(
+  grossCents: number,
+  vatRateBps: number,
+) {
   if (!Number.isInteger(grossCents) || grossCents < 0)
     throw new Error("Brüt tutar kuruş cinsinden pozitif bir tam sayı olmalı.");
   if (!Number.isInteger(vatRateBps) || vatRateBps < 0)
-    throw new Error("KDV oranı baz puan cinsinden pozitif bir tam sayı olmalı.");
+    throw new Error(
+      "KDV oranı baz puan cinsinden pozitif bir tam sayı olmalı.",
+    );
   return Math.round((grossCents * 10_000) / (10_000 + vatRateBps));
 }
 
@@ -371,10 +426,17 @@ export function commissionSnapshot(
   pricing?: Pick<PriceSnapshot, "gross_cents" | "commissionable_gross_cents">,
 ): CommissionSnapshot {
   const selected = PACKAGE_CATALOG[packageCode];
-  if (selected.qualifiesForVolumeCommission && (!qualifyingOrdinal || qualifyingOrdinal < 1))
-    throw new Error("Plan 2 ve Plan 3 satışlarında aylık satış sırası gerekli.");
+  if (
+    selected.qualifiesForVolumeCommission &&
+    (!qualifyingOrdinal || qualifyingOrdinal < 1)
+  )
+    throw new Error(
+      "Plan 2 ve Plan 3 satışlarında aylık satış sırası gerekli.",
+    );
   const commissionRateBps =
-    selected.qualifiesForVolumeCommission && qualifyingOrdinal! >= 11 ? 4000 : 3000;
+    selected.qualifiesForVolumeCommission && qualifyingOrdinal! >= 11
+      ? 4000
+      : 3000;
   const grossCents = pricing?.gross_cents ?? selected.grossPriceCents;
   const netCents = netCentsFromVatIncluded(grossCents, vatRateBps);
   const commissionableNetCents = netCentsFromVatIncluded(
@@ -385,9 +447,13 @@ export function commissionSnapshot(
     grossCents,
     vatRateBps,
     netCents,
-    qualifyingOrdinal: selected.qualifiesForVolumeCommission ? qualifyingOrdinal : null,
+    qualifyingOrdinal: selected.qualifiesForVolumeCommission
+      ? qualifyingOrdinal
+      : null,
     commissionRateBps,
-    commissionCents: Math.round((commissionableNetCents * commissionRateBps) / 10_000),
+    commissionCents: Math.round(
+      (commissionableNetCents * commissionRateBps) / 10_000,
+    ),
   };
 }
 
@@ -411,7 +477,9 @@ export function resolvePackageSnapshot(
   code?: PackageCode,
 ): PackagePolicy {
   if (snapshot) return snapshot;
-  return packageSnapshot(code === "plan-2" || code === "plan-3" ? code : "plan-1");
+  return packageSnapshot(
+    code === "plan-2" || code === "plan-3" ? code : "plan-1",
+  );
 }
 
 export function istanbulCalendarMonth(instant: Date | string) {

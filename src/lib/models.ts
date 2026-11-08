@@ -10,11 +10,7 @@ import type {
 } from "./commercial-policy";
 export type Role = "platform" | "partner" | "owner";
 export type BusinessType =
-  | "venue"
-  | "planner"
-  | "photography"
-  | "print_vendor"
-  | "other";
+  "venue" | "planner" | "photography" | "print_vendor" | "other";
 export type StaffRole =
   | "platform_admin"
   | "finance_manager"
@@ -182,7 +178,7 @@ export interface PhotographerSaleRecord {
   photographer_account_id: string;
   photographer_partner_id: string;
   originating_partner_id: string;
-  status: "pending_customer_consent" | "paid" | "refunded";
+  status: "pending_customer_consent" | "pending_payment" | "paid" | "refunded";
   occurred_at: string;
   recorded_at: string;
   recorded_by: string;
@@ -197,6 +193,10 @@ export interface PhotographerSaleRecord {
   commercial_consent_version: 1;
   commercial_consent_at?: string | null;
   commercial_consent_by?: string | null;
+  payment_method?: "bank_transfer" | "cash" | "card" | "other";
+  payment_reference?: string | null;
+  paid_at?: string | null;
+  paid_by?: string | null;
 }
 export interface ServicePayoutLedgerEntry {
   id: string;
@@ -230,6 +230,19 @@ export interface ServicePayoutLedgerEntry {
   payment_proof_uploaded_by?: string | null;
 }
 export interface Wedding {
+  design_request?: DesignRequest;
+  custom_design_request?: {
+    description: string;
+    colors: string;
+    text_content: string;
+    main_image_url: string;
+    reference_image_urls: string[];
+    surfaces: Array<
+      "qr_card" | "loading_page" | "wedding_page" | "welcome_sign"
+    >;
+    due_date: string;
+    notes: string;
+  };
   digital_invitation?: {
     template_version: 1;
     status: "draft" | "published";
@@ -292,7 +305,12 @@ export interface Wedding {
   wizard_step?: number;
   customer_name?: string;
   customer_email?: string;
+  customer_phone?: string;
+  photographer_package_requested?: boolean;
   published_at?: string | null;
+  published_by?: string | null;
+  commercial_status?:
+    "not_ready" | "awaiting_payment" | "payment_verified" | "published";
   archived_at?: string | null;
   bride_name: string;
   groom_name: string;
@@ -325,6 +343,59 @@ export interface Wedding {
   size_bytes?: number;
   can_upload?: boolean;
 }
+
+export type DesignRequestSurfaceId = "qr" | "loading" | "wedding";
+export type DesignRequestStatus =
+  | "draft"
+  | "submitted"
+  | "in_design"
+  | "awaiting_approval"
+  | "revision_requested"
+  | "completed";
+export interface DesignRequestSurface {
+  mode: "catalog" | "custom";
+  template_id?: string;
+  template_name?: string;
+  template_asset?: string;
+  color: string;
+  heading: string;
+  title: string;
+  description: string;
+  cta: string;
+  footer: string;
+  back_title: string;
+  back_description: string;
+  back_names: string;
+  back_date: string;
+  style: string;
+  format: string;
+  typography: string;
+  layout: string;
+  notes: string;
+  reference_image_urls: string[];
+  status: DesignRequestStatus;
+  delivery?: {
+    preview_url: string;
+    notes: string;
+    version: number;
+    uploaded_at: string;
+    uploaded_by: string;
+  };
+  revision_reason?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+}
+export interface DesignRequest {
+  version: 1;
+  status: DesignRequestStatus;
+  surfaces: Record<DesignRequestSurfaceId, DesignRequestSurface>;
+  updated_at: string;
+  updated_by: string;
+  submitted_at?: string | null;
+  submitted_by?: string | null;
+  sent_at?: string | null;
+  sent_by?: string | null;
+}
 export interface PhotographerAssignment {
   id: string;
   wedding_id: string;
@@ -347,14 +418,25 @@ export interface AddOnProduct {
   gross_price_cents: number;
   unit_cost_cents?: number;
   vat_rate_bps?: number;
+  quantity?: number;
+  /** @deprecated Historical catalog compatibility. New writes use quantity. */
   minimum_quantity?: number;
+  /** @deprecated Historical catalog compatibility. New writes use quantity. */
   maximum_quantity?: number;
   eligible_package_codes?: PackageCode[];
   image_url?: string;
   commissionable: boolean;
-  category?: "qr_print" | "storage_retention" | "digital" | "design" | "organization";
+  category?:
+    "qr_print" | "storage_retention" | "digital" | "design" | "organization";
   unit?: "item" | "gib" | "month" | "service" | "organization";
-  effect_type?: "print_quantity" | "welcome_sign" | "storage_gib" | "retention_months" | "digital_invitation" | "custom_design" | "second_event";
+  effect_type?:
+    | "print_quantity"
+    | "welcome_sign"
+    | "storage_gib"
+    | "retention_months"
+    | "digital_invitation"
+    | "custom_design"
+    | "second_event";
   effect_value?: number;
   print_format?: "vertical_mini" | "table_card";
   pricing_type?: "fixed" | "package_percentage_discount";
@@ -513,17 +595,6 @@ export interface PrintJob {
     size_bytes: number;
     uploaded_at: string;
     uploaded_by: string;
-  };
-  pdf_preflight?: {
-    passed: boolean;
-    checked_at: string;
-    page_count: number;
-    checks: Array<{
-      id: string;
-      label: string;
-      status: "passed" | "failed" | "manual";
-      detail: string;
-    }>;
   };
   printer_preflight?: {
     color_profile_confirmed: boolean;

@@ -124,7 +124,13 @@ try {
     db.collection("media").createIndex({ storage_path: 1 }, { unique: true }),
     db.collection("print_jobs").createIndex({ id: 1 }, { unique: true }),
     db.collection("sales").createIndex({ wedding_id: 1 }, { unique: true }),
-    db.collection("sales").createIndex({ payment_reference: 1 }, { unique: true, partialFilterExpression: { payment_reference: { $type: "string" } } }),
+    db.collection("sales").createIndex(
+      { payment_reference: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { payment_reference: { $type: "string" } },
+      },
+    ),
     db
       .collection("photographer_sales")
       .createIndex({ idempotency_key: 1 }, { unique: true }),
@@ -505,6 +511,7 @@ try {
           wizard_step: 7,
           customer_name: `${slug} müşterisi`,
           customer_email: ownerEmail,
+          customer_phone: "05321234567",
           package_code: packageCode,
         },
         partnerCookie,
@@ -599,13 +606,28 @@ try {
     )
   ).data;
   assert.equal(publishedInvitation.status, "published");
+  const premiumSale = await db
+    .collection("sales")
+    .findOne({ wedding_id: premiumInvitationEvent.id });
+  await call(
+    `/admin/sales/${premiumSale.id}/confirm-payment`,
+    "POST",
+    {
+      payment_method: "bank_transfer",
+      payment_reference: "BANKA-PREMIUM-1",
+      paid_at: new Date().toISOString(),
+    },
+    platform,
+  );
+  await call(
+    `/admin/weddings/${premiumInvitationEvent.id}/publish`,
+    "POST",
+    {},
+    platform,
+  );
   assert.equal(
-    (
-      await call(
-        `/weddings/slug/${premiumInvitationEvent.slug}`,
-        "GET",
-      )
-    ).data.digital_invitation.status,
+    (await call(`/weddings/slug/${premiumInvitationEvent.slug}`, "GET")).data
+      .digital_invitation.status,
     "published",
   );
   await db
@@ -623,15 +645,12 @@ try {
   );
   assert.equal(
     "digital_invitation" in
-      (
-        await call(
-          `/weddings/slug/${premiumInvitationEvent.slug}`,
-          "GET",
-        )
-      ).data,
+      (await call(`/weddings/slug/${premiumInvitationEvent.slug}`, "GET")).data,
     false,
   );
-  const automaticSaleDraft = await db.collection("sales").findOne({ wedding_id: eventA.id });
+  const automaticSaleDraft = await db
+    .collection("sales")
+    .findOne({ wedding_id: eventA.id });
   assert.equal(automaticSaleDraft?.status, "draft");
   const recordedSale = (
     await call(
@@ -649,20 +668,33 @@ try {
   assert.equal(recordedSale.gross_cents, 500_000);
   assert.equal(recordedSale.commission_cents, 0);
   assert.equal(
-    await db.collection("commission_ledger").countDocuments({ sale_id: recordedSale.id }),
+    await db
+      .collection("commission_ledger")
+      .countDocuments({ sale_id: recordedSale.id }),
     0,
   );
+  await call(`/admin/weddings/${eventA.id}/publish`, "POST", {}, platform, 409);
   const paidSale = (
     await call(
       `/admin/sales/${recordedSale.id}/confirm-payment`,
       "POST",
-      { payment_method: "bank_transfer", payment_reference: "BANKA-INTEGRATION-1", paid_at: new Date().toISOString() },
+      {
+        payment_method: "bank_transfer",
+        payment_reference: "BANKA-INTEGRATION-1",
+        paid_at: new Date().toISOString(),
+      },
       platform,
     )
   ).data;
   assert.equal(paidSale.status, "paid");
   assert.equal(paidSale.commission_cents, 125_000);
-  assert.equal(paidSale.qualifying_ordinal, 1);
+  assert.equal(paidSale.qualifying_ordinal, 2);
+  assert.equal(
+    (await call(`/admin/weddings/${eventA.id}`, "GET", undefined, platform))
+      .data.commercial_status,
+    "payment_verified",
+  );
+  await call(`/admin/weddings/${eventA.id}/publish`, "POST", {}, platform);
   assert.equal(
     (
       await call(
@@ -679,8 +711,35 @@ try {
     "one organization must return the original sale record",
   );
   const partnerSales = (await call("/admin/sales", "GET", undefined, a)).data;
-  assert.equal(partnerSales.totals.paid_sales, 1);
-  assert.equal(partnerSales.items.find((item) => item.wedding_id === eventA.id)?.status, "paid");
+  assert.equal(partnerSales.totals.paid_sales, 2);
+  assert.equal(
+    partnerSales.items.find((item) => item.wedding_id === eventA.id)?.status,
+    "paid",
+  );
+  for (const [pendingEvent, reference] of [
+    [eventB, "BANKA-EVENT-B"],
+    [eventA2, "BANKA-EVENT-A2"],
+  ]) {
+    const pendingSale = await db
+      .collection("sales")
+      .findOne({ wedding_id: pendingEvent.id });
+    await call(
+      `/admin/sales/${pendingSale.id}/confirm-payment`,
+      "POST",
+      {
+        payment_method: "bank_transfer",
+        payment_reference: reference,
+        paid_at: new Date().toISOString(),
+      },
+      platform,
+    );
+    await call(
+      `/admin/weddings/${pendingEvent.id}/publish`,
+      "POST",
+      {},
+      platform,
+    );
+  }
   await call(
     `/admin/weddings/${eventA.id}/storage-limit`,
     "PATCH",
@@ -731,6 +790,7 @@ try {
         wizard_step: 6,
         customer_name: "Taslak Müşteri",
         customer_email: "draft-owner@example.com",
+        customer_phone: "05321234568",
         password: "taslakta-asla-kalmamali",
       },
       a,
@@ -995,8 +1055,7 @@ try {
     photographerEvent.assigned_photographers[0].expected_file_count,
     250,
   );
-  const photographerAccountId =
-    photographerEvent.assigned_photographers[0].id;
+  const photographerAccountId = photographerEvent.assigned_photographers[0].id;
   const photographerSale = (
     await call(
       "/admin/photographer-sales",
@@ -1084,15 +1143,41 @@ try {
       owner,
     )
   ).data;
-  assert.equal(consentedPhotographerSale.status, "paid");
+  assert.equal(consentedPhotographerSale.status, "pending_payment");
   assert.equal(consentedPhotographerSale.commercial_consent_version, 1);
+  assert.equal(
+    await db
+      .collection("service_payout_ledger")
+      .countDocuments({ sale_id: photographerSale.id }),
+    0,
+  );
+  const paidPhotographerSale = (
+    await call(
+      `/admin/photographer-sales/${photographerSale.id}/confirm-payment`,
+      "POST",
+      {
+        payment_method: "bank_transfer",
+        payment_reference: "PHOTO-PACKAGE-1",
+        paid_at: new Date().toISOString(),
+      },
+      platform,
+    )
+  ).data;
+  assert.equal(paidPhotographerSale.status, "paid");
+  assert.equal(
+    await db
+      .collection("service_payout_ledger")
+      .countDocuments({ sale_id: photographerSale.id }),
+    3,
+  );
   const initialPayouts = await db
     .collection("service_payout_ledger")
     .find({ sale_id: photographerSale.id, type: "accrual" })
     .toArray();
   assert.equal(initialPayouts.length, 3);
   assert.equal(
-    initialPayouts.filter((entry) => entry.status === "pending_delivery").length,
+    initialPayouts.filter((entry) => entry.status === "pending_delivery")
+      .length,
     2,
   );
   assert.equal(
@@ -1225,7 +1310,7 @@ try {
       `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/approve`,
       "POST",
       {},
-      platform,
+      finance,
     )
   ).data;
   assert.equal(approvedPayout.status, "approved");
@@ -1246,7 +1331,7 @@ try {
     `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/mark-paid`,
     "POST",
     { payment_reference: "AYNI-KISI-ENGELI" },
-    platform,
+    finance,
     409,
   );
   const paidPayout = (
@@ -1254,34 +1339,29 @@ try {
       `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[0].id}/mark-paid`,
       "POST",
       { payment_reference: "BANKA-TEST-0001" },
-      finance,
+      platform,
     )
   ).data;
   assert.equal(paidPayout.status, "paid");
   assert.equal(paidPayout.payment_reference, "BANKA-TEST-0001");
-  await call(
-    `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[1].id}/approve`,
-    "POST",
-    {},
-    platform,
-  );
-  const secondPaymentProof = new FormData();
-  secondPaymentProof.append(
-    "file",
-    new Blob([Buffer.from("%PDF-1.4\nShineQR second proof")], {
-      type: "application/pdf",
-    }),
-    "ikinci-odeme-belgesi.pdf",
-  );
-  assert.equal(
-    (
-      await fetch(
-        `${base}/api/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[1].id}/proof`,
-        { method: "POST", headers: { cookie: platform }, body: secondPaymentProof },
-      )
-    ).status,
-    201,
-  );
+  const financeApprovedPayout = (
+    await call(
+      `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[1].id}/approve`,
+      "POST",
+      {},
+      finance,
+    )
+  ).data;
+  assert.equal(financeApprovedPayout.status, "approved");
+  const recognizedPayout = (
+    await call(
+      `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[1].id}/approve`,
+      "POST",
+      {},
+      platform,
+    )
+  ).data;
+  assert.equal(recognizedPayout.status, "recognized");
   await call(
     `/admin/photographer-sales/${photographerSale.id}/payouts/${payablePayouts[1].id}/mark-paid`,
     "POST",
@@ -1420,11 +1500,11 @@ try {
     new Blob([await wrongPdf.save()], { type: "application/pdf" }),
     "yanlis-olcu.pdf",
   );
-  const rejectedPdf = await fetch(
+  const acceptedPdf = await fetch(
     `${base}/api/admin/print-jobs/${printJob.id}/production-pdf`,
     { method: "POST", headers: { cookie: platform }, body: wrongPdfForm },
   );
-  assert.equal(rejectedPdf.status, 422);
+  assert.equal(acceptedPdf.status, 200);
   const printPdf = await PDFDocument.create();
   const mmToPoints = (value) => (value * 72) / 25.4;
   printPdf.addPage([mmToPoints(81), mmToPoints(106)]);

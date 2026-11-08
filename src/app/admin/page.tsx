@@ -16,6 +16,8 @@ const stateOf = (w: Wedding) =>
   w.lifecycle_status === "draft" && w.approval_status === "submitted" ? "submitted" :
   w.lifecycle_status === "draft" && w.approval_status === "changes_requested" ? "changes_requested" :
   w.lifecycle_status === "draft" && w.approval_status === "rejected" ? "rejected" :
+  w.lifecycle_status === "draft" && w.approval_status === "approved" && w.commercial_status === "payment_verified" ? "payment_verified" :
+  w.lifecycle_status === "draft" && w.approval_status === "approved" ? "approved" :
   w.lifecycle_status === "draft" || w.lifecycle_status === "archived" || w.lifecycle_status === "upcoming"
     ? w.lifecycle_status
     : expired(w) ? "expired" : uploadsOpen(w) ? "open" : "closed";
@@ -24,6 +26,8 @@ const labels: Record<string, string> = {
   submitted: "Onay bekliyor",
   changes_requested: "Düzeltme istendi",
   rejected: "Reddedildi",
+  approved: "Ödeme bekliyor",
+  payment_verified: "Ödeme onaylandı · yayın bekliyor",
   upcoming: "Yaklaşan",
   archived: "Arşivlendi",
   open: "Yükleme açık",
@@ -91,6 +95,12 @@ export default function Events() {
     if (!window.confirm("Bu organizasyon için ödeme bekleyen satış taslağı oluşturulsun mu?")) return;
     await api("/admin/sales", { method: "POST", body: JSON.stringify({ wedding_id: id }) });
     await qc.invalidateQueries({ queryKey: ["sales"] });
+    await qc.invalidateQueries({ queryKey: ["admin-weddings"] });
+  }
+  async function publishApproved(id: string) {
+    if (!window.confirm("Ödemesi onaylanan organizasyon yayınlansın mı?")) return;
+    await api(`/admin/weddings/${id}/publish`, { method: "POST", body: JSON.stringify({}) });
+    await qc.invalidateQueries({ queryKey: ["admin-weddings"] });
   }
   return (
     <AdminShell>
@@ -219,10 +229,10 @@ export default function Events() {
             <div className={`admin-event-selectable ${w.approval_status === "submitted" ? "approval-pending" : ""}`} key={w.id}>
             {me.data?.role !== "owner" ? <label className="admin-event-selector"><input type="checkbox" checked={selected.includes(w.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, w.id] : current.filter((id) => id !== w.id))}/><span className="sr-only">{w.title} seç</span></label> : null}
             <Link
-              href={w.lifecycle_status === "draft" ? "#taslak" : `/admin/${w.id}`}
+              href={w.lifecycle_status === "draft" && w.approval_status !== "approved" && me.data?.role !== "owner" ? "#taslak" : `/admin/${w.id}`}
               className="admin-event-card"
               onClick={(event) => {
-                if (w.lifecycle_status !== "draft") return;
+                if (w.lifecycle_status !== "draft" || w.approval_status === "approved" || me.data?.role === "owner") return;
                 event.preventDefault();
                 if (w.approval_status === "submitted") return;
                 setSelectedDraft(w);
@@ -293,8 +303,14 @@ export default function Events() {
                 </button>
               </div>
             ) : null}
-            {me.data?.role === "platform" && w.approval_status === "approved" ? (
+            {me.data?.role === "platform" && w.approval_status === "approved" && w.commercial_status === "not_ready" ? (
               <button className="admin-button admin-event-approve" onClick={() => void recordSale(w.id)}><ReceiptText size={15} /> Satış taslağını hazırla</button>
+            ) : null}
+            {me.data?.role === "platform" && w.approval_status === "approved" && w.commercial_status === "awaiting_payment" ? (
+              <span className="admin-status-pill">Finans onayı bekleniyor</span>
+            ) : null}
+            {me.data?.role === "platform" && w.approval_status === "approved" && w.commercial_status === "payment_verified" ? (
+              <button className="admin-button primary admin-event-approve" onClick={() => void publishApproved(w.id)}><ArrowUpRight size={15} /> Yayınla</button>
             ) : null}
             </div>
           ))}

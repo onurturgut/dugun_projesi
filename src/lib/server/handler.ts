@@ -39,7 +39,15 @@ import {
 import { storage, deleteObject, signedObjectUrl } from "./r2";
 import { mediaResponse, zipResponse } from "./media-response";
 import { cleanup } from "./maintenance";
-import { uploadCover, validateCovers, coverResponse } from "./covers";
+import {
+  uploadCover,
+  validateCovers,
+  coverResponse,
+  coverAssetResponse,
+} from "./covers";
+import { availableDesignRequestTemplates } from "@/lib/design";
+import { qrTemplates } from "@/lib/qr-templates";
+import { qrProductEntitlement, qrProducts } from "@/lib/qr-products";
 import {
   deadlines,
   expired,
@@ -66,6 +74,7 @@ import type {
   AgentReport,
   PrintJob,
   PrintJobStatus,
+  DesignRequest,
 } from "@/lib/models";
 import { designSchema } from "@/lib/design";
 import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
@@ -74,6 +83,7 @@ import {
   commissionSnapshot,
   FAIR_USE_POLICY,
   GIB,
+  hasCustomDesignEntitlement,
   istanbulCalendarMonth,
   packageSnapshot,
   packageStorageLimit,
@@ -106,9 +116,7 @@ import {
   effectiveStaffRole,
   initialPartnerStaffRole,
 } from "@/lib/access-control";
-import { canTransitionPrintJob } from "@/lib/print-jobs";
-import { inspectPrintPdf } from "@/lib/pdf-preflight";
-import { resolveQrProduct } from "@/lib/qr-products";
+import { approvedPrintSource, canTransitionPrintJob } from "@/lib/print-jobs";
 import { sendPasswordResetEmail } from "./email";
 import { createPaymentQuote } from "./payment-quote";
 import {
@@ -117,7 +125,10 @@ import {
   encryptTotpSecret,
   verifyTotp,
 } from "./totp";
-const addOnEffectValues: Record<NonNullable<AddOnProduct["effect_type"]>, readonly number[]> = {
+const addOnEffectValues: Record<
+  NonNullable<AddOnProduct["effect_type"]>,
+  readonly number[]
+> = {
   print_quantity: [1, 10, 20, 30, 50],
   welcome_sign: [1],
   storage_gib: [10],
@@ -126,10 +137,34 @@ const addOnEffectValues: Record<NonNullable<AddOnProduct["effect_type"]>, readon
   custom_design: [1],
   second_event: [1],
 };
-const validAddOnEffect = (effectType: NonNullable<AddOnProduct["effect_type"]>, effectValue: number) =>
+const validAddOnEffect = (
+  effectType: NonNullable<AddOnProduct["effect_type"]>,
+  effectValue: number,
+) =>
   effectType === "print_quantity"
     ? Number.isInteger(effectValue) && effectValue >= 1 && effectValue <= 10_000
     : addOnEffectValues[effectType].includes(effectValue);
+function requireCompleteCustomDesignRequest(
+  products: AddOnProduct[],
+  request: Wedding["custom_design_request"],
+  covers: string[],
+) {
+  if (!products.some((product) => product.effect_type === "custom_design"))
+    return;
+  if (
+    !request?.description.trim() ||
+    !request.colors.trim() ||
+    !request.text_content.trim() ||
+    !request.main_image_url ||
+    !covers.includes(request.main_image_url) ||
+    !request.surfaces.length ||
+    !request.due_date
+  )
+    throw new HttpError(
+      400,
+      "Kişiye özel tasarım bilgileri eksik veya ana görsel organizasyon görsellerine ait değil.",
+    );
+}
 async function ensureSaleDraft(
   database: Db,
   event: Wedding,
@@ -137,15 +172,23 @@ async function ensureSaleDraft(
   transaction?: ClientSession,
 ) {
   if (!event.package_code) return null;
-  const existing = await database.collection<SaleRecord>("sales").findOne(
-    { wedding_id: event.id },
-    { projection: { _id: 0 }, session: transaction },
-  );
+  const existing = await database
+    .collection<SaleRecord>("sales")
+    .findOne(
+      { wedding_id: event.id },
+      { projection: { _id: 0 }, session: transaction },
+    );
   if (existing) return existing;
-  const selectedPackage = event.package_snapshot || await currentPackage(database, event.package_code);
-  const pricing = event.price_snapshot || priceSnapshotForPackage(selectedPackage as PackageConfiguration, [], []);
-  const vatRateBps = (selectedPackage as Partial<PackageConfiguration>).vat_rate_bps ?? 2000;
-  const netCents = pricing.net_cents ?? netFromVatIncluded(pricing.gross_cents, vatRateBps);
+  const selectedPackage =
+    event.package_snapshot ||
+    (await currentPackage(database, event.package_code));
+  const pricing =
+    event.price_snapshot ||
+    priceSnapshotForPackage(selectedPackage as PackageConfiguration, [], []);
+  const vatRateBps =
+    (selectedPackage as Partial<PackageConfiguration>).vat_rate_bps ?? 2000;
+  const netCents =
+    pricing.net_cents ?? netFromVatIncluded(pricing.gross_cents, vatRateBps);
   const now = new Date().toISOString();
   const draft: SaleRecord = {
     id: randomUUID(),
@@ -169,8 +212,12 @@ async function ensureSaleDraft(
     platform_cents: 0,
     price_snapshot: structuredClone(pricing),
     variable_cost_cents:
-      ((selectedPackage as Partial<PackageConfiguration>).variable_cost_cents || 0) +
-      pricing.add_ons.reduce((sum, item) => sum + (item.line_cost_cents || 0), 0),
+      ((selectedPackage as Partial<PackageConfiguration>).variable_cost_cents ||
+        0) +
+      pricing.add_ons.reduce(
+        (sum, item) => sum + (item.line_cost_cents || 0),
+        0,
+      ),
     payment_reference: null,
     paid_at: null,
     paid_by: null,
@@ -180,8 +227,78 @@ async function ensureSaleDraft(
   return database.collection<SaleRecord>("sales").findOneAndUpdate(
     { wedding_id: event.id },
     { $setOnInsert: draft },
-    { upsert: true, returnDocument: "after", projection: { _id: 0 }, session: transaction },
+    {
+      upsert: true,
+      returnDocument: "after",
+      projection: { _id: 0 },
+      session: transaction,
+    },
   );
+}
+async function ensureRequestedPhotographerSale(
+  database: Db,
+  event: Wedding,
+  actorId: string,
+  transaction?: ClientSession,
+) {
+  if (!event.photographer_package_requested) return null;
+  const existing = await database
+    .collection<PhotographerSaleRecord>("photographer_sales")
+    .findOne(
+      { idempotency_key: `wedding-photographer-offer-${event.id}` },
+      { projection: { _id: 0 }, session: transaction },
+    );
+  if (existing) return existing;
+  const assignment = await database
+    .collection("organization_participants")
+    .findOne(
+      { wedding_id: event.id, participant_role: "photographer", active: true },
+      { session: transaction },
+    );
+  if (!assignment?.account_id || !assignment.partner_id)
+    throw new HttpError(
+      409,
+      "Fotoğrafçı paketi için aktif bir fotoğrafçı ataması gerekli.",
+    );
+  const photographerPackage = await currentPhotographerPackage(database);
+  const now = new Date().toISOString();
+  const draft: PhotographerSaleRecord = {
+    id: randomUUID(),
+    idempotency_key: `wedding-photographer-offer-${event.id}`,
+    wedding_id: event.id,
+    photographer_account_id: assignment.account_id,
+    photographer_partner_id: assignment.partner_id,
+    originating_partner_id: event.lead_partner_id || event.partner_id,
+    status: "pending_customer_consent",
+    occurred_at: now,
+    recorded_at: now,
+    recorded_by: actorId,
+    settlement_snapshot: photographerSettlementSnapshot(photographerPackage),
+    refunded_at: null,
+    refunded_by: null,
+    delivery_completed_at: null,
+    customer_approval_status: "pending_delivery",
+    customer_approved_at: null,
+    customer_approved_by: null,
+    commercial_consent_version: 1,
+    commercial_consent_at: null,
+    commercial_consent_by: null,
+    payment_reference: null,
+    paid_at: null,
+    paid_by: null,
+  };
+  return database
+    .collection<PhotographerSaleRecord>("photographer_sales")
+    .findOneAndUpdate(
+      { idempotency_key: draft.idempotency_key },
+      { $setOnInsert: draft },
+      {
+        upsert: true,
+        returnDocument: "after",
+        projection: { _id: 0 },
+        session: transaction,
+      },
+    );
 }
 const json = (value: unknown, status = 200) =>
   NextResponse.json(value, {
@@ -872,10 +989,15 @@ export async function handle(
       );
     if (route === "partners" && method === "GET")
       return json(
-        await database.collection("partners").find(
-          { active: true, logo_url: { $type: "string", $ne: "" } },
-          { projection: { _id: 0, id: 1, name: 1, logo_url: 1 } },
-        ).sort({ name: 1 }).limit(24).toArray(),
+        await database
+          .collection("partners")
+          .find(
+            { active: true, logo_url: { $type: "string", $ne: "" } },
+            { projection: { _id: 0, id: 1, name: 1, logo_url: 1 } },
+          )
+          .sort({ name: 1 })
+          .limit(24)
+          .toArray(),
       );
     if (
       path.length === 3 &&
@@ -1456,7 +1578,9 @@ export async function handle(
           { projection: { _id: 0, id: 1, name: 1, logo_url: 1 } },
         )
         .toArray();
-      const partnerById = new Map(partners.map((partner) => [partner.id, partner]));
+      const partnerById = new Map(
+        partners.map((partner) => [partner.id, partner]),
+      );
       return json(
         photographers.map((photographer) => {
           const partner = partnerById.get(photographer.partner_id);
@@ -1529,15 +1653,15 @@ export async function handle(
           { projection: { _id: 0 } },
         );
         if (!event) throw new HttpError(404, "Organizasyon bulunamadı.");
-        if (
-          event.design_status !== "approved_for_print" ||
-          !event.design_snapshot_id ||
-          !event.design
-        )
+        const printSource = approvedPrintSource(event);
+        if (!printSource)
           throw new HttpError(
             409,
-            "Baskı işi oluşturmak için tasarımın baskı onayı gerekir.",
+            "Baskı işi oluşturmak için QR tasarımının müşteri onayı gerekir.",
           );
+        const requestProduct = qrProducts.find(
+          (product) => product.id === printSource.productId,
+        );
         const printer = await database.collection<Account>("users").findOne({
           id: input.printer_account_id,
           role: "partner",
@@ -1547,13 +1671,50 @@ export async function handle(
         if (!printer?.partner_id)
           throw new HttpError(400, "Aktif baskıcı hesabı bulunamadı.");
         const now = new Date().toISOString();
+        let designSnapshotId =
+          printSource.source === "legacy_design"
+            ? event.design_snapshot_id
+            : undefined;
+        const designRevision = printSource.revision;
+        if (!designSnapshotId) {
+          const snapshot = await database
+            .collection("design_snapshots")
+            .findOneAndUpdate(
+              { wedding_id: event.id, revision: designRevision },
+              {
+                $setOnInsert: {
+                  id: randomUUID(),
+                  wedding_id: event.id,
+                  revision: designRevision,
+                  schema_version: 1,
+                  created_at: now,
+                  created_by: user.id,
+                  configuration: {
+                    design: event.design || {
+                      qrProductId: requestProduct!.id,
+                      design_request: event.design_request,
+                    },
+                    event: {
+                      slug: event.slug,
+                      title: event.title,
+                      wedding_date: event.wedding_date,
+                    },
+                  },
+                },
+              },
+              { upsert: true, returnDocument: "after" },
+            );
+          designSnapshotId = snapshot!.id;
+        }
+        if (!designSnapshotId)
+          throw new HttpError(500, "Tasarım sürümü kaydedilemedi.");
         const job: PrintJob = {
           id: randomUUID(),
           wedding_id: event.id,
           wedding_title: event.title,
-          design_snapshot_id: event.design_snapshot_id,
-          design_revision: event.design_revision || 1,
-          qr_product_id: event.design!.qrProductId,
+          design_snapshot_id: designSnapshotId,
+          design_revision: designRevision,
+          qr_product_id: printSource.productId,
           printer_account_id: printer.id,
           printer_partner_id: printer.partner_id,
           printer_name: printer.display_name,
@@ -1654,34 +1815,6 @@ export async function handle(
             400,
             "Dosya geçerli ve tamamlanmış bir PDF değil.",
           );
-        const preflight = await inspectPrintPdf(
-          body,
-          resolveQrProduct(job.qr_product_id),
-        );
-        const checkedAt = new Date().toISOString();
-        if (!preflight.passed) {
-          await printJobs.updateOne(
-            { ...scope, status_version: job.status_version },
-            {
-              $set: {
-                pdf_preflight: { ...preflight, checked_at: checkedAt },
-                updated_at: checkedAt,
-                updated_by: user.id,
-              },
-              $inc: { status_version: 1 },
-            },
-          );
-          await audit(req, "print_job.pdf_preflight_failed", user, {
-            print_job_id: job.id,
-            failed_checks: preflight.checks
-              .filter((check) => check.status === "failed")
-              .map((check) => check.id),
-          });
-          throw new HttpError(
-            422,
-            "PDF baskı ön kontrolünden geçemedi. Sayfa sayısı ve ölçülerini kontrol edin.",
-          );
-        }
         const key = `print-jobs/${job.id}/${randomUUID()}.pdf`;
         const { client, bucket } = storage();
         await client.send(
@@ -1707,7 +1840,6 @@ export async function handle(
                 uploaded_at: now,
                 uploaded_by: user.id,
               },
-              pdf_preflight: { ...preflight, checked_at: checkedAt },
               updated_at: now,
               updated_by: user.id,
             },
@@ -1734,8 +1866,6 @@ export async function handle(
       ) {
         if (!job.production_pdf)
           throw new HttpError(404, "Baskıya hazır PDF henüz yüklenmedi.");
-        if (!job.pdf_preflight?.passed)
-          throw new HttpError(409, "PDF baskı ön kontrolünden geçmedi.");
         const { client, bucket } = storage();
         const object = await client.send(
           new GetObjectCommand({
@@ -1778,11 +1908,8 @@ export async function handle(
             409,
             "Matbaa kontrolü PDF indirildikten sonra yapılabilir.",
           );
-        if (!job.production_pdf || !job.pdf_preflight?.passed)
-          throw new HttpError(
-            409,
-            "Ön kontrolden geçen baskı PDF'i bulunamadı.",
-          );
+        if (!job.production_pdf)
+          throw new HttpError(409, "Baskı PDF'i bulunamadı.");
         const input = z
           .object({
             color_profile_confirmed: z.literal(true),
@@ -2247,52 +2374,108 @@ export async function handle(
       });
     }
     if (
-      path.length === 4 && path[0] === "admin" && path[1] === "weddings" &&
-      path[3] === "payment-quote" && method === "POST" && user
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "weddings" &&
+      path[3] === "payment-quote" &&
+      method === "POST" &&
+      user
     ) {
       requirePermission(user, "organization.update");
       const event = await eventFor(user, path[2]);
       const quote = await createPaymentQuote(database, event, user.id);
-      await audit(req, "payment_quote.created", user, { quote_id: quote.id, wedding_id: event.id, gross_cents: quote.gross_cents });
+      await audit(req, "payment_quote.created", user, {
+        quote_id: quote.id,
+        wedding_id: event.id,
+        gross_cents: quote.gross_cents,
+      });
       return json(quote, 201);
     }
     if (route === "admin/finance/packages" && user && method === "GET") {
-      requirePermission(user, user.role === "platform" ? "finance.view_all" : "finance.view_own");
-      return json(await currentPackages(database));
+      requirePermission(
+        user,
+        user.role === "platform" ? "finance.view_all" : "finance.view_own",
+      );
+      const result = await currentPackages(database);
+      if (user.role === "platform") return json(result);
+      return json({
+        ...result,
+        items: result.items.map(
+          ({
+            variable_cost_cents: _cost,
+            target_margin_bps: _margin,
+            updated_by: _updatedBy,
+            ...item
+          }) => item,
+        ),
+      });
     }
     if (
-      path.length === 4 && path[0] === "admin" && path[1] === "finance" &&
-      path[2] === "packages" && method === "PATCH" && user
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "finance" &&
+      path[2] === "packages" &&
+      method === "PATCH" &&
+      user
     ) {
       requirePermission(user, "commission.manage");
       const code = z.enum(["plan-1", "plan-2", "plan-3"]).parse(path[3]);
-      const changes = z.object({
-        name: z.string().trim().min(2).max(120).optional(),
-        description: z.string().trim().max(1000).optional(),
-        grossPriceCents: z.number().int().min(0).max(100_000_000).optional(),
-        miniQrCount: z.number().int().min(0).max(10000).optional(),
-        welcomeSignCount: z.number().int().min(0).max(1000).optional(),
-        active: z.boolean().optional(),
-        display_order: z.number().int().min(0).max(1000).optional(),
-        featured: z.boolean().optional(),
-        vat_rate_bps: z.number().int().min(0).max(10_000).optional(),
-        target_margin_bps: z.number().int().min(0).max(9900).optional(),
-        variable_cost_cents: z.number().int().min(0).max(100_000_000).optional(),
-        hardStorageBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable().optional(),
-        fairUseSoftCapBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable().optional(),
-        uploadWindow: z.enum(["event-day", "seven-days"]).optional(),
-        digitalRetentionMonths: z.number().int().min(1).max(120).optional(),
-        physicalRetentionMonths: z.number().int().min(0).max(120).optional(),
-        revisionLimit: z.number().int().min(0).max(100).nullable().optional(),
-        includedEventCount: z.number().int().min(1).max(100).optional(),
-        secondEventPrintingIncluded: z.boolean().optional(),
-        qualifiesForVolumeCommission: z.boolean().optional(),
-        digitalInvitationIncluded: z.boolean().optional(),
-        tableQrCount: z.number().int().min(0).max(10_000).optional(),
-        campaign_starts_at: z.string().datetime().nullable().optional(),
-        campaign_ends_at: z.string().datetime().nullable().optional(),
-        compare_at_gross_cents: z.number().int().min(0).max(100_000_000).nullable().optional(),
-      }).refine((value) => Object.keys(value).length > 0, "En az bir alan değiştirilmeli.").parse(await req.json());
+      const changes = z
+        .object({
+          name: z.string().trim().min(2).max(120).optional(),
+          description: z.string().trim().max(1000).optional(),
+          grossPriceCents: z.number().int().min(0).max(100_000_000).optional(),
+          miniQrCount: z.number().int().min(0).max(10000).optional(),
+          welcomeSignCount: z.number().int().min(0).max(1000).optional(),
+          active: z.boolean().optional(),
+          display_order: z.number().int().min(0).max(1000).optional(),
+          featured: z.boolean().optional(),
+          vat_rate_bps: z.number().int().min(0).max(10_000).optional(),
+          target_margin_bps: z.number().int().min(0).max(9900).optional(),
+          variable_cost_cents: z
+            .number()
+            .int()
+            .min(0)
+            .max(100_000_000)
+            .optional(),
+          hardStorageBytes: z
+            .number()
+            .int()
+            .min(0)
+            .max(Number.MAX_SAFE_INTEGER)
+            .nullable()
+            .optional(),
+          fairUseSoftCapBytes: z
+            .number()
+            .int()
+            .min(0)
+            .max(Number.MAX_SAFE_INTEGER)
+            .nullable()
+            .optional(),
+          uploadWindow: z.enum(["event-day", "seven-days"]).optional(),
+          digitalRetentionMonths: z.number().int().min(1).max(120).optional(),
+          physicalRetentionMonths: z.number().int().min(0).max(120).optional(),
+          revisionLimit: z.number().int().min(0).max(100).nullable().optional(),
+          includedEventCount: z.number().int().min(1).max(100).optional(),
+          secondEventPrintingIncluded: z.boolean().optional(),
+          qualifiesForVolumeCommission: z.boolean().optional(),
+          digitalInvitationIncluded: z.boolean().optional(),
+          tableQrCount: z.number().int().min(0).max(10_000).optional(),
+          campaign_starts_at: z.string().datetime().nullable().optional(),
+          campaign_ends_at: z.string().datetime().nullable().optional(),
+          compare_at_gross_cents: z
+            .number()
+            .int()
+            .min(0)
+            .max(100_000_000)
+            .nullable()
+            .optional(),
+        })
+        .refine(
+          (value) => Object.keys(value).length > 0,
+          "En az bir alan değiştirilmeli.",
+        )
+        .parse(await req.json());
       const previous = await currentPackage(database, code, true);
       const now = new Date().toISOString();
       const next: PackageConfiguration = {
@@ -2305,146 +2488,499 @@ export async function handle(
       const transaction = (await mongoClient()).startSession();
       try {
         await transaction.withTransaction(async () => {
-          await database.collection<PackageConfiguration>("package_configurations").replaceOne({ code }, next, { upsert: true, session: transaction });
-          await database.collection("pricing_change_history").insertOne({
-            id: randomUUID(), entity_type: "package", entity_id: code,
-            previous, next, changed_fields: Object.keys(changes), changed_at: now, changed_by: user.id,
-          }, { session: transaction });
+          await database
+            .collection<PackageConfiguration>("package_configurations")
+            .replaceOne({ code }, next, { upsert: true, session: transaction });
+          await database.collection("pricing_change_history").insertOne(
+            {
+              id: randomUUID(),
+              entity_type: "package",
+              entity_id: code,
+              previous,
+              next,
+              changed_fields: Object.keys(changes),
+              changed_at: now,
+              changed_by: user.id,
+            },
+            { session: transaction },
+          );
         });
-      } finally { await transaction.endSession(); }
-      await audit(req, "pricing.package.updated", user, { code, previous, next });
+      } finally {
+        await transaction.endSession();
+      }
+      await audit(req, "pricing.package.updated", user, {
+        code,
+        previous,
+        next,
+      });
       return json(next);
     }
     if (route === "admin/finance/photographer-package" && user) {
-      requirePermission(user, user.role === "platform" ? "finance.view_all" : "finance.view_own");
-      if (method === "GET") return json(await currentPhotographerPackage(database, true));
-      if (method !== "PATCH") throw new HttpError(405, "Desteklenmeyen yöntem.");
+      requirePermission(
+        user,
+        user.role === "platform" ? "finance.view_all" : "finance.view_own",
+      );
+      if (method === "GET") {
+        const item = await currentPhotographerPackage(database, true);
+        if (user.role === "platform") return json(item);
+        return json({
+          code: item.code,
+          name: item.name,
+          description: item.description,
+          grossPriceCents: item.grossPriceCents,
+          active: item.active,
+        });
+      }
+      if (method !== "PATCH")
+        throw new HttpError(405, "Desteklenmeyen yöntem.");
       requirePermission(user, "commission.manage");
-      const changes = z.object({
-        name: z.string().trim().min(2).max(120).optional(),
-        description: z.string().trim().max(1000).optional(),
-        grossPriceCents: z.number().int().min(0).max(100_000_000).optional(),
-        vatRateBps: z.number().int().min(0).max(10_000).optional(),
-        digitalRetentionMonths: z.number().int().min(1).max(120).optional(),
-        photographerGrossCents: z.number().int().min(0).max(100_000_000).optional(),
-        originatingPartnerGrossCents: z.number().int().min(0).max(100_000_000).optional(),
-        platformGrossCents: z.number().int().min(0).max(100_000_000).optional(),
-        active: z.boolean().optional(),
-      }).refine((value) => Object.keys(value).length > 0, "En az bir alan değiştirilmeli.").parse(await req.json());
+      const changes = z
+        .object({
+          name: z.string().trim().min(2).max(120).optional(),
+          description: z.string().trim().max(1000).optional(),
+          grossPriceCents: z.number().int().min(0).max(100_000_000).optional(),
+          vatRateBps: z.number().int().min(0).max(10_000).optional(),
+          digitalRetentionMonths: z.number().int().min(1).max(120).optional(),
+          photographerGrossCents: z
+            .number()
+            .int()
+            .min(0)
+            .max(100_000_000)
+            .optional(),
+          originatingPartnerGrossCents: z
+            .number()
+            .int()
+            .min(0)
+            .max(100_000_000)
+            .optional(),
+          platformGrossCents: z
+            .number()
+            .int()
+            .min(0)
+            .max(100_000_000)
+            .optional(),
+          active: z.boolean().optional(),
+        })
+        .refine(
+          (value) => Object.keys(value).length > 0,
+          "En az bir alan değiştirilmeli.",
+        )
+        .parse(await req.json());
       const previous = await currentPhotographerPackage(database, true);
       const now = new Date().toISOString();
-      const next: PhotographerPackageConfiguration = { ...previous, ...changes, version: previous.version + 1, updated_at: now, updated_by: user.id };
-      const allocation = next.photographerGrossCents + next.originatingPartnerGrossCents + next.platformGrossCents;
+      const next: PhotographerPackageConfiguration = {
+        ...previous,
+        ...changes,
+        version: previous.version + 1,
+        updated_at: now,
+        updated_by: user.id,
+      };
+      const allocation =
+        next.photographerGrossCents +
+        next.originatingPartnerGrossCents +
+        next.platformGrossCents;
       if (allocation !== next.grossPriceCents)
-        throw new HttpError(400, "Fotoğrafçı, kaynak işletme ve platform payları toplam satış fiyatına eşit olmalı.");
+        throw new HttpError(
+          400,
+          "Fotoğrafçı, kaynak işletme ve platform payları toplam satış fiyatına eşit olmalı.",
+        );
       const transaction = (await mongoClient()).startSession();
       try {
         await transaction.withTransaction(async () => {
-          await database.collection<PhotographerPackageConfiguration>("photographer_package_configurations").replaceOne({ code: next.code }, next, { upsert: true, session: transaction });
-          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "photographer_package", entity_id: next.code, previous, next, changed_fields: Object.keys(changes), changed_at: now, changed_by: user.id }, { session: transaction });
+          await database
+            .collection<PhotographerPackageConfiguration>(
+              "photographer_package_configurations",
+            )
+            .replaceOne({ code: next.code }, next, {
+              upsert: true,
+              session: transaction,
+            });
+          await database.collection("pricing_change_history").insertOne(
+            {
+              id: randomUUID(),
+              entity_type: "photographer_package",
+              entity_id: next.code,
+              previous,
+              next,
+              changed_fields: Object.keys(changes),
+              changed_at: now,
+              changed_by: user.id,
+            },
+            { session: transaction },
+          );
         });
-      } finally { await transaction.endSession(); }
-      await audit(req, "pricing.photographer_package.updated", user, { previous, next });
+      } finally {
+        await transaction.endSession();
+      }
+      await audit(req, "pricing.photographer_package.updated", user, {
+        previous,
+        next,
+      });
       return json(next);
     }
     if (route === "admin/finance/commission-policies" && user) {
       if (method === "GET") {
-        requirePermission(user, user.role === "platform" ? "finance.view_all" : "commission.view_own");
-        const scope = user.role === "platform" ? { active: true } : { active: true, partner_id: user.partner_id! };
+        requirePermission(
+          user,
+          user.role === "platform" ? "finance.view_all" : "commission.view_own",
+        );
+        const scope =
+          user.role === "platform"
+            ? { active: true }
+            : { active: true, partner_id: user.partner_id! };
         const [policies, partners] = await Promise.all([
-          database.collection<PartnerCommissionPolicy>("partner_commission_policies").find(scope, { projection: { _id: 0 } }).sort({ partner_id: 1, version: -1 }).toArray(),
-          database.collection("partners").find(user.role === "platform" ? {} : { id: user.partner_id! }, { projection: { _id: 0, id: 1, name: 1, business_types: 1, active: 1 } }).toArray(),
+          database
+            .collection<PartnerCommissionPolicy>("partner_commission_policies")
+            .find(scope, { projection: { _id: 0 } })
+            .sort({ partner_id: 1, version: -1 })
+            .toArray(),
+          database
+            .collection("partners")
+            .find(user.role === "platform" ? {} : { id: user.partner_id! }, {
+              projection: {
+                _id: 0,
+                id: 1,
+                name: 1,
+                business_types: 1,
+                active: 1,
+              },
+            })
+            .toArray(),
         ]);
         const latest = new Map<string, PartnerCommissionPolicy>();
-        for (const policy of policies) if (!latest.has(policy.partner_id)) latest.set(policy.partner_id, policy);
+        for (const policy of policies)
+          if (!latest.has(policy.partner_id))
+            latest.set(policy.partner_id, policy);
         const period = istanbulCalendarMonth(new Date());
-        const counters = await database.collection("monthly_sales_counters").find({ partner_id: { $in: partners.map((item) => item.id) }, period }).toArray();
-        return json(partners.map((partner) => ({ ...partner, policy: latest.get(String(partner.id)) || null, period, monthly_valid_sales: Number(counters.find((item) => item.partner_id === partner.id)?.net_count || 0) })));
+        const counters = await database
+          .collection("monthly_sales_counters")
+          .find({
+            partner_id: { $in: partners.map((item) => item.id) },
+            period,
+          })
+          .toArray();
+        return json(
+          partners.map((partner) => ({
+            ...partner,
+            policy: latest.get(String(partner.id)) || null,
+            period,
+            monthly_valid_sales: Number(
+              counters.find((item) => item.partner_id === partner.id)
+                ?.net_count || 0,
+            ),
+          })),
+        );
       }
       if (method === "POST") {
         requirePermission(user, "commission.manage");
-        const input = z.object({
-          partner_id: z.string().trim().min(1).max(100), base_rate_bps: z.number().int().min(0).max(10_000),
-          threshold: z.number().int().min(1).max(10_000).default(10), elevated_rate_bps: z.number().int().min(0).max(10_000),
-          tiered: z.boolean().default(true), qualifying_package_codes: z.array(z.enum(["plan-1", "plan-2", "plan-3"])).min(1),
-          effective_from: z.string().datetime(),
-        }).parse(await req.json());
+        const input = z
+          .object({
+            partner_id: z.string().trim().min(1).max(100),
+            base_rate_bps: z.number().int().min(0).max(10_000),
+            threshold: z.number().int().min(1).max(10_000).default(10),
+            elevated_rate_bps: z.number().int().min(0).max(10_000),
+            tiered: z.boolean().default(true),
+            qualifying_package_codes: z
+              .array(z.enum(["plan-1", "plan-2", "plan-3"]))
+              .min(1),
+            effective_from: z.string().datetime(),
+          })
+          .parse(await req.json());
         const now = new Date().toISOString();
-        const current = await database.collection<PartnerCommissionPolicy>("partner_commission_policies").findOne({ partner_id: input.partner_id, active: true }, { sort: { version: -1 } });
-        const policy: PartnerCommissionPolicy = { id: randomUUID(), ...input, version: (current?.version || 0) + 1, active: true, created_at: now, created_by: user.id, updated_at: now, updated_by: user.id };
+        const current = await database
+          .collection<PartnerCommissionPolicy>("partner_commission_policies")
+          .findOne(
+            { partner_id: input.partner_id, active: true },
+            { sort: { version: -1 } },
+          );
+        const policy: PartnerCommissionPolicy = {
+          id: randomUUID(),
+          ...input,
+          version: (current?.version || 0) + 1,
+          active: true,
+          created_at: now,
+          created_by: user.id,
+          updated_at: now,
+          updated_by: user.id,
+        };
         const tx = (await mongoClient()).startSession();
-        try { await tx.withTransaction(async () => {
-          await database.collection<PartnerCommissionPolicy>("partner_commission_policies").insertOne(policy, { session: tx });
-          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "commission_policy", entity_id: input.partner_id, previous: current || null, next: policy, changed_fields: Object.keys(input), changed_at: now, changed_by: user.id }, { session: tx });
-        }); } finally { await tx.endSession(); }
-        await audit(req, "commission.policy.updated", user, { partner_id: input.partner_id, previous: current || null, next: policy });
+        try {
+          await tx.withTransaction(async () => {
+            await database
+              .collection<PartnerCommissionPolicy>(
+                "partner_commission_policies",
+              )
+              .insertOne(policy, { session: tx });
+            await database.collection("pricing_change_history").insertOne(
+              {
+                id: randomUUID(),
+                entity_type: "commission_policy",
+                entity_id: input.partner_id,
+                previous: current || null,
+                next: policy,
+                changed_fields: Object.keys(input),
+                changed_at: now,
+                changed_by: user.id,
+              },
+              { session: tx },
+            );
+          });
+        } finally {
+          await tx.endSession();
+        }
+        await audit(req, "commission.policy.updated", user, {
+          partner_id: input.partner_id,
+          previous: current || null,
+          next: policy,
+        });
         return json(policy, 201);
       }
     }
     if (route === "admin/finance/tax" && user) {
-      requirePermission(user, user.role === "platform" ? "finance.view_all" : "finance.view_own");
+      requirePermission(user, "finance.view_all");
       const taxes = database.collection<TaxConfiguration>("tax_configurations");
-      if (method === "GET") return json(await taxes.findOne({ id: "default" }, { projection: { _id: 0 } }));
+      if (method === "GET")
+        return json(
+          await taxes.findOne({ id: "default" }, { projection: { _id: 0 } }),
+        );
       requirePermission(user, "commission.manage");
-      const input = z.object({ default_vat_rate_bps: z.number().int().min(0).max(10_000), category_vat_rate_bps: z.record(z.string(), z.number().int().min(0).max(10_000)).default({}), carried_vat_cents: z.number().int().min(0), effective_from: z.string().datetime() }).parse(await req.json());
+      const input = z
+        .object({
+          default_vat_rate_bps: z.number().int().min(0).max(10_000),
+          category_vat_rate_bps: z
+            .record(z.string(), z.number().int().min(0).max(10_000))
+            .default({}),
+          carried_vat_cents: z.number().int().min(0),
+          effective_from: z.string().datetime(),
+        })
+        .parse(await req.json());
       const previous = await taxes.findOne({ id: "default" });
-      const next: TaxConfiguration = { id: "default", ...input, version: (previous?.version || 0) + 1, updated_at: new Date().toISOString(), updated_by: user.id };
+      const next: TaxConfiguration = {
+        id: "default",
+        ...input,
+        version: (previous?.version || 0) + 1,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      };
       const transaction = (await mongoClient()).startSession();
       try {
         await transaction.withTransaction(async () => {
-          await taxes.replaceOne({ id: "default" }, next, { upsert: true, session: transaction });
-          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "tax_configuration", entity_id: "default", previous, next, changed_fields: Object.keys(input), changed_at: next.updated_at, changed_by: user.id }, { session: transaction });
+          await taxes.replaceOne({ id: "default" }, next, {
+            upsert: true,
+            session: transaction,
+          });
+          await database.collection("pricing_change_history").insertOne(
+            {
+              id: randomUUID(),
+              entity_type: "tax_configuration",
+              entity_id: "default",
+              previous,
+              next,
+              changed_fields: Object.keys(input),
+              changed_at: next.updated_at,
+              changed_by: user.id,
+            },
+            { session: transaction },
+          );
         });
-      } finally { await transaction.endSession(); }
+      } finally {
+        await transaction.endSession();
+      }
       await audit(req, "tax.configuration.updated", user, { previous, next });
       return json(next);
     }
     if (route === "admin/finance/expenses" && user) {
       requirePermission(user, "finance.view_all");
       const expenses = database.collection<ExpenseRecord>("expense_records");
-      if (method === "GET") return json(await expenses.find({ $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }, { projection: { _id: 0 } }).sort({ payment_date: -1 }).limit(500).toArray());
-      const input = z.object({ name: z.string().trim().min(2).max(160), category: z.string().trim().min(2).max(80), amount_cents: z.number().int().min(0), vat_rate_bps: z.number().int().min(0).max(10_000).default(2000), deductible_vat: z.boolean().default(false), kind: z.enum(["fixed", "variable"]), recurrence: z.enum(["once", "monthly", "yearly"]), payment_status: z.enum(["planned", "paid"]), payment_date: z.string().date(), order_id: z.string().trim().optional(), estimated: z.boolean().default(false) }).parse(await req.json());
+      if (method === "GET")
+        return json(
+          await expenses
+            .find(
+              {
+                $or: [
+                  { archived_at: null },
+                  { archived_at: { $exists: false } },
+                ],
+              },
+              { projection: { _id: 0 } },
+            )
+            .sort({ payment_date: -1 })
+            .limit(500)
+            .toArray(),
+        );
+      const input = z
+        .object({
+          name: z.string().trim().min(2).max(160),
+          category: z.string().trim().min(2).max(80),
+          amount_cents: z.number().int().min(0),
+          vat_rate_bps: z.number().int().min(0).max(10_000).default(2000),
+          deductible_vat: z.boolean().default(false),
+          kind: z.enum(["fixed", "variable"]),
+          recurrence: z.enum(["once", "monthly", "yearly"]),
+          payment_status: z.enum(["planned", "paid"]),
+          payment_date: z.string().date(),
+          order_id: z.string().trim().optional(),
+          estimated: z.boolean().default(false),
+        })
+        .parse(await req.json());
       const now = new Date().toISOString();
-      const expense: ExpenseRecord = { id: randomUUID(), ...input, currency: "TRY", created_at: now, created_by: user.id, updated_at: now, updated_by: user.id };
+      const expense: ExpenseRecord = {
+        id: randomUUID(),
+        ...input,
+        currency: "TRY",
+        created_at: now,
+        created_by: user.id,
+        updated_at: now,
+        updated_by: user.id,
+      };
       const transaction = (await mongoClient()).startSession();
       try {
         await transaction.withTransaction(async () => {
           await expenses.insertOne(expense, { session: transaction });
-          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "expense", entity_id: expense.id, previous: null, next: expense, changed_fields: Object.keys(input), changed_at: now, changed_by: user.id }, { session: transaction });
+          await database.collection("pricing_change_history").insertOne(
+            {
+              id: randomUUID(),
+              entity_type: "expense",
+              entity_id: expense.id,
+              previous: null,
+              next: expense,
+              changed_fields: Object.keys(input),
+              changed_at: now,
+              changed_by: user.id,
+            },
+            { session: transaction },
+          );
         });
-      } finally { await transaction.endSession(); }
-      await audit(req, "expense.created", user, { expense_id: expense.id, amount_cents: expense.amount_cents });
+      } finally {
+        await transaction.endSession();
+      }
+      await audit(req, "expense.created", user, {
+        expense_id: expense.id,
+        amount_cents: expense.amount_cents,
+      });
       return json(expense, 201);
     }
-    if (path.length === 4 && path[0] === "admin" && path[1] === "finance" && path[2] === "expenses" && user) {
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "finance" &&
+      path[2] === "expenses" &&
+      user
+    ) {
       requirePermission(user, "finance.view_all");
       const expenses = database.collection<ExpenseRecord>("expense_records");
-      const previous = await expenses.findOne({ id: path[3], $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }, { projection: { _id: 0 } });
+      const previous = await expenses.findOne(
+        {
+          id: path[3],
+          $or: [{ archived_at: null }, { archived_at: { $exists: false } }],
+        },
+        { projection: { _id: 0 } },
+      );
       if (!previous) throw new HttpError(404, "Gider kaydı bulunamadı.");
       const now = new Date().toISOString();
       if (method === "DELETE") {
-        const next = { ...previous, archived_at: now, archived_by: user.id, updated_at: now, updated_by: user.id };
+        const next = {
+          ...previous,
+          archived_at: now,
+          archived_by: user.id,
+          updated_at: now,
+          updated_by: user.id,
+        };
         const transaction = (await mongoClient()).startSession();
         try {
           await transaction.withTransaction(async () => {
-            await expenses.updateOne({ id: path[3] }, { $set: { archived_at: now, archived_by: user.id, updated_at: now, updated_by: user.id } }, { session: transaction });
-            await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "expense", entity_id: path[3], previous, next, changed_fields: ["archived_at"], changed_at: now, changed_by: user.id }, { session: transaction });
+            await expenses.updateOne(
+              { id: path[3] },
+              {
+                $set: {
+                  archived_at: now,
+                  archived_by: user.id,
+                  updated_at: now,
+                  updated_by: user.id,
+                },
+              },
+              { session: transaction },
+            );
+            await database.collection("pricing_change_history").insertOne(
+              {
+                id: randomUUID(),
+                entity_type: "expense",
+                entity_id: path[3],
+                previous,
+                next,
+                changed_fields: ["archived_at"],
+                changed_at: now,
+                changed_by: user.id,
+              },
+              { session: transaction },
+            );
           });
-        } finally { await transaction.endSession(); }
-        await audit(req, "expense.archived", user, { expense_id: path[3], previous, next });
+        } finally {
+          await transaction.endSession();
+        }
+        await audit(req, "expense.archived", user, {
+          expense_id: path[3],
+          previous,
+          next,
+        });
         return json(next);
       }
       if (method === "PATCH") {
-        const changes = z.object({ name: z.string().trim().min(2).max(160).optional(), category: z.string().trim().min(2).max(80).optional(), amount_cents: z.number().int().min(0).optional(), vat_rate_bps: z.number().int().min(0).max(10_000).optional(), deductible_vat: z.boolean().optional(), kind: z.enum(["fixed", "variable"]).optional(), recurrence: z.enum(["once", "monthly", "yearly"]).optional(), payment_status: z.enum(["planned", "paid"]).optional(), payment_date: z.string().date().optional(), order_id: z.string().trim().optional(), estimated: z.boolean().optional() }).refine((value) => Object.keys(value).length > 0, "En az bir alan değiştirilmeli.").parse(await req.json());
-        const next = { ...previous, ...changes, updated_at: now, updated_by: user.id };
+        const changes = z
+          .object({
+            name: z.string().trim().min(2).max(160).optional(),
+            category: z.string().trim().min(2).max(80).optional(),
+            amount_cents: z.number().int().min(0).optional(),
+            vat_rate_bps: z.number().int().min(0).max(10_000).optional(),
+            deductible_vat: z.boolean().optional(),
+            kind: z.enum(["fixed", "variable"]).optional(),
+            recurrence: z.enum(["once", "monthly", "yearly"]).optional(),
+            payment_status: z.enum(["planned", "paid"]).optional(),
+            payment_date: z.string().date().optional(),
+            order_id: z.string().trim().optional(),
+            estimated: z.boolean().optional(),
+          })
+          .refine(
+            (value) => Object.keys(value).length > 0,
+            "En az bir alan değiştirilmeli.",
+          )
+          .parse(await req.json());
+        const next = {
+          ...previous,
+          ...changes,
+          updated_at: now,
+          updated_by: user.id,
+        };
         const transaction = (await mongoClient()).startSession();
         try {
           await transaction.withTransaction(async () => {
-            await expenses.updateOne({ id: path[3] }, { $set: { ...changes, updated_at: now, updated_by: user.id } }, { session: transaction });
-            await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "expense", entity_id: path[3], previous, next, changed_fields: Object.keys(changes), changed_at: now, changed_by: user.id }, { session: transaction });
+            await expenses.updateOne(
+              { id: path[3] },
+              { $set: { ...changes, updated_at: now, updated_by: user.id } },
+              { session: transaction },
+            );
+            await database.collection("pricing_change_history").insertOne(
+              {
+                id: randomUUID(),
+                entity_type: "expense",
+                entity_id: path[3],
+                previous,
+                next,
+                changed_fields: Object.keys(changes),
+                changed_at: now,
+                changed_by: user.id,
+              },
+              { session: transaction },
+            );
           });
-        } finally { await transaction.endSession(); }
-        await audit(req, "expense.updated", user, { expense_id: path[3], previous, next });
+        } finally {
+          await transaction.endSession();
+        }
+        await audit(req, "expense.updated", user, {
+          expense_id: path[3],
+          previous,
+          next,
+        });
         return json(next);
       }
     }
@@ -2452,51 +2988,224 @@ export async function handle(
       requirePermission(user, "finance.view_all");
       const entityType = req.nextUrl.searchParams.get("entity_type");
       const filter = entityType ? { entity_type: entityType } : {};
-      return json(await database.collection("pricing_change_history").find(filter, { projection: { _id: 0 } }).sort({ changed_at: -1 }).limit(500).toArray());
+      return json(
+        await database
+          .collection("pricing_change_history")
+          .find(filter, { projection: { _id: 0 } })
+          .sort({ changed_at: -1 })
+          .limit(500)
+          .toArray(),
+      );
     }
     if (route === "admin/finance/profitability" && user && method === "GET") {
       requirePermission(user, "finance.view_all");
       const packageResult = await currentPackages(database);
       const [products, fixedExpenses, salesByPackage] = await Promise.all([
-        database.collection<AddOnProduct>("add_on_products").find({ active: true }).toArray(),
-        database.collection<ExpenseRecord>("expense_records").find({ kind: "fixed", payment_status: "paid", estimated: false, $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }).toArray(),
-        database.collection<SaleRecord>("sales").aggregate<{ _id: PackageCode; count: number }>([{ $match: { status: "paid" } }, { $group: { _id: "$package_code", count: { $sum: 1 } } }]).toArray(),
+        database
+          .collection<AddOnProduct>("add_on_products")
+          .find({ active: true })
+          .toArray(),
+        database
+          .collection<ExpenseRecord>("expense_records")
+          .find({
+            kind: "fixed",
+            payment_status: "paid",
+            estimated: false,
+            $or: [{ archived_at: null }, { archived_at: { $exists: false } }],
+          })
+          .toArray(),
+        database
+          .collection<SaleRecord>("sales")
+          .aggregate<{ _id: PackageCode; count: number }>([
+            { $match: { status: "paid" } },
+            { $group: { _id: "$package_code", count: { $sum: 1 } } },
+          ])
+          .toArray(),
       ]);
-      const partnerId = req.nextUrl.searchParams.get("partner_id") || "platform";
-      const commissionPolicy = await currentCommissionPolicy(database, partnerId, new Date().toISOString());
+      const partnerId =
+        req.nextUrl.searchParams.get("partner_id") || "platform";
+      const commissionPolicy = await currentCommissionPolicy(
+        database,
+        partnerId,
+        new Date().toISOString(),
+      );
       const packageRows = packageResult.items.map((item) => {
-        const miniCost = products.find((product) => product.category === "qr_print" && product.print_format === "vertical_mini" && product.unit === "item")?.unit_cost_cents || 0;
-        const tableCost = products.find((product) => product.category === "qr_print" && product.print_format === "table_card" && product.unit === "item")?.unit_cost_cents || 0;
-        const signCost = products.find((product) => product.effect_type === "welcome_sign")?.unit_cost_cents || 0;
-        const variableCost = item.variable_cost_cents + item.miniQrCount * miniCost + (item.tableQrCount || 0) * tableCost + item.welcomeSignCount * signCost;
+        const miniCost =
+          products.find(
+            (product) =>
+              product.category === "qr_print" &&
+              product.print_format === "vertical_mini" &&
+              product.unit === "item",
+          )?.unit_cost_cents || 0;
+        const tableCost =
+          products.find(
+            (product) =>
+              product.category === "qr_print" &&
+              product.print_format === "table_card" &&
+              product.unit === "item",
+          )?.unit_cost_cents || 0;
+        const signCost =
+          products.find((product) => product.effect_type === "welcome_sign")
+            ?.unit_cost_cents || 0;
+        const variableCost =
+          item.variable_cost_cents +
+          item.miniQrCount * miniCost +
+          (item.tableQrCount || 0) * tableCost +
+          item.welcomeSignCount * signCost;
         const rate = commissionRateForOrdinal(commissionPolicy, item.code, 1);
-        const result = profitability({ gross_cents: item.grossPriceCents, vat_rate_bps: item.vat_rate_bps, variable_cost_cents: variableCost, commission_rate_bps: rate, payment_rate_bps: 0, target_margin_bps: item.target_margin_bps });
+        const result = profitability({
+          gross_cents: item.grossPriceCents,
+          vat_rate_bps: item.vat_rate_bps,
+          variable_cost_cents: variableCost,
+          commission_rate_bps: rate,
+          payment_rate_bps: 0,
+          target_margin_bps: item.target_margin_bps,
+        });
         let breakEvenGrossCentsValue: number | null = null;
         let targetGrossCentsValue: number | null = null;
         let calculationWarning: string | null = null;
         try {
-          breakEvenGrossCentsValue = breakEvenGrossCents({ vat_rate_bps: item.vat_rate_bps, variable_cost_cents: variableCost, commission_rate_bps: rate, payment_rate_bps: 0 });
-          targetGrossCentsValue = targetMarginGrossCents({ vat_rate_bps: item.vat_rate_bps, variable_cost_cents: variableCost, commission_rate_bps: rate, payment_rate_bps: 0, target_margin_bps: item.target_margin_bps });
+          breakEvenGrossCentsValue = breakEvenGrossCents({
+            vat_rate_bps: item.vat_rate_bps,
+            variable_cost_cents: variableCost,
+            commission_rate_bps: rate,
+            payment_rate_bps: 0,
+          });
+          targetGrossCentsValue = targetMarginGrossCents({
+            vat_rate_bps: item.vat_rate_bps,
+            variable_cost_cents: variableCost,
+            commission_rate_bps: rate,
+            payment_rate_bps: 0,
+            target_margin_bps: item.target_margin_bps,
+          });
         } catch (reason) {
-          calculationWarning = reason instanceof Error ? reason.message : "Fiyat hesaplanamıyor.";
+          calculationWarning =
+            reason instanceof Error ? reason.message : "Fiyat hesaplanamıyor.";
         }
-        return { ...item, variable_cost_cents: variableCost, commission_rate_bps: rate, ...result, break_even_gross_cents: breakEvenGrossCentsValue, target_gross_cents: targetGrossCentsValue, calculation_warning: calculationWarning, sales_count: salesByPackage.find((sale) => sale._id === item.code)?.count || 0 };
+        return {
+          ...item,
+          variable_cost_cents: variableCost,
+          commission_rate_bps: rate,
+          ...result,
+          break_even_gross_cents: breakEvenGrossCentsValue,
+          target_gross_cents: targetGrossCentsValue,
+          calculation_warning: calculationWarning,
+          sales_count:
+            salesByPackage.find((sale) => sale._id === item.code)?.count || 0,
+        };
       });
-      const monthlyFixedCents = fixedExpenses.reduce((sum, item) => sum + (item.recurrence === "yearly" ? Math.ceil(item.amount_cents / 12) : item.recurrence === "monthly" ? item.amount_cents : 0), 0);
-      const totalSales = packageRows.reduce((sum, item) => sum + item.sales_count, 0);
-      const weightedContribution = totalSales > 0 ? Math.round(packageRows.reduce((sum, item) => sum + item.contribution_cents * item.sales_count, 0) / totalSales) : packageRows.length ? Math.round(packageRows.reduce((sum, item) => sum + item.contribution_cents, 0) / packageRows.length) : 0;
-      return json({ packages: packageRows, monthly_fixed_cents: monthlyFixedCents, weighted_contribution_cents: weightedContribution, monthly_break_even_units: monthlyBreakEvenUnits(monthlyFixedCents, weightedContribution), commission_policy: commissionPolicy, payment_cost_assumption: { configured: false, rate_bps: 0, fixed_cents: 0 } });
+      const monthlyFixedCents = fixedExpenses.reduce(
+        (sum, item) =>
+          sum +
+          (item.recurrence === "yearly"
+            ? Math.ceil(item.amount_cents / 12)
+            : item.recurrence === "monthly"
+              ? item.amount_cents
+              : 0),
+        0,
+      );
+      const totalSales = packageRows.reduce(
+        (sum, item) => sum + item.sales_count,
+        0,
+      );
+      const weightedContribution =
+        totalSales > 0
+          ? Math.round(
+              packageRows.reduce(
+                (sum, item) => sum + item.contribution_cents * item.sales_count,
+                0,
+              ) / totalSales,
+            )
+          : packageRows.length
+            ? Math.round(
+                packageRows.reduce(
+                  (sum, item) => sum + item.contribution_cents,
+                  0,
+                ) / packageRows.length,
+              )
+            : 0;
+      return json({
+        packages: packageRows,
+        monthly_fixed_cents: monthlyFixedCents,
+        weighted_contribution_cents: weightedContribution,
+        monthly_break_even_units: monthlyBreakEvenUnits(
+          monthlyFixedCents,
+          weightedContribution,
+        ),
+        commission_policy: commissionPolicy,
+        payment_cost_assumption: {
+          configured: false,
+          rate_bps: 0,
+          fixed_cents: 0,
+        },
+      });
     }
     if (route === "admin/finance/overview" && user && method === "GET") {
-      requirePermission(user, user.role === "platform" ? "finance.view_all" : "finance.view_own");
-      const scope = user.role === "platform" ? { status: "paid" as const } : { status: "paid" as const, partner_id: user.partner_id! };
+      requirePermission(
+        user,
+        user.role === "platform" ? "finance.view_all" : "finance.view_own",
+      );
+      const scope =
+        user.role === "platform"
+          ? { status: "paid" as const }
+          : { status: "paid" as const, partner_id: user.partner_id! };
       const [salesRows, expenses] = await Promise.all([
-        database.collection<SaleRecord>("sales").find(scope, { projection: { _id: 0 } }).toArray(),
-        user.role === "platform" ? database.collection<ExpenseRecord>("expense_records").find({ payment_status: "paid", estimated: false, $or: [{ archived_at: null }, { archived_at: { $exists: false } }] }).toArray() : Promise.resolve([]),
+        database
+          .collection<SaleRecord>("sales")
+          .find(scope, { projection: { _id: 0 } })
+          .toArray(),
+        user.role === "platform"
+          ? database
+              .collection<ExpenseRecord>("expense_records")
+              .find({
+                payment_status: "paid",
+                estimated: false,
+                $or: [
+                  { archived_at: null },
+                  { archived_at: { $exists: false } },
+                ],
+              })
+              .toArray()
+          : Promise.resolve([]),
       ]);
-      const totals = salesRows.reduce((sum, sale) => ({ gross_cents: sum.gross_cents + sale.gross_cents, net_cents: sum.net_cents + sale.net_cents, vat_cents: sum.vat_cents + sale.vat_cents, commission_cents: sum.commission_cents + sale.commission_cents, variable_cost_cents: sum.variable_cost_cents + (sale.variable_cost_cents || 0) }), { gross_cents: 0, net_cents: 0, vat_cents: 0, commission_cents: 0, variable_cost_cents: 0 });
-      const expenseCents = expenses.reduce((sum, item) => sum + item.amount_cents, 0);
-      return json({ sales_count: salesRows.length, ...totals, expense_cents: expenseCents, operating_contribution_cents: totals.net_cents - totals.commission_cents - totals.variable_cost_cents - expenseCents });
+      const totals = salesRows.reduce(
+        (sum, sale) => ({
+          gross_cents: sum.gross_cents + sale.gross_cents,
+          net_cents: sum.net_cents + sale.net_cents,
+          vat_cents: sum.vat_cents + sale.vat_cents,
+          commission_cents: sum.commission_cents + sale.commission_cents,
+          variable_cost_cents:
+            sum.variable_cost_cents + (sale.variable_cost_cents || 0),
+        }),
+        {
+          gross_cents: 0,
+          net_cents: 0,
+          vat_cents: 0,
+          commission_cents: 0,
+          variable_cost_cents: 0,
+        },
+      );
+      const expenseCents = expenses.reduce(
+        (sum, item) => sum + item.amount_cents,
+        0,
+      );
+      if (user.role !== "platform")
+        return json({
+          sales_count: salesRows.length,
+          gross_cents: totals.gross_cents,
+          commission_cents: totals.commission_cents,
+          remittance_cents: totals.gross_cents - totals.commission_cents,
+        });
+      return json({
+        sales_count: salesRows.length,
+        ...totals,
+        expense_cents: expenseCents,
+        operating_contribution_cents:
+          totals.net_cents -
+          totals.commission_cents -
+          totals.variable_cost_cents -
+          expenseCents,
+      });
     }
     if (route === "admin/add-ons" && user) {
       const products = database.collection<AddOnProduct>("add_on_products");
@@ -2505,7 +3214,10 @@ export async function handle(
         return json(
           await products
             .find(user.role === "platform" ? {} : { active: true }, {
-              projection: { _id: 0 },
+              projection:
+                user.role === "platform"
+                  ? { _id: 0 }
+                  : { _id: 0, unit_cost_cents: 0 },
             })
             .sort({ active: -1, name: 1 })
             .toArray(),
@@ -2516,55 +3228,156 @@ export async function handle(
         requirePlatform(user);
         const input = z
           .object({
-            code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/).optional(),
+            code: z
+              .string()
+              .trim()
+              .toUpperCase()
+              .regex(/^[A-Z0-9_-]{2,40}$/)
+              .optional(),
             name: z.string().trim().min(2).max(120),
             description: z.string().trim().max(500).default(""),
             gross_price_cents: z.number().int().min(0).max(100_000_000),
-            unit_cost_cents: z.number().int().min(0).max(100_000_000).default(0),
+            unit_cost_cents: z
+              .number()
+              .int()
+              .min(0)
+              .max(100_000_000)
+              .default(0),
             vat_rate_bps: z.number().int().min(0).max(10_000).optional(),
-            minimum_quantity: z.number().int().min(1).max(10_000).default(1),
-            maximum_quantity: z.number().int().min(1).max(10_000).default(100),
-            eligible_package_codes: z.array(z.enum(["plan-1", "plan-2", "plan-3"])).default(["plan-1", "plan-2", "plan-3"]),
+            quantity: z.number().int().min(1).max(10_000).optional(),
+            minimum_quantity: z.number().int().min(1).max(10_000).optional(),
+            maximum_quantity: z.number().int().min(1).max(10_000).optional(),
+            eligible_package_codes: z
+              .array(z.enum(["plan-1", "plan-2", "plan-3"]))
+              .default(["plan-1", "plan-2", "plan-3"]),
             image_url: z.string().url().max(1000).optional(),
             commissionable: z.boolean().optional(),
-            category: z.enum(["qr_print", "storage_retention", "digital", "design", "organization"]).default("digital"),
-            unit: z.enum(["item", "gib", "month", "service", "organization"]).default("service"),
-            effect_type: z.enum(["print_quantity", "welcome_sign", "storage_gib", "retention_months", "digital_invitation", "custom_design", "second_event"]),
+            category: z
+              .enum([
+                "qr_print",
+                "storage_retention",
+                "digital",
+                "design",
+                "organization",
+              ])
+              .default("digital"),
+            unit: z
+              .enum(["item", "gib", "month", "service", "organization"])
+              .default("service"),
+            effect_type: z.enum([
+              "print_quantity",
+              "welcome_sign",
+              "storage_gib",
+              "retention_months",
+              "digital_invitation",
+              "custom_design",
+              "second_event",
+            ]),
             effect_value: z.number().int().min(1).max(10000).default(1),
             print_format: z.enum(["vertical_mini", "table_card"]).optional(),
-            pricing_type: z.enum(["fixed", "package_percentage_discount"]).default("fixed"),
+            pricing_type: z
+              .enum(["fixed", "package_percentage_discount"])
+              .default("fixed"),
             percentage_bps: z.number().int().min(1).max(9000).optional(),
             active: z.boolean().default(true),
           })
           .superRefine((value, context) => {
-            if (value.maximum_quantity < value.minimum_quantity)
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["maximum_quantity"], message: "Maksimum adet minimum adetten küçük olamaz." });
-            if (value.category === "qr_print" && (value.unit !== "item" || value.effect_type !== "print_quantity" || value.effect_value !== 1))
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["effect_value"], message: "Ekstra QR ürünü adet biriminde ve birim etkisi 1 olarak tanımlanmalıdır." });
+            if (
+              value.quantity === undefined &&
+              value.maximum_quantity !== undefined &&
+              value.minimum_quantity !== undefined &&
+              value.maximum_quantity < value.minimum_quantity
+            )
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["maximum_quantity"],
+                message: "Maksimum adet minimum adetten küçük olamaz.",
+              });
+            if (
+              value.category === "qr_print" &&
+              (value.unit !== "item" ||
+                value.effect_type !== "print_quantity" ||
+                value.effect_value !== 1)
+            )
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["effect_value"],
+                message:
+                  "Ekstra QR ürünü adet biriminde ve birim etkisi 1 olarak tanımlanmalıdır.",
+              });
             if (value.pricing_type === "fixed" && value.gross_price_cents < 1)
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["gross_price_cents"], message: "Sabit fiyatlı üründe fiyat gerekli." });
-            if (value.pricing_type === "package_percentage_discount" && !value.percentage_bps)
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["percentage_bps"], message: "İndirim oranı gerekli." });
-            if (value.pricing_type === "package_percentage_discount" && value.effect_type !== "second_event")
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["effect_type"], message: "Yüzde indirim yalnızca ikinci organizasyon ürününde kullanılabilir." });
-            if (value.effect_type === "second_event" && value.pricing_type !== "package_percentage_discount")
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["pricing_type"], message: "İkinci organizasyon yüzde indirimli fiyatlandırılmalı." });
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["gross_price_cents"],
+                message: "Sabit fiyatlı üründe fiyat gerekli.",
+              });
+            if (
+              value.pricing_type === "package_percentage_discount" &&
+              !value.percentage_bps
+            )
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["percentage_bps"],
+                message: "İndirim oranı gerekli.",
+              });
+            if (
+              value.pricing_type === "package_percentage_discount" &&
+              value.effect_type !== "second_event"
+            )
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["effect_type"],
+                message:
+                  "Yüzde indirim yalnızca ikinci organizasyon ürününde kullanılabilir.",
+              });
+            if (
+              value.effect_type === "second_event" &&
+              value.pricing_type !== "package_percentage_discount"
+            )
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["pricing_type"],
+                message:
+                  "İkinci organizasyon yüzde indirimli fiyatlandırılmalı.",
+              });
             if (!validAddOnEffect(value.effect_type, value.effect_value))
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["effect_value"], message: "Bu ek ürün için izin verilen miktarlardan birini seçin." });
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["effect_value"],
+                message:
+                  "Bu ek ürün için izin verilen miktarlardan birini seçin.",
+              });
             if (value.effect_type === "print_quantity" && !value.print_format)
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["print_format"], message: "QR baskı tipi gerekli." });
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["print_format"],
+                message: "QR baskı tipi gerekli.",
+              });
             if (value.effect_type !== "print_quantity" && value.print_format)
-              context.addIssue({ code: z.ZodIssueCode.custom, path: ["print_format"], message: "Baskı tipi yalnızca QR baskı ürünlerinde kullanılabilir." });
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["print_format"],
+                message:
+                  "Baskı tipi yalnızca QR baskı ürünlerinde kullanılabilir.",
+              });
           })
           .parse(await req.json());
-        if (input.code && await products.findOne({ code: input.code }))
+        if (input.code && (await products.findOne({ code: input.code })))
           throw new HttpError(409, "Bu ek ürün kodu zaten kullanılıyor.");
         const now = new Date().toISOString();
-        const taxConfiguration = await database.collection<TaxConfiguration>("tax_configurations").findOne({ id: "default" });
+        const taxConfiguration = await database
+          .collection<TaxConfiguration>("tax_configurations")
+          .findOne({ id: "default" });
+        const { minimum_quantity, maximum_quantity, ...catalogInput } = input;
         const product: AddOnProduct = {
           id: randomUUID(),
-          ...input,
-          vat_rate_bps: input.vat_rate_bps ?? taxConfiguration?.category_vat_rate_bps[input.category] ?? taxConfiguration?.default_vat_rate_bps ?? 2000,
+          ...catalogInput,
+          quantity: input.quantity ?? maximum_quantity ?? minimum_quantity ?? 1,
+          vat_rate_bps:
+            input.vat_rate_bps ??
+            taxConfiguration?.category_vat_rate_bps[input.category] ??
+            taxConfiguration?.default_vat_rate_bps ??
+            2000,
           commissionable: true,
           created_at: now,
           updated_at: now,
@@ -2573,9 +3386,23 @@ export async function handle(
         try {
           await transaction.withTransaction(async () => {
             await products.insertOne(product, { session: transaction });
-            await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "add_on_product", entity_id: product.id, previous: null, next: product, changed_fields: Object.keys(input), changed_at: now, changed_by: user.id }, { session: transaction });
+            await database.collection("pricing_change_history").insertOne(
+              {
+                id: randomUUID(),
+                entity_type: "add_on_product",
+                entity_id: product.id,
+                previous: null,
+                next: product,
+                changed_fields: Object.keys(input),
+                changed_at: now,
+                changed_by: user.id,
+              },
+              { session: transaction },
+            );
           });
-        } finally { await transaction.endSession(); }
+        } finally {
+          await transaction.endSession();
+        }
         await audit(req, "add_on.created", user, {
           product_id: product.id,
           gross_price_cents: product.gross_price_cents,
@@ -2593,7 +3420,12 @@ export async function handle(
       requirePlatform(user);
       const changes = z
         .object({
-          code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/).optional(),
+          code: z
+            .string()
+            .trim()
+            .toUpperCase()
+            .regex(/^[A-Z0-9_-]{2,40}$/)
+            .optional(),
           name: z.string().trim().min(2).max(120).optional(),
           description: z.string().trim().max(500).optional(),
           gross_price_cents: z
@@ -2604,16 +3436,41 @@ export async function handle(
             .optional(),
           unit_cost_cents: z.number().int().min(0).max(100_000_000).optional(),
           vat_rate_bps: z.number().int().min(0).max(10_000).optional(),
+          quantity: z.number().int().min(1).max(10_000).optional(),
           minimum_quantity: z.number().int().min(1).max(10_000).optional(),
           maximum_quantity: z.number().int().min(1).max(10_000).optional(),
-          eligible_package_codes: z.array(z.enum(["plan-1", "plan-2", "plan-3"])).optional(),
+          eligible_package_codes: z
+            .array(z.enum(["plan-1", "plan-2", "plan-3"]))
+            .optional(),
           image_url: z.string().url().max(1000).optional(),
-          category: z.enum(["qr_print", "storage_retention", "digital", "design", "organization"]).optional(),
-          unit: z.enum(["item", "gib", "month", "service", "organization"]).optional(),
-          effect_type: z.enum(["print_quantity", "welcome_sign", "storage_gib", "retention_months", "digital_invitation", "custom_design", "second_event"]).optional(),
+          category: z
+            .enum([
+              "qr_print",
+              "storage_retention",
+              "digital",
+              "design",
+              "organization",
+            ])
+            .optional(),
+          unit: z
+            .enum(["item", "gib", "month", "service", "organization"])
+            .optional(),
+          effect_type: z
+            .enum([
+              "print_quantity",
+              "welcome_sign",
+              "storage_gib",
+              "retention_months",
+              "digital_invitation",
+              "custom_design",
+              "second_event",
+            ])
+            .optional(),
           effect_value: z.number().int().min(1).max(10000).optional(),
           print_format: z.enum(["vertical_mini", "table_card"]).optional(),
-          pricing_type: z.enum(["fixed", "package_percentage_discount"]).optional(),
+          pricing_type: z
+            .enum(["fixed", "package_percentage_discount"])
+            .optional(),
           percentage_bps: z.number().int().min(1).max(9000).optional(),
           active: z.boolean().optional(),
         })
@@ -2622,24 +3479,76 @@ export async function handle(
           "En az bir alan değiştirilmeli.",
         )
         .parse(await req.json());
-      const currentProduct = await database.collection<AddOnProduct>("add_on_products").findOne({ id: path[2] });
+      const currentProduct = await database
+        .collection<AddOnProduct>("add_on_products")
+        .findOne({ id: path[2] });
       if (!currentProduct) throw new HttpError(404, "Ek ürün bulunamadı.");
-      const nextProduct = { ...currentProduct, ...changes };
-      if ((nextProduct.maximum_quantity || 100) < (nextProduct.minimum_quantity || 1))
+      const normalizedChanges =
+        changes.quantity === undefined
+          ? changes
+          : { ...changes, quantity: changes.quantity };
+      const nextProduct = { ...currentProduct, ...normalizedChanges };
+      if (
+        nextProduct.quantity === undefined &&
+        (nextProduct.maximum_quantity || 100) <
+          (nextProduct.minimum_quantity || 1)
+      )
         throw new HttpError(400, "Maksimum adet minimum adetten küçük olamaz.");
-      if (nextProduct.category === "qr_print" && (nextProduct.unit !== "item" || nextProduct.effect_type !== "print_quantity" || nextProduct.effect_value !== 1))
-        throw new HttpError(400, "Ekstra QR ürünü adet biriminde ve birim etkisi 1 olarak tanımlanmalıdır.");
-      if (nextProduct.effect_type && nextProduct.effect_value && !validAddOnEffect(nextProduct.effect_type, nextProduct.effect_value))
-        throw new HttpError(400, "Bu ek ürün için izin verilen miktarlardan birini seçin.");
-      if (nextProduct.effect_type === "print_quantity" && !nextProduct.print_format)
+      if (
+        nextProduct.category === "qr_print" &&
+        (nextProduct.unit !== "item" ||
+          nextProduct.effect_type !== "print_quantity" ||
+          nextProduct.effect_value !== 1)
+      )
+        throw new HttpError(
+          400,
+          "Ekstra QR ürünü adet biriminde ve birim etkisi 1 olarak tanımlanmalıdır.",
+        );
+      if (
+        nextProduct.effect_type &&
+        nextProduct.effect_value &&
+        !validAddOnEffect(nextProduct.effect_type, nextProduct.effect_value)
+      )
+        throw new HttpError(
+          400,
+          "Bu ek ürün için izin verilen miktarlardan birini seçin.",
+        );
+      if (
+        nextProduct.effect_type === "print_quantity" &&
+        !nextProduct.print_format
+      )
         throw new HttpError(400, "QR baskı tipi gerekli.");
-      if (nextProduct.effect_type !== "print_quantity" && nextProduct.print_format)
-        throw new HttpError(400, "Baskı tipi yalnızca QR baskı ürünlerinde kullanılabilir.");
-      if (nextProduct.pricing_type === "package_percentage_discount" && nextProduct.effect_type !== "second_event")
-        throw new HttpError(400, "Yüzde indirim yalnızca ikinci organizasyon ürününde kullanılabilir.");
-      if (nextProduct.effect_type === "second_event" && (nextProduct.pricing_type !== "package_percentage_discount" || !nextProduct.percentage_bps))
-        throw new HttpError(400, "İkinci organizasyon için geçerli bir yüzde indirim oranı gerekli.");
-      if (changes.code && await database.collection<AddOnProduct>("add_on_products").findOne({ code: changes.code, id: { $ne: path[2] } }))
+      if (
+        nextProduct.effect_type !== "print_quantity" &&
+        nextProduct.print_format
+      )
+        throw new HttpError(
+          400,
+          "Baskı tipi yalnızca QR baskı ürünlerinde kullanılabilir.",
+        );
+      if (
+        nextProduct.pricing_type === "package_percentage_discount" &&
+        nextProduct.effect_type !== "second_event"
+      )
+        throw new HttpError(
+          400,
+          "Yüzde indirim yalnızca ikinci organizasyon ürününde kullanılabilir.",
+        );
+      if (
+        nextProduct.effect_type === "second_event" &&
+        (nextProduct.pricing_type !== "package_percentage_discount" ||
+          !nextProduct.percentage_bps)
+      )
+        throw new HttpError(
+          400,
+          "İkinci organizasyon için geçerli bir yüzde indirim oranı gerekli.",
+        );
+      if (
+        changes.code &&
+        (await database
+          .collection<AddOnProduct>("add_on_products")
+          .findOne({ code: changes.code, id: { $ne: path[2] } }))
+      )
         throw new HttpError(409, "Bu ek ürün kodu zaten kullanılıyor.");
       const updatedAt = new Date().toISOString();
       const transaction = (await mongoClient()).startSession();
@@ -2650,13 +3559,37 @@ export async function handle(
             .collection<AddOnProduct>("add_on_products")
             .findOneAndUpdate(
               { id: path[2] },
-              { $set: { ...changes, commissionable: true, updated_at: updatedAt } },
-              { returnDocument: "after", projection: { _id: 0 }, session: transaction },
+              {
+                $set: {
+                  ...normalizedChanges,
+                  commissionable: true,
+                  updated_at: updatedAt,
+                },
+              },
+              {
+                returnDocument: "after",
+                projection: { _id: 0 },
+                session: transaction,
+              },
             );
           if (!result) throw new HttpError(404, "Ek ürün bulunamadı.");
-          await database.collection("pricing_change_history").insertOne({ id: randomUUID(), entity_type: "add_on_product", entity_id: path[2], previous: currentProduct, next: result, changed_fields: Object.keys(changes), changed_at: updatedAt, changed_by: user.id }, { session: transaction });
+          await database.collection("pricing_change_history").insertOne(
+            {
+              id: randomUUID(),
+              entity_type: "add_on_product",
+              entity_id: path[2],
+              previous: currentProduct,
+              next: result,
+              changed_fields: Object.keys(normalizedChanges),
+              changed_at: updatedAt,
+              changed_by: user.id,
+            },
+            { session: transaction },
+          );
         });
-      } finally { await transaction.endSession(); }
+      } finally {
+        await transaction.endSession();
+      }
       if (!result) throw new HttpError(404, "Ek ürün bulunamadı.");
       await audit(req, "add_on.updated", user, {
         product_id: path[2],
@@ -2665,6 +3598,246 @@ export async function handle(
         next: result,
       });
       return json(result);
+    }
+    if (
+      path.length === 3 &&
+      path[0] === "admin" &&
+      path[1] === "add-ons" &&
+      method === "DELETE" &&
+      user
+    ) {
+      requirePlatform(user);
+      const products = database.collection<AddOnProduct>("add_on_products");
+      const currentProduct = await products.findOne({ id: path[2] });
+      if (!currentProduct) throw new HttpError(404, "Ek ürün bulunamadı.");
+
+      const deletedAt = new Date().toISOString();
+      const transaction = (await mongoClient()).startSession();
+      let deleted = false;
+      try {
+        await transaction.withTransaction(async () => {
+          const deletion = await products.deleteOne(
+            { id: path[2] },
+            { session: transaction },
+          );
+          deleted = deletion.deletedCount === 1;
+          if (!deleted) throw new HttpError(404, "Ek ürün bulunamadı.");
+          await database.collection("pricing_change_history").insertOne(
+            {
+              id: randomUUID(),
+              entity_type: "add_on_product",
+              entity_id: path[2],
+              previous: currentProduct,
+              next: null,
+              changed_fields: ["deleted"],
+              changed_at: deletedAt,
+              changed_by: user.id,
+            },
+            { session: transaction },
+          );
+        });
+      } finally {
+        await transaction.endSession();
+      }
+      if (!deleted) throw new HttpError(404, "Ek ürün bulunamadı.");
+      await audit(req, "add_on.deleted", user, {
+        product_id: path[2],
+        previous: currentProduct,
+      });
+      return json({ deleted: true, id: path[2] });
+    }
+    if (route === "admin/sales/partner-summary" && method === "GET" && user) {
+      requirePermission(
+        user,
+        user.role === "platform" ? "finance.view_all" : "finance.view_own",
+      );
+      const partnerScope =
+        user.role === "platform" ? {} : { id: user.partner_id! };
+      const saleScope =
+        user.role === "platform" ? {} : { partner_id: user.partner_id! };
+      const sales = database.collection<SaleRecord>("sales");
+      const [partners, totals, monthly, organizations] = await Promise.all([
+        database
+          .collection("partners")
+          .find(partnerScope, {
+            projection: {
+              _id: 0,
+              id: 1,
+              name: 1,
+              phone: 1,
+              address: 1,
+              active: 1,
+            },
+          })
+          .sort({ name: 1 })
+          .toArray(),
+        sales
+          .aggregate([
+            { $match: saleScope },
+            {
+              $group: {
+                _id: "$partner_id",
+                paid_sales: {
+                  $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] },
+                },
+                draft_sales: {
+                  $sum: { $cond: [{ $eq: ["$status", "draft"] }, 1, 0] },
+                },
+                refunded_sales: {
+                  $sum: { $cond: [{ $eq: ["$status", "refunded"] }, 1, 0] },
+                },
+                gross_cents: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "paid"] }, "$gross_cents", 0],
+                  },
+                },
+                commission_cents: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$status", "paid"] },
+                      "$commission_cents",
+                      0,
+                    ],
+                  },
+                },
+                last_sale_at: {
+                  $max: {
+                    $cond: [{ $eq: ["$status", "paid"] }, "$occurred_at", null],
+                  },
+                },
+              },
+            },
+          ])
+          .toArray(),
+        sales
+          .aggregate([
+            { $match: saleScope },
+            {
+              $group: {
+                _id: { partner_id: "$partner_id", period: "$period" },
+                paid_sales: {
+                  $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] },
+                },
+                refunded_sales: {
+                  $sum: { $cond: [{ $eq: ["$status", "refunded"] }, 1, 0] },
+                },
+                gross_cents: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "paid"] }, "$gross_cents", 0],
+                  },
+                },
+                commission_cents: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$status", "paid"] },
+                      "$commission_cents",
+                      0,
+                    ],
+                  },
+                },
+              },
+            },
+            { $sort: { "_id.period": -1 } },
+          ])
+          .toArray(),
+        sales
+          .aggregate([
+            { $match: saleScope },
+            {
+              $group: {
+                _id: { partner_id: "$partner_id", wedding_id: "$wedding_id" },
+                paid_sales: {
+                  $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] },
+                },
+                refunded_sales: {
+                  $sum: { $cond: [{ $eq: ["$status", "refunded"] }, 1, 0] },
+                },
+                gross_cents: {
+                  $sum: {
+                    $cond: [{ $eq: ["$status", "paid"] }, "$gross_cents", 0],
+                  },
+                },
+                commission_cents: {
+                  $sum: {
+                    $cond: [
+                      { $eq: ["$status", "paid"] },
+                      "$commission_cents",
+                      0,
+                    ],
+                  },
+                },
+                last_sale_at: { $max: "$occurred_at" },
+              },
+            },
+            { $sort: { last_sale_at: -1 } },
+          ])
+          .toArray(),
+      ]);
+      const weddingIds = organizations.map(
+        (row) => row._id.wedding_id as string,
+      );
+      const eventRows = await weddings
+        .find(
+          { id: { $in: weddingIds } },
+          {
+            projection: {
+              _id: 0,
+              id: 1,
+              title: 1,
+              wedding_date: 1,
+              customer_name: 1,
+            },
+          },
+        )
+        .toArray();
+      const eventsById = new Map(eventRows.map((event) => [event.id, event]));
+      const totalsByPartner = new Map(
+        totals.map((row) => [row._id as string, row]),
+      );
+      return json({
+        generated_at: new Date().toISOString(),
+        items: partners.map((partner) => {
+          const total = totalsByPartner.get(partner.id);
+          return {
+            partner_id: partner.id,
+            partner_name: partner.name,
+            phone: partner.phone || null,
+            address: partner.address || null,
+            active: partner.active !== false,
+            paid_sales: total?.paid_sales || 0,
+            draft_sales: total?.draft_sales || 0,
+            refunded_sales: total?.refunded_sales || 0,
+            gross_cents: total?.gross_cents || 0,
+            commission_cents: total?.commission_cents || 0,
+            last_sale_at: total?.last_sale_at || null,
+            monthly: monthly
+              .filter((row) => row._id.partner_id === partner.id)
+              .map((row) => ({
+                period: row._id.period,
+                paid_sales: row.paid_sales,
+                refunded_sales: row.refunded_sales,
+                gross_cents: row.gross_cents,
+                commission_cents: row.commission_cents,
+              })),
+            organizations: organizations
+              .filter((row) => row._id.partner_id === partner.id)
+              .map((row) => {
+                const event = eventsById.get(row._id.wedding_id as string);
+                return {
+                  wedding_id: row._id.wedding_id,
+                  title: event?.title || row._id.wedding_id,
+                  customer_name: event?.customer_name || null,
+                  wedding_date: event?.wedding_date || null,
+                  paid_sales: row.paid_sales,
+                  refunded_sales: row.refunded_sales,
+                  gross_cents: row.gross_cents,
+                  commission_cents: row.commission_cents,
+                  last_sale_at: row.last_sale_at,
+                };
+              }),
+          };
+        }),
+      });
     }
     if (route === "admin/sales" && user) {
       const sales = database.collection<SaleRecord>("sales");
@@ -2694,7 +3867,9 @@ export async function handle(
                     $sum: { $cond: [{ $eq: ["$status", "draft"] }, 1, 0] },
                   },
                   draft_gross_cents: {
-                    $sum: { $cond: [{ $eq: ["$status", "draft"] }, "$gross_cents", 0] },
+                    $sum: {
+                      $cond: [{ $eq: ["$status", "draft"] }, "$gross_cents", 0],
+                    },
                   },
                   gross_cents: {
                     $sum: {
@@ -2729,46 +3904,254 @@ export async function handle(
             ])
             .next(),
         ]);
-        const [salePartners, saleEvents] = await Promise.all([
-          database
-            .collection("partners")
-            .find(
-              {
-                id: { $in: [...new Set(items.map((item) => item.partner_id))] },
+        const weddingIds = [...new Set(items.map((item) => item.wedding_id))];
+        const saleEvents = await weddings
+          .find(
+            { id: { $in: weddingIds } },
+            {
+              projection: {
+                _id: 0,
+                id: 1,
+                title: 1,
+                customer_name: 1,
+                customer_email: 1,
+                owner_id: 1,
+                wedding_date: 1,
+                venue: 1,
+                bride_name: 1,
+                groom_name: 1,
+                lead_partner_id: 1,
+                seller_partner_id: 1,
+                partner_id: 1,
+                design: 1,
+                design_status: 1,
+                design_revision_reason: 1,
+                price_snapshot: 1,
+                package_snapshot: 1,
               },
-              { projection: { _id: 0, id: 1, name: 1 } },
-            )
-            .toArray(),
-          weddings
-            .find(
-              {
-                id: { $in: [...new Set(items.map((item) => item.wedding_id))] },
-              },
-              { projection: { _id: 0, id: 1, title: 1 } },
-            )
-            .toArray(),
-        ]);
+            },
+          )
+          .toArray();
+        const partnerIds = [
+          ...new Set([
+            ...items.map((item) => item.partner_id),
+            ...saleEvents
+              .flatMap((event) => [
+                event.partner_id,
+                event.lead_partner_id,
+                event.seller_partner_id,
+              ])
+              .filter((id): id is string => Boolean(id)),
+          ]),
+        ];
+        const [salePartners, photographerAssignments, creationAudits] =
+          await Promise.all([
+            database
+              .collection("partners")
+              .find(
+                { id: { $in: partnerIds } },
+                {
+                  projection: { _id: 0, id: 1, name: 1, phone: 1, address: 1 },
+                },
+              )
+              .toArray(),
+            database
+              .collection("organization_participants")
+              .find(
+                {
+                  wedding_id: { $in: weddingIds },
+                  participant_role: "photographer",
+                  active: true,
+                },
+                {
+                  projection: {
+                    _id: 0,
+                    wedding_id: 1,
+                    account_id: 1,
+                    assigned_at: 1,
+                    assigned_by: 1,
+                  },
+                },
+              )
+              .toArray(),
+            database
+              .collection("audit_logs")
+              .find(
+                {
+                  action: "wedding.draft_created",
+                  outcome: "success",
+                  "target.wedding_id": { $in: weddingIds },
+                },
+                {
+                  projection: {
+                    _id: 0,
+                    actor_id: 1,
+                    partner_id: 1,
+                    target: 1,
+                    at: 1,
+                  },
+                },
+              )
+              .sort({ at: 1 })
+              .toArray(),
+          ]);
+        const accountIds = [
+          ...new Set([
+            ...items.map((item) => item.recorded_by),
+            ...saleEvents
+              .map((event) => event.owner_id)
+              .filter((id): id is string => Boolean(id)),
+            ...photographerAssignments.flatMap((assignment) => [
+              assignment.account_id,
+              assignment.assigned_by,
+            ]),
+            ...creationAudits
+              .map((entry) => entry.actor_id)
+              .filter((id): id is string => Boolean(id)),
+          ]),
+        ];
+        const saleAccounts = await database
+          .collection("users")
+          .find(
+            { id: { $in: accountIds } },
+            { projection: { _id: 0, id: 1, display_name: 1, email: 1 } },
+          )
+          .toArray();
         const partnerNames = new Map(
           salePartners.map((partner) => [partner.id, partner.name]),
         );
-        const eventNames = new Map(
-          saleEvents.map((event) => [event.id, event.title]),
+        const partnersById = new Map(
+          salePartners.map((partner) => [partner.id, partner]),
         );
+        const eventsById = new Map(
+          saleEvents.map((event) => [event.id, event]),
+        );
+        const accountsById = new Map(
+          saleAccounts.map((account) => [account.id, account]),
+        );
+        const creationAuditByWedding = new Map<
+          string,
+          (typeof creationAudits)[number]
+        >();
+        for (const entry of creationAudits) {
+          const weddingId =
+            typeof entry.target?.wedding_id === "string"
+              ? entry.target.wedding_id
+              : null;
+          if (weddingId && !creationAuditByWedding.has(weddingId))
+            creationAuditByWedding.set(weddingId, entry);
+        }
         return json({
-          items: items.map((item) => ({
-            ...item,
-            partner_name: partnerNames.get(item.partner_id) || item.partner_id,
-            wedding_title: eventNames.get(item.wedding_id) || item.wedding_id,
-          })),
-          totals: totals || {
-            paid_sales: 0,
-            draft_sales: 0,
-            draft_gross_cents: 0,
-            gross_cents: 0,
-            net_cents: 0,
-            commission_cents: 0,
-            platform_cents: 0,
-          },
+          items: items.map((item) => {
+            const event = eventsById.get(item.wedding_id);
+            const owner = event?.owner_id
+              ? accountsById.get(event.owner_id)
+              : null;
+            const creationAudit = creationAuditByWedding.get(item.wedding_id);
+            const creator = creationAudit?.actor_id
+              ? accountsById.get(creationAudit.actor_id)
+              : null;
+            const organizerPartnerId =
+              event?.lead_partner_id ||
+              event?.seller_partner_id ||
+              event?.partner_id ||
+              item.partner_id;
+            const organizerPartner = partnersById.get(organizerPartnerId);
+            const photographers = photographerAssignments
+              .filter((assignment) => assignment.wedding_id === item.wedding_id)
+              .map((assignment) => ({
+                name:
+                  accountsById.get(assignment.account_id)?.display_name ||
+                  assignment.account_id,
+                email: accountsById.get(assignment.account_id)?.email || null,
+                assigned_at: assignment.assigned_at || null,
+                assigned_by:
+                  accountsById.get(assignment.assigned_by)?.display_name ||
+                  assignment.assigned_by,
+              }));
+            const frozenAddOns =
+              item.price_snapshot?.add_ons ||
+              event?.price_snapshot?.add_ons ||
+              [];
+            return {
+              ...(user.role === "platform"
+                ? item
+                : {
+                    id: item.id,
+                    partner_id: item.partner_id,
+                    wedding_id: item.wedding_id,
+                    package_code: item.package_code,
+                    status: item.status,
+                    period: item.period,
+                    occurred_at: item.occurred_at,
+                    recorded_at: item.recorded_at,
+                    gross_cents: item.gross_cents,
+                    commission_cents: item.commission_cents,
+                    payment_method: item.payment_method,
+                    paid_at: item.paid_at,
+                  }),
+              partner_name:
+                partnerNames.get(item.partner_id) || item.partner_id,
+              wedding_title: event?.title || item.wedding_id,
+              detail: {
+                customer_name:
+                  event?.customer_name || owner?.display_name || null,
+                customer_email: event?.customer_email || owner?.email || null,
+                couple:
+                  [event?.bride_name, event?.groom_name]
+                    .filter(Boolean)
+                    .join(" & ") || null,
+                wedding_date: event?.wedding_date || null,
+                venue: event?.venue || null,
+                organizer_name: creator?.display_name || null,
+                organizer_email: creator?.email || null,
+                organizer_partner_name: organizerPartner?.name || null,
+                organizer_partner_phone: organizerPartner?.phone || null,
+                organizer_partner_address: organizerPartner?.address || null,
+                photographers,
+                package_name:
+                  item.package_snapshot?.name ||
+                  event?.package_snapshot?.name ||
+                  item.package_code,
+                add_ons: frozenAddOns.map((addOn) => ({
+                  name: addOn.name,
+                  quantity: addOn.quantity,
+                  line_gross_cents: addOn.line_gross_cents,
+                  effect_type: addOn.effect_type || null,
+                })),
+                custom_design_requested: frozenAddOns.some(
+                  (addOn) => addOn.effect_type === "custom_design",
+                ),
+                design: event?.design
+                  ? {
+                      qr_template_id: event.design.qrTemplateId,
+                      loading_template_id: event.design.intro,
+                      wedding_template_id: event.design.pageTemplate,
+                      status: event.design_status || "draft",
+                      revision_reason: event.design_revision_reason || null,
+                    }
+                  : null,
+              },
+            };
+          }),
+          totals:
+            user.role === "platform"
+              ? totals || {
+                  paid_sales: 0,
+                  draft_sales: 0,
+                  draft_gross_cents: 0,
+                  gross_cents: 0,
+                  net_cents: 0,
+                  commission_cents: 0,
+                  platform_cents: 0,
+                }
+              : {
+                  paid_sales: totals?.paid_sales || 0,
+                  draft_sales: totals?.draft_sales || 0,
+                  draft_gross_cents: totals?.draft_gross_cents || 0,
+                  gross_cents: totals?.gross_cents || 0,
+                  commission_cents: totals?.commission_cents || 0,
+                },
         });
       }
       if (method === "POST") {
@@ -2795,45 +4178,131 @@ export async function handle(
         return json(draft, 201);
       }
     }
-    if (path.length === 4 && path[0] === "admin" && path[1] === "sales" && path[3] === "confirm-payment" && method === "POST" && user) {
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "sales" &&
+      path[3] === "confirm-payment" &&
+      method === "POST" &&
+      user
+    ) {
       requirePermission(user, "commission.manage");
-      const payment = z.object({
-        payment_method: z.enum(["bank_transfer", "cash", "card", "other"]),
-        payment_reference: z.string().trim().min(3).max(120),
-        paid_at: z.string().datetime(),
-      }).parse(await req.json());
+      const payment = z
+        .object({
+          payment_method: z.enum(["bank_transfer", "cash", "card", "other"]),
+          payment_reference: z.string().trim().min(3).max(120),
+          paid_at: z.string().datetime(),
+        })
+        .parse(await req.json());
       const sales = database.collection<SaleRecord>("sales");
       const draft = await sales.findOne({ id: path[2], status: "draft" });
       if (!draft) {
-        const existing = await sales.findOne({ id: path[2] }, { projection: { _id: 0 } });
+        const existing = await sales.findOne(
+          { id: path[2] },
+          { projection: { _id: 0 } },
+        );
         if (existing?.status === "paid") return json(existing);
-        throw new HttpError(409, "SatÄ±ÅŸ taslaÄŸÄ± bulunamadÄ± veya Ã¶deme onayÄ±na uygun deÄŸil.");
+        throw new HttpError(
+          409,
+          "SatÄ±ÅŸ taslaÄŸÄ± bulunamadÄ± veya Ã¶deme onayÄ±na uygun deÄŸil.",
+        );
       }
+      const paymentEvent = await weddings.findOne({
+        id: draft.wedding_id,
+        lifecycle_status: "draft",
+        approval_status: "approved",
+      });
+      if (!paymentEvent)
+        throw new HttpError(
+          409,
+          "Ödeme onayı için onaylanmış bir organizasyon taslağı gerekli.",
+        );
       const period = istanbulCalendarMonth(payment.paid_at);
       const transaction = (await mongoClient()).startSession();
       let paid: SaleRecord | null = null;
       try {
         await transaction.withTransaction(async () => {
-          const commissionPolicy = await currentCommissionPolicy(database, draft.partner_id, payment.paid_at, transaction);
+          const commissionPolicy = await currentCommissionPolicy(
+            database,
+            draft.partner_id,
+            payment.paid_at,
+            transaction,
+          );
           let ordinal: number | null = null;
-          if (commissionPolicy.tiered && commissionPolicy.qualifying_package_codes.includes(draft.package_code)) {
-            const counter = await database.collection("monthly_sales_counters").findOneAndUpdate(
-              { partner_id: draft.partner_id, period },
-              { $setOnInsert: { partner_id: draft.partner_id, period, refunded_count: 0 }, $inc: { paid_count: 1, net_count: 1 }, $set: { updated_at: new Date().toISOString() } },
-              { upsert: true, returnDocument: "after", session: transaction },
-            );
+          if (
+            commissionPolicy.tiered &&
+            commissionPolicy.qualifying_package_codes.includes(
+              draft.package_code,
+            )
+          ) {
+            const counter = await database
+              .collection("monthly_sales_counters")
+              .findOneAndUpdate(
+                { partner_id: draft.partner_id, period },
+                {
+                  $setOnInsert: {
+                    partner_id: draft.partner_id,
+                    period,
+                    refunded_count: 0,
+                  },
+                  $inc: { paid_count: 1, net_count: 1 },
+                  $set: { updated_at: new Date().toISOString() },
+                },
+                { upsert: true, returnDocument: "after", session: transaction },
+              );
             ordinal = Number(counter?.net_count || 1);
           }
-          const eligibleNetCents = draft.price_snapshot?.commissionable_net_cents ?? netFromVatIncluded(draft.price_snapshot?.commissionable_gross_cents || draft.gross_cents, draft.vat_rate_bps);
-          const commissionRateBps = commissionRateForOrdinal(commissionPolicy, draft.package_code, ordinal);
-          const commissionCents = calculateCommissionCents(eligibleNetCents, commissionRateBps);
+          const eligibleNetCents =
+            draft.price_snapshot?.commissionable_net_cents ??
+            netFromVatIncluded(
+              draft.price_snapshot?.commissionable_gross_cents ||
+                draft.gross_cents,
+              draft.vat_rate_bps,
+            );
+          const commissionRateBps = commissionRateForOrdinal(
+            commissionPolicy,
+            draft.package_code,
+            ordinal,
+          );
+          const commissionCents = calculateCommissionCents(
+            eligibleNetCents,
+            commissionRateBps,
+          );
           paid = await sales.findOneAndUpdate(
             { id: draft.id, status: "draft" },
-            { $set: { status: "paid", period, occurred_at: payment.paid_at, paid_at: payment.paid_at, paid_by: user.id, payment_method: payment.payment_method, payment_reference: payment.payment_reference, qualifying_ordinal: ordinal, commission_rate_bps: commissionRateBps, commission_cents: commissionCents, commission_policy_snapshot: commissionPolicy, platform_cents: draft.net_cents - commissionCents } },
+            {
+              $set: {
+                status: "paid",
+                period,
+                occurred_at: payment.paid_at,
+                paid_at: payment.paid_at,
+                paid_by: user.id,
+                payment_method: payment.payment_method,
+                payment_reference: payment.payment_reference,
+                qualifying_ordinal: ordinal,
+                commission_rate_bps: commissionRateBps,
+                commission_cents: commissionCents,
+                commission_policy_snapshot: commissionPolicy,
+                platform_cents: draft.net_cents - commissionCents,
+              },
+            },
             { returnDocument: "after", session: transaction },
           );
-          if (!paid) throw new HttpError(409, "SatÄ±ÅŸ baÅŸka bir oturumda onaylandÄ±.");
-          await database.collection("commission_ledger").insertOne({ id: randomUUID(), sale_id: paid.id, partner_id: paid.partner_id, type: "accrual", amount_cents: paid.commission_cents, period, created_at: payment.paid_at, created_by: user.id }, { session: transaction });
+          if (!paid)
+            throw new HttpError(409, "SatÄ±ÅŸ baÅŸka bir oturumda onaylandÄ±.");
+          await database.collection("commission_ledger").insertOne(
+            {
+              id: randomUUID(),
+              sale_id: paid.id,
+              partner_id: paid.partner_id,
+              type: "accrual",
+              amount_cents: paid.commission_cents,
+              period,
+              created_at: payment.paid_at,
+              created_by: user.id,
+            },
+            { session: transaction },
+          );
         });
       } catch (reason) {
         if (reason instanceof MongoServerError && reason.code === 11000)
@@ -2842,7 +4311,11 @@ export async function handle(
       } finally {
         await transaction.endSession();
       }
-      await audit(req, "sale.payment_confirmed", user, { sale_id: paid!.id, wedding_id: paid!.wedding_id, payment_reference: payment.payment_reference });
+      await audit(req, "sale.payment_confirmed", user, {
+        sale_id: paid!.id,
+        wedding_id: paid!.wedding_id,
+        payment_reference: payment.payment_reference,
+      });
       return json(paid);
     }
     if (
@@ -2924,7 +4397,12 @@ export async function handle(
         const filters = z
           .object({
             sale_status: z
-              .enum(["pending_customer_consent", "paid", "refunded"])
+              .enum([
+                "pending_customer_consent",
+                "pending_payment",
+                "paid",
+                "refunded",
+              ])
               .optional(),
             payout_status: z
               .enum([
@@ -2939,7 +4417,8 @@ export async function handle(
               .optional(),
           })
           .parse({
-            sale_status: req.nextUrl.searchParams.get("sale_status") || undefined,
+            sale_status:
+              req.nextUrl.searchParams.get("sale_status") || undefined,
             payout_status:
               req.nextUrl.searchParams.get("payout_status") || undefined,
           });
@@ -2967,14 +4446,16 @@ export async function handle(
           ...(payoutSaleIds ? { id: { $in: payoutSaleIds } } : {}),
         };
         const items = await photographerSales
-            .find(scope, { projection: { _id: 0 } })
-            .sort({ occurred_at: -1 })
-            .limit(250)
-            .toArray();
+          .find(scope, { projection: { _id: 0 } })
+          .sort({ occurred_at: -1 })
+          .limit(250)
+          .toArray();
         const [events, partners, accounts, payouts] = await Promise.all([
           weddings
             .find(
-              { id: { $in: [...new Set(items.map((item) => item.wedding_id))] } },
+              {
+                id: { $in: [...new Set(items.map((item) => item.wedding_id))] },
+              },
               { projection: { _id: 0, id: 1, title: 1 } },
             )
             .toArray(),
@@ -3001,7 +4482,11 @@ export async function handle(
             .find(
               {
                 id: {
-                  $in: [...new Set(items.map((item) => item.photographer_account_id))],
+                  $in: [
+                    ...new Set(
+                      items.map((item) => item.photographer_account_id),
+                    ),
+                  ],
                 },
               },
               { projection: { _id: 0, id: 1, display_name: 1 } },
@@ -3010,13 +4495,18 @@ export async function handle(
           database
             .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
             .find(
-              { sale_id: { $in: items.map((item) => item.id) }, type: "accrual" },
+              {
+                sale_id: { $in: items.map((item) => item.id) },
+                type: "accrual",
+              },
               { projection: { _id: 0 } },
             )
             .toArray(),
         ]);
         const eventNames = new Map(events.map((item) => [item.id, item.title]));
-        const partnerNames = new Map(partners.map((item) => [item.id, item.name]));
+        const partnerNames = new Map(
+          partners.map((item) => [item.id, item.name]),
+        );
         const accountNames = new Map(
           accounts.map((item) => [item.id, item.display_name]),
         );
@@ -3055,7 +4545,9 @@ export async function handle(
         if (
           await photographerSales.findOne({
             wedding_id: input.wedding_id,
-            status: { $in: ["pending_customer_consent", "paid"] },
+            status: {
+              $in: ["pending_customer_consent", "pending_payment", "paid"],
+            },
           })
         )
           throw new HttpError(
@@ -3082,10 +4574,12 @@ export async function handle(
             "Fotoğrafçı organizasyona aktif olarak atanmış olmalı.",
           );
         const originatingPartnerId = event.lead_partner_id || event.partner_id;
-        const originatingPartner = await database.collection("partners").findOne({
-          id: originatingPartnerId,
-          active: true,
-        });
+        const originatingPartner = await database
+          .collection("partners")
+          .findOne({
+            id: originatingPartnerId,
+            active: true,
+          });
         if (!originatingPartner)
           throw new HttpError(
             409,
@@ -3121,7 +4615,9 @@ export async function handle(
               commercial_consent_at: null,
               commercial_consent_by: null,
             };
-            await photographerSales.insertOne(created, { session: transaction });
+            await photographerSales.insertOne(created, {
+              session: transaction,
+            });
           });
         } catch (reason) {
           if (
@@ -3167,8 +4663,9 @@ export async function handle(
         .parse(await req.json()).reason;
       const photographerSales =
         database.collection<PhotographerSaleRecord>("photographer_sales");
-      const payoutLedger =
-        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const payoutLedger = database.collection<ServicePayoutLedgerEntry>(
+        "service_payout_ledger",
+      );
       const transaction = (await mongoClient()).startSession();
       let refunded: PhotographerSaleRecord | null = null;
       try {
@@ -3249,7 +4746,9 @@ export async function handle(
         .findOne(
           {
             wedding_id: event.id,
-            status: { $in: ["pending_customer_consent", "paid"] },
+            status: {
+              $in: ["pending_customer_consent", "pending_payment", "paid"],
+            },
           },
           {
             projection: {
@@ -3279,16 +4778,24 @@ export async function handle(
     ) {
       const event = await weddings.findOne({ id: path[2] });
       if (!event || user.role !== "owner" || event.owner_id !== user.id)
-        throw new HttpError(403, "Satın alma onayını yalnızca organizasyon sahibi verebilir.");
+        throw new HttpError(
+          403,
+          "Satın alma onayını yalnızca organizasyon sahibi verebilir.",
+        );
       const photographerSales =
         database.collection<PhotographerSaleRecord>("photographer_sales");
       const existing = await photographerSales.findOne({
         wedding_id: event.id,
-        status: { $in: ["pending_customer_consent", "paid"] },
+        status: {
+          $in: ["pending_customer_consent", "pending_payment", "paid"],
+        },
       });
       if (!existing)
-        throw new HttpError(404, "Fotoğrafçı paketi satın alma kaydı bulunamadı.");
-      if (existing.status === "paid") return json(existing);
+        throw new HttpError(
+          404,
+          "Fotoğrafçı paketi satın alma kaydı bulunamadı.",
+        );
+      if (existing.status !== "pending_customer_consent") return json(existing);
       const transaction = (await mongoClient()).startSession();
       let accepted: PhotographerSaleRecord | null = null;
       try {
@@ -3298,7 +4805,7 @@ export async function handle(
             { id: existing.id, status: "pending_customer_consent" },
             {
               $set: {
-                status: "paid",
+                status: "pending_payment",
                 commercial_consent_at: now,
                 commercial_consent_by: user.id,
               },
@@ -3307,50 +4814,6 @@ export async function handle(
           );
           if (!accepted)
             throw new HttpError(409, "Satın alma başka bir oturumda işlendi.");
-          const settlement = accepted.settlement_snapshot;
-          await database
-            .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
-            .insertMany(
-              [
-                {
-                  id: randomUUID(),
-                  sale_id: accepted.id,
-                  wedding_id: event.id,
-                  beneficiary_type: "photographer",
-                  beneficiary_id: accepted.photographer_account_id,
-                  type: "accrual",
-                  gross_cents: settlement.photographerGrossCents,
-                  status: "pending_delivery",
-                  created_at: now,
-                  created_by: user.id,
-                },
-                {
-                  id: randomUUID(),
-                  sale_id: accepted.id,
-                  wedding_id: event.id,
-                  beneficiary_type: "originating_partner",
-                  beneficiary_id: accepted.originating_partner_id,
-                  type: "accrual",
-                  gross_cents: settlement.originatingPartnerGrossCents,
-                  status: "pending_delivery",
-                  created_at: now,
-                  created_by: user.id,
-                },
-                {
-                  id: randomUUID(),
-                  sale_id: accepted.id,
-                  wedding_id: event.id,
-                  beneficiary_type: "platform",
-                  beneficiary_id: "shineqr",
-                  type: "accrual",
-                  gross_cents: settlement.platformGrossCents,
-                  status: "recognized",
-                  created_at: now,
-                  created_by: user.id,
-                },
-              ],
-              { session: transaction },
-            );
         });
       } finally {
         await transaction.endSession();
@@ -3364,6 +4827,107 @@ export async function handle(
       return json(accepted);
     }
     if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "photographer-sales" &&
+      path[3] === "confirm-payment" &&
+      method === "POST" &&
+      user
+    ) {
+      requirePermission(user, "commission.manage");
+      const payment = z
+        .object({
+          payment_method: z.enum(["bank_transfer", "cash", "card", "other"]),
+          payment_reference: z.string().trim().min(3).max(120),
+          paid_at: z.string().datetime(),
+        })
+        .parse(await req.json());
+      const photographerSales =
+        database.collection<PhotographerSaleRecord>("photographer_sales");
+      const existing = await photographerSales.findOne({ id: path[2] });
+      if (!existing)
+        throw new HttpError(404, "Fotoğrafçı paketi satışı bulunamadı.");
+      if (existing.status === "paid") return json(existing);
+      if (existing.status !== "pending_payment")
+        throw new HttpError(
+          409,
+          "Müşteri onayı tamamlanmadan ödeme doğrulanamaz.",
+        );
+      const transaction = (await mongoClient()).startSession();
+      let paid: PhotographerSaleRecord | null = null;
+      try {
+        await transaction.withTransaction(async () => {
+          paid = await photographerSales.findOneAndUpdate(
+            { id: existing.id, status: "pending_payment" },
+            {
+              $set: {
+                status: "paid",
+                payment_method: payment.payment_method,
+                payment_reference: payment.payment_reference,
+                paid_at: payment.paid_at,
+                paid_by: user.id,
+              },
+            },
+            { returnDocument: "after", session: transaction },
+          );
+          if (!paid)
+            throw new HttpError(409, "Ödeme başka bir oturumda işlendi.");
+          const settlement = paid.settlement_snapshot;
+          await database
+            .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
+            .insertMany(
+              [
+                {
+                  id: randomUUID(),
+                  sale_id: paid.id,
+                  wedding_id: paid.wedding_id,
+                  beneficiary_type: "photographer",
+                  beneficiary_id: paid.photographer_account_id,
+                  type: "accrual",
+                  gross_cents: settlement.photographerGrossCents,
+                  status: "pending_delivery",
+                  created_at: payment.paid_at,
+                  created_by: user.id,
+                },
+                {
+                  id: randomUUID(),
+                  sale_id: paid.id,
+                  wedding_id: paid.wedding_id,
+                  beneficiary_type: "originating_partner",
+                  beneficiary_id: paid.originating_partner_id,
+                  type: "accrual",
+                  gross_cents: settlement.originatingPartnerGrossCents,
+                  status: "pending_delivery",
+                  created_at: payment.paid_at,
+                  created_by: user.id,
+                },
+                {
+                  id: randomUUID(),
+                  sale_id: paid.id,
+                  wedding_id: paid.wedding_id,
+                  beneficiary_type: "platform",
+                  beneficiary_id: "shineqr",
+                  type: "accrual",
+                  gross_cents: settlement.platformGrossCents,
+                  status: "recognized",
+                  created_at: payment.paid_at,
+                  created_by: user.id,
+                },
+              ],
+              { session: transaction },
+            );
+        });
+      } finally {
+        await transaction.endSession();
+      }
+      await audit(req, "photographer_sale.payment_confirmed", user, {
+        sale_id: paid!.id,
+        wedding_id: paid!.wedding_id,
+        payment_reference: payment.payment_reference,
+      });
+      return json(paid);
+    }
+    if (
       path.length === 5 &&
       path[0] === "admin" &&
       path[1] === "weddings" &&
@@ -3374,11 +4938,15 @@ export async function handle(
     ) {
       const event = await weddings.findOne({ id: path[2] });
       if (!event || user.role !== "owner" || event.owner_id !== user.id)
-        throw new HttpError(403, "Teslimatı yalnızca organizasyon sahibi onaylayabilir.");
+        throw new HttpError(
+          403,
+          "Teslimatı yalnızca organizasyon sahibi onaylayabilir.",
+        );
       const photographerSales =
         database.collection<PhotographerSaleRecord>("photographer_sales");
-      const payoutLedger =
-        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const payoutLedger = database.collection<ServicePayoutLedgerEntry>(
+        "service_payout_ledger",
+      );
       const transaction = (await mongoClient()).startSession();
       let approved: PhotographerSaleRecord | null = null;
       try {
@@ -3410,7 +4978,9 @@ export async function handle(
               sale_id: approved.id,
               type: "accrual",
               status: "pending_customer_approval",
-              beneficiary_type: { $in: ["photographer", "originating_partner"] },
+              beneficiary_type: {
+                $in: ["photographer", "originating_partner"],
+              },
             },
             { $set: { status: "payable" } },
             { session: transaction },
@@ -3436,6 +5006,10 @@ export async function handle(
     ) {
       requirePermission(user, "payout.approve");
       const now = new Date().toISOString();
+      const autoRecognize = effectiveStaffRole(user) === "platform_admin";
+      const approvableStatus = autoRecognize
+        ? { $in: ["payable", "approved"] as const }
+        : "payable";
       const payout = await database
         .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
         .findOneAndUpdate(
@@ -3443,12 +5017,12 @@ export async function handle(
             id: path[4],
             sale_id: path[2],
             type: "accrual",
-            status: "payable",
+            status: approvableStatus,
             beneficiary_type: { $in: ["photographer", "originating_partner"] },
           },
           {
             $set: {
-              status: "approved",
+              status: autoRecognize ? "recognized" : "approved",
               approved_at: now,
               approved_by: user.id,
             },
@@ -3462,6 +5036,7 @@ export async function handle(
         payout_id: payout.id,
         beneficiary_type: payout.beneficiary_type,
         gross_cents: payout.gross_cents,
+        auto_recognized: autoRecognize,
       });
       return json(payout);
     }
@@ -3474,8 +5049,9 @@ export async function handle(
       user
     ) {
       requirePermission(user, "finance.view_all");
-      const payoutLedger =
-        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const payoutLedger = database.collection<ServicePayoutLedgerEntry>(
+        "service_payout_ledger",
+      );
       const payout = await payoutLedger.findOne({
         id: path[4],
         sale_id: path[2],
@@ -3499,23 +5075,36 @@ export async function handle(
       if (method === "POST") {
         requirePermission(user, "payout.mark_paid");
         if (payout.status !== "approved")
-          throw new HttpError(409, "Ödeme belgesi yalnızca onaylı hakedişe eklenebilir.");
+          throw new HttpError(
+            409,
+            "Ödeme belgesi yalnızca onaylı hakedişe eklenebilir.",
+          );
         if (Number(req.headers.get("content-length")) > 6 * 1024 * 1024)
           throw new HttpError(413, "Ödeme belgesi en fazla 5 MB olabilir.");
         const form = await req.formData();
         const file = form.get("file");
-        if (!(file instanceof File) || !file.size || file.size > 5 * 1024 * 1024)
+        if (
+          !(file instanceof File) ||
+          !file.size ||
+          file.size > 5 * 1024 * 1024
+        )
           throw new HttpError(400, "Geçerli bir ödeme belgesi seçin.");
         const body = Buffer.from(await file.arrayBuffer());
-        const detectedType = body.subarray(0, 4).toString("ascii") === "%PDF"
-          ? "application/pdf"
-          : body.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
-            ? "image/jpeg"
-            : body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-              ? "image/png"
-              : null;
+        const detectedType =
+          body.subarray(0, 4).toString("ascii") === "%PDF"
+            ? "application/pdf"
+            : body.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
+              ? "image/jpeg"
+              : body
+                    .subarray(0, 8)
+                    .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+                ? "image/png"
+                : null;
         if (!detectedType || detectedType !== file.type)
-          throw new HttpError(400, "Yalnızca PDF, JPG veya PNG ödeme belgesi yüklenebilir.");
+          throw new HttpError(
+            400,
+            "Yalnızca PDF, JPG veya PNG ödeme belgesi yüklenebilir.",
+          );
         const proofId = randomUUID();
         const storagePath = `payment-proofs/${path[2]}/${path[4]}/${proofId}`;
         const { client, bucket } = storage();
@@ -3529,7 +5118,11 @@ export async function handle(
         );
         const now = new Date().toISOString();
         const updated = await payoutLedger.findOneAndUpdate(
-          { id: payout.id, status: "approved", payment_proof_id: { $exists: false } },
+          {
+            id: payout.id,
+            status: "approved",
+            payment_proof_id: { $exists: false },
+          },
           {
             $set: {
               payment_proof_id: proofId,
@@ -3544,7 +5137,10 @@ export async function handle(
         );
         if (!updated) {
           await deleteObject(storagePath);
-          throw new HttpError(409, "Ödeme belgesi daha önce yüklendi veya durum değişti.");
+          throw new HttpError(
+            409,
+            "Ödeme belgesi daha önce yüklendi veya durum değişti.",
+          );
         }
         await audit(req, "photographer_payout.proof_uploaded", user, {
           sale_id: path[2],
@@ -3624,8 +5220,9 @@ export async function handle(
       user
     ) {
       requirePermission(user, "finance.view_all");
-      const ledger =
-        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const ledger = database.collection<ServicePayoutLedgerEntry>(
+        "service_payout_ledger",
+      );
       const exportFilters = z
         .object({
           from: z.string().date().optional(),
@@ -3658,7 +5255,11 @@ export async function handle(
         });
       const createdAtFilter = {
         ...(exportFilters.from
-          ? { $gte: new Date(`${exportFilters.from}T00:00:00+03:00`).toISOString() }
+          ? {
+              $gte: new Date(
+                `${exportFilters.from}T00:00:00+03:00`,
+              ).toISOString(),
+            }
           : {}),
         ...(exportFilters.to
           ? {
@@ -3770,7 +5371,9 @@ export async function handle(
         return [
           entry.id,
           entry.sale_id,
-          sale ? eventMap.get(sale.wedding_id) || sale.wedding_id : entry.wedding_id,
+          sale
+            ? eventMap.get(sale.wedding_id) || sale.wedding_id
+            : entry.wedding_id,
           entry.beneficiary_type,
           sale
             ? accountMap.get(sale.photographer_account_id) ||
@@ -3811,8 +5414,9 @@ export async function handle(
       user
     ) {
       requirePermission(user, "finance.view_all");
-      const ledger =
-        database.collection<ServicePayoutLedgerEntry>("service_payout_ledger");
+      const ledger = database.collection<ServicePayoutLedgerEntry>(
+        "service_payout_ledger",
+      );
       const [statusRows, anomalyRows] = await Promise.all([
         ledger
           .aggregate<{
@@ -4571,9 +6175,27 @@ export async function handle(
             .toArray(),
           weddings.countDocuments(filter),
         ]);
+        const eventSales = await database
+          .collection<SaleRecord>("sales")
+          .find(
+            { wedding_id: { $in: events.map((event) => event.id) } },
+            { projection: { _id: 0, wedding_id: 1, status: 1 } },
+          )
+          .toArray();
+        const saleStatusByWedding = new Map(
+          eventSales.map((sale) => [sale.wedding_id, sale.status]),
+        );
         return json({
           items: events.map((w) => ({
             ...w,
+            commercial_status:
+              w.lifecycle_status !== "draft"
+                ? "published"
+                : saleStatusByWedding.get(w.id) === "paid"
+                  ? "payment_verified"
+                  : saleStatusByWedding.has(w.id)
+                    ? "awaiting_payment"
+                    : "not_ready",
             total: (w.photo_count || 0) + (w.video_count || 0),
             trashed: w.trashed_count || 0,
             size_bytes: w.media_bytes || 0,
@@ -4704,17 +6326,27 @@ export async function handle(
           package_code || existing.package_code || "plan-1";
         const effectivePackage = package_code
           ? await currentPackage(database, package_code)
-          : (existing.package_snapshot || await currentPackage(database, effectivePackageCode));
+          : existing.package_snapshot ||
+            (await currentPackage(database, effectivePackageCode));
         const addOnProducts = await database
           .collection<AddOnProduct>("add_on_products")
           .find({
-            id: { $in: [...new Set([
-              ...add_on_selections.map((item) => item.product_id),
-              ...qr_quantity_selections.map((item) => item.product_id),
-            ])] },
+            id: {
+              $in: [
+                ...new Set([
+                  ...add_on_selections.map((item) => item.product_id),
+                  ...qr_quantity_selections.map((item) => item.product_id),
+                ]),
+              ],
+            },
             active: true,
           })
           .toArray();
+        requireCompleteCustomDesignRequest(
+          addOnProducts,
+          data.custom_design_request || existing.custom_design_request,
+          data.cover_images || existing.cover_images,
+        );
         let pricing;
         let normalizedSelections;
         try {
@@ -4743,7 +6375,8 @@ export async function handle(
           ? {
               package_code,
               package_snapshot: effectivePackage,
-              upload_days: effectivePackage.uploadWindow === "event-day" ? 1 : 7,
+              upload_days:
+                effectivePackage.uploadWindow === "event-day" ? 1 : 7,
             }
           : {};
         if (changes.cover_images)
@@ -4814,19 +6447,37 @@ export async function handle(
       const addOnProducts = await database
         .collection<AddOnProduct>("add_on_products")
         .find({
-          id: { $in: [...new Set([
-            ...selections.map((item) => item.product_id),
-            ...qrSelections.map((item) => item.product_id),
-          ])] },
+          id: {
+            $in: [
+              ...new Set([
+                ...selections.map((item) => item.product_id),
+                ...qrSelections.map((item) => item.product_id),
+              ]),
+            ],
+          },
           active: true,
         })
         .toArray();
+      requireCompleteCustomDesignRequest(
+        addOnProducts,
+        data.custom_design_request,
+        data.cover_images || [],
+      );
       let pricing;
       let normalizedSelections;
       try {
-        const normalized = selectionsWithExtraQr(selectedPackage, selections, qrSelections, addOnProducts);
+        const normalized = selectionsWithExtraQr(
+          selectedPackage,
+          selections,
+          qrSelections,
+          addOnProducts,
+        );
         normalizedSelections = normalized.selections;
-        pricing = priceSnapshotForPackage(selectedPackage, normalizedSelections, addOnProducts);
+        pricing = priceSnapshotForPackage(
+          selectedPackage,
+          normalizedSelections,
+          addOnProducts,
+        );
         pricing.qr_details = normalized.qr_details;
       } catch (reason) {
         throw new HttpError(
@@ -4866,6 +6517,9 @@ export async function handle(
         thank_you_message: data.thank_you_message || "",
         customer_name: data.customer_name || "",
         customer_email: data.customer_email || "",
+        customer_phone: data.customer_phone || "",
+        photographer_package_requested:
+          data.photographer_package_requested || false,
         lifecycle_status: "draft",
         wizard_step: data.wizard_step,
         created_at: now,
@@ -4930,9 +6584,383 @@ export async function handle(
       await audit(req, "wedding.draft_created", user, { wedding_id: id });
       return json(draft, 201);
     }
+    if (route === "admin/design-plans" && method === "GET" && user) {
+      requirePlatform(user);
+      requirePermission(user, "design.select");
+      const plans = await database
+        .collection<Wedding>("weddings")
+        .find(
+          { design_request: { $exists: true } },
+          {
+            projection: {
+              _id: 0,
+              id: 1,
+              title: 1,
+              customer_name: 1,
+              customer_email: 1,
+              customer_phone: 1,
+              wedding_date: 1,
+              package_snapshot: 1,
+              add_on_selections: 1,
+              design_request: 1,
+            },
+          },
+        )
+        .sort({ "design_request.updated_at": -1 })
+        .limit(250)
+        .toArray();
+      return json(plans);
+    }
     if (path[0] === "admin" && path[1] === "weddings" && path[2] && user) {
       const event = await eventFor(user, path[2]);
       const id = event.id;
+      const surfaceIds = ["qr", "loading", "wedding"] as const;
+      const surfaceSchema = z.object({
+        mode: z.enum(["catalog", "custom"]),
+        template_id: z.string().trim().max(100).optional(),
+        color: z.string().trim().max(80).default(""),
+        heading: z.string().trim().max(80).default(""),
+        title: z.string().trim().max(120).default(""),
+        description: z.string().trim().max(500).default(""),
+        cta: z.string().trim().max(80).default(""),
+        footer: z.string().trim().max(160).default(""),
+        back_title: z.string().trim().max(120).default(""),
+        back_description: z.string().trim().max(500).default(""),
+        back_names: z.string().trim().max(120).default(""),
+        back_date: z.string().trim().max(80).default(""),
+        style: z.string().trim().max(100).default(""),
+        format: z.string().trim().max(100).default(""),
+        typography: z.string().trim().max(100).default(""),
+        layout: z.string().trim().max(100).default(""),
+        notes: z.string().trim().max(2000).default(""),
+        reference_image_urls: z.array(z.string().max(500)).max(10).default([]),
+      });
+      if (
+        path.length === 6 &&
+        path[3] === "design-request" &&
+        path[4] === "delivery" &&
+        method === "GET"
+      ) {
+        const surface = z.enum(surfaceIds).parse(path[5]);
+        const delivery = event.design_request?.surfaces[surface].delivery;
+        if (!delivery)
+          throw new HttpError(404, "Tamamlanan tasarım bulunamadı.");
+        return coverAssetResponse(delivery.preview_url);
+      }
+      if (
+        path.length === 4 &&
+        path[3] === "design-request" &&
+        method === "PUT"
+      ) {
+        requirePermission(user, "design.select");
+        if (
+          event.design_request &&
+          !["draft", "revision_requested"].includes(event.design_request.status)
+        )
+          throw new HttpError(
+            409,
+            "Gönderilmiş tasarım talebi değiştirilemez.",
+          );
+        const input = z
+          .object({
+            action: z.enum(["save", "submit"]),
+            surfaces: z.object({
+              qr: surfaceSchema,
+              loading: surfaceSchema,
+              wedding: surfaceSchema,
+            }),
+          })
+          .parse(await req.json());
+        const knownPackageCode: PackageCode =
+          event.package_code === "plan-2" || event.package_code === "plan-3"
+            ? event.package_code
+            : "plan-1";
+        if (
+          surfaceIds.some(
+            (surface) => input.surfaces[surface].mode === "custom",
+          ) &&
+          !hasCustomDesignEntitlement(
+            event.package_snapshot || packageSnapshot(knownPackageCode),
+            event.price_snapshot,
+          )
+        )
+          throw new HttpError(
+            403,
+            "Özel tasarım yalnızca Paket 3 veya Özel Tasarım ek ürünü ile kullanılabilir.",
+          );
+        if (input.action === "submit" && input.surfaces.qr.mode === "catalog") {
+          const qrInput = input.surfaces.qr;
+          const qrTemplate =
+            qrTemplates[qrInput.template_id as keyof typeof qrTemplates];
+          const variant = qrTemplate?.variants.find(
+            (item) => item.id === qrInput.color,
+          );
+          const product = qrProducts.find((item) => item.id === qrInput.format);
+          if (!qrTemplate || !variant)
+            throw new HttpError(
+              400,
+              "QR koleksiyonu için geçerli bir renk varyasyonu seçin.",
+            );
+          if (!product || !product.compatibleTemplates.includes(qrTemplate.id))
+            throw new HttpError(
+              400,
+              "QR koleksiyonuyla uyumlu fiziksel ürünü seçin.",
+            );
+          if (!qrProductEntitlement(product, event.package_snapshot).allowed)
+            throw new HttpError(
+              403,
+              "Seçilen fiziksel QR ürünü organizasyon paketine dahil değil.",
+            );
+        }
+        const surfaces = Object.fromEntries(
+          surfaceIds.map((surface) => {
+            const value = input.surfaces[surface];
+            const template = value.template_id
+              ? availableDesignRequestTemplates(surface).find(
+                  (item) => item.id === value.template_id,
+                )
+              : undefined;
+            if (value.mode === "catalog" && !template)
+              throw new HttpError(
+                400,
+                `${surface} için geçerli bir tasarım seçin.`,
+              );
+            if (input.action === "submit" && (!value.title || !value.cta))
+              throw new HttpError(
+                400,
+                "Her bölümde başlık ve CTA metni gereklidir.",
+              );
+            if (
+              input.action === "submit" &&
+              value.mode === "custom" &&
+              (!value.style || !value.notes)
+            )
+              throw new HttpError(
+                400,
+                "Özel tasarım için stil ve tasarım açıklaması gereklidir.",
+              );
+            return [
+              surface,
+              {
+                ...value,
+                template_name: template?.name,
+                template_asset: template?.asset,
+                status: input.action === "submit" ? "submitted" : "draft",
+              },
+            ];
+          }),
+        );
+        const now = new Date().toISOString();
+        const request = {
+          version: 1 as const,
+          status:
+            input.action === "submit"
+              ? ("submitted" as const)
+              : ("draft" as const),
+          surfaces: surfaces as DesignRequest["surfaces"],
+          updated_at: now,
+          updated_by: user.id,
+          ...(input.action === "submit"
+            ? { submitted_at: now, submitted_by: user.id }
+            : {}),
+        };
+        await validateCovers(
+          surfaceIds.flatMap(
+            (surface) => input.surfaces[surface].reference_image_urls,
+          ),
+          event.partner_id,
+        );
+        await weddings.updateOne(
+          { id, ...weddingScope(user) },
+          { $set: { design_request: request } },
+        );
+        await audit(
+          req,
+          input.action === "submit"
+            ? "wedding.design_request_submitted"
+            : "wedding.design_request_saved",
+          user,
+          { wedding_id: id },
+        );
+        return json(request);
+      }
+      if (
+        path.length === 5 &&
+        path[3] === "design-request" &&
+        path[4] === "deliver" &&
+        method === "POST"
+      ) {
+        requirePlatform(user);
+        requirePermission(user, "design.select");
+        if (!event.design_request)
+          throw new HttpError(409, "Tasarım talebi bulunamadı.");
+        const input = z
+          .object({
+            surface: z.enum(surfaceIds),
+            preview_url: z.string().max(500),
+            notes: z.string().trim().max(1000).default(""),
+          })
+          .parse(await req.json());
+        await validateCovers([input.preview_url], event.partner_id);
+        const now = new Date().toISOString();
+        const version =
+          (event.design_request.surfaces[input.surface].delivery?.version ||
+            0) + 1;
+        await weddings.updateOne(
+          { id },
+          {
+            $set: {
+              [`design_request.surfaces.${input.surface}.delivery`]: {
+                ...input,
+                version,
+                uploaded_at: now,
+                uploaded_by: user.id,
+              },
+              [`design_request.surfaces.${input.surface}.status`]: "in_design",
+              "design_request.status": "in_design",
+              "design_request.updated_at": now,
+              "design_request.updated_by": user.id,
+            },
+          },
+        );
+        await audit(req, "wedding.design_delivery_uploaded", user, {
+          wedding_id: id,
+          surface: input.surface,
+          version,
+        });
+        return json({ ok: true });
+      }
+      if (
+        path.length === 5 &&
+        path[3] === "design-request" &&
+        path[4] === "send" &&
+        method === "POST"
+      ) {
+        requirePlatform(user);
+        requirePermission(user, "design.select");
+        if (
+          !event.design_request ||
+          surfaceIds.some(
+            (surface) => !event.design_request?.surfaces[surface].delivery,
+          )
+        )
+          throw new HttpError(
+            409,
+            "Üç tasarımın da teslim dosyası yüklenmelidir.",
+          );
+        const now = new Date().toISOString();
+        const set: Record<string, unknown> = {
+          "design_request.status": "awaiting_approval",
+          "design_request.sent_at": now,
+          "design_request.sent_by": user.id,
+          "design_request.updated_at": now,
+          "design_request.updated_by": user.id,
+        };
+        surfaceIds.forEach((surface) => {
+          set[`design_request.surfaces.${surface}.status`] =
+            "awaiting_approval";
+        });
+        await weddings.updateOne({ id }, { $set: set });
+        await audit(req, "wedding.design_delivery_sent", user, {
+          wedding_id: id,
+        });
+        return json({ ok: true });
+      }
+      if (
+        path.length === 5 &&
+        path[3] === "design-request" &&
+        path[4] === "respond" &&
+        method === "POST"
+      ) {
+        requirePermission(user, "design.approve_for_print");
+        if (user.role !== "owner")
+          throw new HttpError(
+            403,
+            "Tasarım onayını organizasyon müşterisi vermelidir.",
+          );
+        if (
+          !event.design_request ||
+          event.design_request.status !== "awaiting_approval"
+        )
+          throw new HttpError(409, "Onay bekleyen tasarım bulunamadı.");
+        const input = z
+          .object({
+            surface: z.enum(surfaceIds),
+            decision: z.enum(["approve", "revision"]),
+            reason: z.string().trim().max(1000).default(""),
+          })
+          .parse(await req.json());
+        if (input.decision === "revision" && input.reason.length < 5)
+          throw new HttpError(400, "Revizyon nedenini açıklayın.");
+        const now = new Date().toISOString();
+        const status =
+          input.decision === "approve" ? "completed" : "revision_requested";
+        const othersApproved = surfaceIds
+          .filter((s) => s !== input.surface)
+          .every(
+            (s) => event.design_request?.surfaces[s].status === "completed",
+          );
+        const used = event.design_revisions_used || 0;
+        const limit = (
+          event.package_snapshot ||
+          packageSnapshot(
+            event.package_code === "plan-2" || event.package_code === "plan-3"
+              ? event.package_code
+              : "plan-1",
+          )
+        ).revisionLimit;
+        if (input.decision === "revision" && limit !== null && used >= limit)
+          throw new HttpError(
+            409,
+            `Bu paketin ${limit} revizyon hakkı kullanıldı.`,
+          );
+        const changed = await weddings.updateOne(
+          {
+            id,
+            ...weddingScope(user),
+            ...(input.decision === "revision"
+              ? {
+                  design_revisions_used:
+                    event.design_revisions_used === undefined
+                      ? { $exists: false }
+                      : used,
+                }
+              : {}),
+          },
+          {
+            $set: {
+              [`design_request.surfaces.${input.surface}.status`]: status,
+              [`design_request.surfaces.${input.surface}.revision_reason`]:
+                input.decision === "revision" ? input.reason : null,
+              [`design_request.surfaces.${input.surface}.approved_at`]:
+                input.decision === "approve" ? now : null,
+              [`design_request.surfaces.${input.surface}.approved_by`]:
+                input.decision === "approve" ? user.id : null,
+              "design_request.status":
+                input.decision === "revision"
+                  ? "revision_requested"
+                  : othersApproved
+                    ? "completed"
+                    : "awaiting_approval",
+              "design_request.updated_at": now,
+              "design_request.updated_by": user.id,
+            },
+            ...(input.decision === "revision"
+              ? { $inc: { design_revisions_used: 1 } }
+              : {}),
+          },
+        );
+        if (!changed.modifiedCount)
+          throw new HttpError(
+            409,
+            "Tasarım başka bir oturumda güncellendi. Sayfayı yenileyin.",
+          );
+        await audit(req, `wedding.design_${input.decision}`, user, {
+          wedding_id: id,
+          surface: input.surface,
+        });
+        return json({ ok: true });
+      }
       if (path.length >= 4 && path[3] === "digital-invitation") {
         const invitationEntitled =
           event.package_snapshot?.version === 2 &&
@@ -4983,14 +7011,13 @@ export async function handle(
           });
           return json(invitation);
         }
-        if (
-          path.length === 5 &&
-          path[4] === "publish" &&
-          method === "POST"
-        ) {
+        if (path.length === 5 && path[4] === "publish" && method === "POST") {
           requirePermission(user, "organization.update");
           if (!event.digital_invitation)
-            throw new HttpError(409, "Önce dijital davetiye taslağı oluşturun.");
+            throw new HttpError(
+              409,
+              "Önce dijital davetiye taslağı oluşturun.",
+            );
           const now = new Date().toISOString();
           const published = await weddings.findOneAndUpdate(
             {
@@ -5009,7 +7036,10 @@ export async function handle(
             { returnDocument: "after", projection: { _id: 0 } },
           );
           if (!published)
-            throw new HttpError(409, "Davetiye başka bir oturumda değiştirildi.");
+            throw new HttpError(
+              409,
+              "Davetiye başka bir oturumda değiştirildi.",
+            );
           await audit(req, "digital_invitation.published", user, {
             wedding_id: id,
             template_version: event.digital_invitation.template_version,
@@ -5377,8 +7407,15 @@ export async function handle(
             validated.error.issues[0]?.message ||
               "Organizasyon bilgileri eksik.",
           );
-        if (!event.customer_name?.trim() || !event.customer_email?.trim())
-          throw new HttpError(400, "Müşteri adı ve e-posta adresi gerekli.");
+        if (
+          !event.customer_name?.trim() ||
+          !event.customer_email?.trim() ||
+          !/^0[0-9]{10}$/.test(event.customer_phone || "")
+        )
+          throw new HttpError(
+            400,
+            "Müşteri adı, e-posta adresi ve telefonu gerekli.",
+          );
         const approval = await database
           .collection("organization_approval_requests")
           .findOne({ wedding_id: id });
@@ -5400,16 +7437,6 @@ export async function handle(
             409,
             "Bu sayfa adresi başka bir organizasyonda kullanılıyor.",
           );
-        const times = deadlines(
-          validated.data.wedding_date,
-          event.upload_days || 7,
-          event.package_snapshot?.digitalRetentionMonths || 3,
-        );
-        const lifecycle_status =
-          Date.parse(`${validated.data.wedding_date}T00:00:00+03:00`) >
-          Date.now()
-            ? "upcoming"
-            : "active";
         const now = new Date().toISOString();
         const ownerId = randomUUID();
         const transaction = (await mongoClient()).startSession();
@@ -5425,15 +7452,14 @@ export async function handle(
               {
                 $set: {
                   owner_id: ownerId,
-                  lifecycle_status,
+                  lifecycle_status: "draft",
                   approval_status: "approved",
                   approved_at: now,
                   approved_by: user.id,
                   wizard_step: 7,
-                  published_at: now,
-                  upload_enabled: true,
-                  uploads_open_at: now,
-                  ...times,
+                  published_at: null,
+                  published_by: null,
+                  upload_enabled: false,
                 },
               },
               { session: transaction },
@@ -5448,6 +7474,7 @@ export async function handle(
                 id: ownerId,
                 email: event.customer_email,
                 display_name: event.customer_name,
+                phone: event.customer_phone,
                 salt: approval.owner_credentials.salt,
                 passwordHash: approval.owner_credentials.passwordHash,
                 role: "owner",
@@ -5463,6 +7490,12 @@ export async function handle(
               .collection("organization_approval_requests")
               .deleteOne({ wedding_id: id }, { session: transaction });
             await ensureSaleDraft(database, event, user.id, transaction);
+            await ensureRequestedPhotographerSale(
+              database,
+              event,
+              user.id,
+              transaction,
+            );
           });
         } finally {
           await transaction.endSession();
@@ -5473,7 +7506,7 @@ export async function handle(
         });
         return json({
           ok: true,
-          lifecycle_status,
+          lifecycle_status: "draft",
           approval_status: "approved",
         });
       }
@@ -5533,7 +7566,6 @@ export async function handle(
         );
         if (event.lifecycle_status !== "draft")
           throw new HttpError(409, "Bu organizasyon zaten yayınlanmış.");
-        const credentials = eventPublishInput.parse(await req.json());
         const validated = eventInput.safeParse(event);
         if (!validated.success)
           throw new HttpError(
@@ -5541,8 +7573,15 @@ export async function handle(
             validated.error.issues[0]?.message ||
               "Organizasyon bilgileri eksik.",
           );
-        if (!event.customer_name?.trim() || !event.customer_email?.trim())
-          throw new HttpError(400, "Müşteri adı ve e-posta adresi gerekli.");
+        if (
+          !event.customer_name?.trim() ||
+          !event.customer_email?.trim() ||
+          !/^0[0-9]{10}$/.test(event.customer_phone || "")
+        )
+          throw new HttpError(
+            400,
+            "Müşteri adı, e-posta adresi ve telefonu gerekli.",
+          );
         const slugOwner = await weddings.findOne({
           slug: validated.data.slug,
           id: { $ne: id },
@@ -5564,9 +7603,9 @@ export async function handle(
             ? "upcoming"
             : "active";
         const now = new Date().toISOString();
-        const ownerId = randomUUID();
-        const password = await passwordFields(credentials.password);
         if (user.role !== "platform") {
+          const credentials = eventPublishInput.parse(await req.json());
+          const password = await passwordFields(credentials.password);
           const submission = (await mongoClient()).startSession();
           try {
             await submission.withTransaction(async () => {
@@ -5623,6 +7662,54 @@ export async function handle(
           await audit(req, "wedding.submitted", user, { wedding_id: id });
           return json({ ok: true, approval_status: "submitted" }, 202);
         }
+        if (event.owner_id && event.approval_status === "approved") {
+          const paidSale = await database
+            .collection<SaleRecord>("sales")
+            .findOne({
+              wedding_id: id,
+              status: "paid",
+            });
+          if (!paidSale)
+            throw new HttpError(
+              409,
+              "Organizasyon yayınlanmadan önce ödeme onaylanmalı.",
+            );
+          const published = await weddings.findOneAndUpdate(
+            {
+              id,
+              lifecycle_status: "draft",
+              approval_status: "approved",
+              owner_id: event.owner_id,
+            },
+            {
+              $set: {
+                lifecycle_status,
+                published_at: now,
+                published_by: user.id,
+                upload_enabled: true,
+                uploads_open_at: now,
+                ...times,
+              },
+            },
+            { returnDocument: "after", projection: { _id: 0 } },
+          );
+          if (!published)
+            throw new HttpError(
+              409,
+              "Organizasyon başka bir işlem tarafından değiştirildi.",
+            );
+          await audit(req, "wedding.published", user, {
+            wedding_id: id,
+            sale_id: paidSale.id,
+          });
+          return json({
+            ok: true,
+            lifecycle_status: published.lifecycle_status,
+          });
+        }
+        const credentials = eventPublishInput.parse(await req.json());
+        const password = await passwordFields(credentials.password);
+        const ownerId = randomUUID();
         const transaction = (await mongoClient()).startSession();
         try {
           await transaction.withTransaction(async () => {
@@ -5636,15 +7723,14 @@ export async function handle(
               {
                 $set: {
                   owner_id: ownerId,
-                  lifecycle_status,
+                  lifecycle_status: "draft",
                   approval_status: "approved",
                   approved_at: now,
                   approved_by: user.id,
                   wizard_step: 7,
-                  published_at: now,
-                  upload_enabled: true,
-                  uploads_open_at: now,
-                  ...times,
+                  published_at: null,
+                  published_by: null,
+                  upload_enabled: false,
                 },
               },
               { session: transaction },
@@ -5659,6 +7745,7 @@ export async function handle(
                 id: ownerId,
                 email: event.customer_email,
                 display_name: event.customer_name,
+                phone: event.customer_phone,
                 ...password,
                 role: "owner",
                 staff_role: "organization_owner",
@@ -5670,12 +7757,21 @@ export async function handle(
               { session: transaction },
             );
             await ensureSaleDraft(database, event, user.id, transaction);
+            await ensureRequestedPhotographerSale(
+              database,
+              event,
+              user.id,
+              transaction,
+            );
           });
         } finally {
           await transaction.endSession();
         }
-        await audit(req, "wedding.published", user, { wedding_id: id });
-        return json({ ok: true, lifecycle_status });
+        await audit(req, "wedding.approved", user, { wedding_id: id });
+        return json(
+          { ok: true, lifecycle_status: "draft", approval_status: "approved" },
+          202,
+        );
       }
       if (
         path.length === 5 &&
@@ -5852,8 +7948,16 @@ export async function handle(
               ? event.package_code
               : "plan-1";
           try {
-            const packageForPricing = (event.package_snapshot || await currentPackage(database, knownCode)) as PackageConfiguration;
-            pricing = priceSnapshotForPackage(packageForPricing, addOnSelections, addOnProducts);
+            const packageForPricing = (event.package_snapshot ||
+              (await currentPackage(
+                database,
+                knownCode,
+              ))) as PackageConfiguration;
+            pricing = priceSnapshotForPackage(
+              packageForPricing,
+              addOnSelections,
+              addOnProducts,
+            );
           } catch (reason) {
             throw new HttpError(
               400,
@@ -5977,8 +8081,22 @@ export async function handle(
             )
             .sort({ display_name: 1 })
             .toArray();
+          const eventSale = await database
+            .collection<SaleRecord>("sales")
+            .findOne(
+              { wedding_id: event.id },
+              { projection: { _id: 0, status: 1 } },
+            );
           return json({
             ...event,
+            commercial_status:
+              event.lifecycle_status !== "draft"
+                ? "published"
+                : eventSale?.status === "paid"
+                  ? "payment_verified"
+                  : eventSale
+                    ? "awaiting_payment"
+                    : "not_ready",
             assigned_photographers: assignedPhotographers.map(
               (photographer) => ({
                 ...assignments.find(

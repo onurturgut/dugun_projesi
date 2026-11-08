@@ -25,6 +25,7 @@ import {
   Share2,
   Palette,
   Camera,
+  Rocket,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ArchiveButton } from "@/components/admin/ArchiveButton";
@@ -117,7 +118,7 @@ export default function EventDetail() {
     queryFn: () =>
       api<{
         id: string;
-        status: "pending_customer_consent" | "paid";
+        status: "pending_customer_consent" | "pending_payment" | "paid";
         settlement_snapshot: { grossCents: number };
         commercial_consent_version: 1;
         commercial_consent_at?: string | null;
@@ -213,6 +214,26 @@ export default function EventDetail() {
   const archive = `/api/admin/weddings/${id}/archive`;
   function resetSelection() {
     setSelected([]);
+  }
+  async function publishOrganization() {
+    if (!window.confirm("Organizasyon yayınlansın ve QR/misafir bağlantıları aktif edilsin mi?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/admin/weddings/${id}/publish`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["admin-wedding", id] }),
+        qc.invalidateQueries({ queryKey: ["admin-weddings"] }),
+      ]);
+      toast.success("Organizasyon yayınlandı. QR ve misafir bağlantıları aktif edildi.");
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
   async function saveStorageLimit() {
     setBusy(true);
@@ -448,6 +469,13 @@ export default function EventDetail() {
         <Notice>{event.error?.message || "Organizasyon bulunamadı."}</Notice>
       ) : (
         <>
+          {w.lifecycle_status === "draft" ? (
+            <div className="admin-notice" role="status">
+              {w.commercial_status === "payment_verified"
+                ? "Ödeme onaylandı. Organizasyon süperadmin tarafından yayınlandığında aktif olacaktır."
+                : "Organizasyon ödeme alındıktan sonra aktifleştirilecektir."}
+            </div>
+          ) : null}
           <div className="admin-heading">
             <div>
               <p className="admin-kicker">{w.event_type} · Özel albüm</p>
@@ -465,14 +493,26 @@ export default function EventDetail() {
                 </span>
               </p>
             </div>
-            {me.data?.role !== "owner" && (
-              <button
-                className="admin-button"
-                onClick={() => setSection("share")}
-              >
-                <Share2 size={16} /> Paylaş
-              </button>
-            )}
+            <div className="admin-actions">
+              {me.data?.role === "platform" && w.lifecycle_status === "draft" ? (
+                <button
+                  className="admin-button primary"
+                  disabled={busy || w.commercial_status !== "payment_verified"}
+                  title={w.commercial_status !== "payment_verified" ? "Yayınlamak için önce finans ekranından ödemeyi onaylayın." : "Organizasyonu yayınla"}
+                  onClick={() => void publishOrganization()}
+                >
+                  <Rocket size={16} /> {w.commercial_status === "payment_verified" ? "Organizasyonu yayınla" : "Ödeme onayı bekleniyor"}
+                </button>
+              ) : null}
+              {!isPhotographer && (
+                <button
+                  className="admin-button"
+                  onClick={() => setSection("share")}
+                >
+                  <Share2 size={16} /> Paylaş
+                </button>
+              )}
+            </div>
           </div>
           <div className="admin-summary">
             <div className="admin-stats">
@@ -747,6 +787,8 @@ export default function EventDetail() {
                         Satın alma onayını kaydet
                       </button>
                     </>
+                  ) : photographerSale.data.status === "pending_payment" ? (
+                    <><strong>Ödeme doğrulaması bekleniyor</strong><p>Fotoğrafçı paketi onayınız alındı. ShineQR ödemeyi doğruladıktan sonra paket aktif olacaktır.</p></>
                   ) : photographerSale.data.customer_approval_status ===
                   "pending" ? (
                     <>
@@ -806,7 +848,7 @@ export default function EventDetail() {
                 <Images size={18} /> Albüm
               </button>
             )}
-            {me.data?.role !== "owner" && !isPhotographer && (
+            {!isPhotographer && (
               <>
                 <button
                   aria-pressed={section === "share"}
@@ -814,12 +856,12 @@ export default function EventDetail() {
                 >
                   <QrCode size={18} /> Paylaşım ve QR
                 </button>
-                <button
+                {me.data?.role !== "owner" ? <button
                   aria-pressed={section === "settings"}
                   onClick={() => setSection("settings")}
                 >
                   <Settings2 size={18} /> Ayarlar
-                </button>
+                </button> : null}
               </>
             )}
           </nav>
@@ -878,10 +920,9 @@ export default function EventDetail() {
             </div>
           )}
           {section === "share" &&
-            me.data?.role !== "owner" &&
             !isPhotographer && (
               <div className="admin-panels">
-                <QrPanel slug={w.slug} />
+                <QrPanel slug={w.slug} active={w.lifecycle_status !== "draft"} />
                 <div className="admin-panel">
                   <h2>Anılara bir davet</h2>
                   <p className="admin-hint">
@@ -893,9 +934,9 @@ export default function EventDetail() {
                     Albüm misafirlere açık değildir. İçerikleri organizasyon
                     sahibi ve yetkili ShineQR yöneticisi görebilir.
                   </p>
-                  <Link className="admin-button" href={`/wedding/${w.slug}`}>
+                  {w.lifecycle_status !== "draft" ? <Link className="admin-button" href={`/wedding/${w.slug}`}>
                     Misafir sayfasını aç
-                  </Link>
+                  </Link> : null}
                 </div>
               </div>
             )}

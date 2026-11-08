@@ -51,6 +51,18 @@ export const eventDraftInput = eventInput.partial().extend({
   wizard_step: z.number().int().min(1).max(7).default(1),
   customer_name: z.string().trim().max(100).default(""),
   customer_email: loginName.or(z.literal("")).default(""),
+  customer_phone: z.string().regex(/^0[0-9]{10}$/, "Telefon 0 ile başlayan 11 hane olmalı.").or(z.literal("")).default(""),
+  photographer_package_requested: z.boolean().default(false),
+  custom_design_request: z.object({
+    description: z.string().trim().max(2000).default(""),
+    colors: z.string().trim().max(500).default(""),
+    text_content: z.string().trim().max(2000).default(""),
+    main_image_url: imageUrl.default(""),
+    reference_image_urls: z.array(imageUrl).max(10).default([]),
+    surfaces: z.array(z.enum(["qr_card", "loading_page", "wedding_page", "welcome_sign"])).max(4).default([]),
+    due_date: z.string().date().or(z.literal("")).default(""),
+    notes: z.string().trim().max(2000).default(""),
+  }).optional(),
   package_code: z.enum(["plan-1", "plan-2", "plan-3"]).optional(),
   add_on_selections: z.array(z.object({
     product_id: z.string().uuid(),
