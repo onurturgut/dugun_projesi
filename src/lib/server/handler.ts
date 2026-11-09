@@ -78,7 +78,7 @@ import type {
 } from "@/lib/models";
 import { designSchema } from "@/lib/design";
 import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
-import { defaultDigitalInvitationContent, invitationGalleryBelongsToWedding } from "@/lib/digital-invitation";
+import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, invitationGalleryBelongsToWedding } from "@/lib/digital-invitation";
 import { audit } from "./audit";
 import {
   commissionSnapshot,
@@ -369,10 +369,7 @@ const publicEvent = (w: Wedding) => ({
   design: w.design,
   can_upload: uploadsOpenForRuntime(w),
   uploads_close_at: w.uploads_close_at,
-  ...(w.package_snapshot?.version === 2 &&
-  w.package_snapshot.code === "plan-3" &&
-  w.package_snapshot.digitalInvitationIncluded === true &&
-  w.digital_invitation?.status === "published"
+  ...(digitalInvitationAccessEnabled(w) && w.digital_invitation?.status === "published"
     ? { digital_invitation: publishedDigitalInvitation(w) }
     : {}),
 });
@@ -6990,10 +6987,7 @@ export async function handle(
         return json({ ok: true });
       }
       if (path.length >= 4 && path[3] === "digital-invitation") {
-        const invitationEntitled =
-          event.package_snapshot?.version === 2 &&
-          event.package_snapshot.code === "plan-3" &&
-          event.package_snapshot.digitalInvitationIncluded === true;
+        const invitationEntitled = digitalInvitationAccessEnabled(event);
         if (!invitationEntitled)
           throw new HttpError(
             403,

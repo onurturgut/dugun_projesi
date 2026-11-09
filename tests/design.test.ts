@@ -43,7 +43,7 @@ import {
   weddingImageBelongsToEvent,
   weddingTemplates,
 } from "../src/lib/wedding-templates";
-import { defaultDigitalInvitationContent, digitalInvitationThemes, invitationGalleryBelongsToWedding } from "../src/lib/digital-invitation";
+import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, digitalInvitationThemes, invitationGalleryBelongsToWedding } from "../src/lib/digital-invitation";
 
 test("digital invitation defaults remain backward compatible and Bluebell asset is bundled", () => {
   assert.equal(defaultDigitalInvitationContent.theme_id, "botanical");
@@ -64,6 +64,12 @@ test("digital invitation gallery enforces wedding ownership and the twenty-image
   assert.equal(invitationGalleryBelongsToWedding(["/covers/a.jpg"], ["/covers/a.jpg", "/covers/b.jpg"]), true);
   assert.equal(invitationGalleryBelongsToWedding(["/covers/other.jpg"], ["/covers/a.jpg"]), false);
   assert.equal(invitationGalleryBelongsToWedding(Array.from({ length: 21 }, () => "/covers/a.jpg"), ["/covers/a.jpg"]), false);
+});
+
+test("digital invitation access accepts frozen Plan 3 rights or an explicit audited grant", () => {
+  assert.equal(digitalInvitationAccessEnabled({ package_snapshot: { version: 2, code: "plan-3", digitalInvitationIncluded: true } }), true);
+  assert.equal(digitalInvitationAccessEnabled({ package_snapshot: { version: 2, code: "plan-1" } }), false);
+  assert.equal(digitalInvitationAccessEnabled({ package_snapshot: { version: 2, code: "plan-1" }, digital_invitation_access: { granted: true } }), true);
 });
 
 test("existing invitations keep their original video and speed", () => {

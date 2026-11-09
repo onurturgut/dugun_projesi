@@ -833,9 +833,10 @@ export default function EventDetail() {
               </Link>
             )}
             {!isPhotographer &&
-            w.package_snapshot?.version === 2 &&
-            w.package_snapshot.code === "plan-3" &&
-            w.package_snapshot.digitalInvitationIncluded ? (
+            ((w.package_snapshot?.version === 2 &&
+              w.package_snapshot.code === "plan-3" &&
+              w.package_snapshot.digitalInvitationIncluded) ||
+              w.digital_invitation_access?.granted) ? (
               <Link href={`/admin/${id}/invitation`}>
                 <Share2 size={18} /> Dijital davetiye
               </Link>

@@ -231,6 +231,12 @@ export interface ServicePayoutLedgerEntry {
   payment_proof_uploaded_by?: string | null;
 }
 export interface Wedding {
+  digital_invitation_access?: {
+    granted: true;
+    granted_at: string;
+    granted_by: string;
+    reason: string;
+  };
   design_request?: DesignRequest;
   custom_design_request?: {
     description: string;

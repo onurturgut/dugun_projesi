@@ -130,6 +130,18 @@ export function invitationGalleryBelongsToWedding(
   return galleryImages.length <= 20 && galleryImages.every((image) => allowed.has(image));
 }
 
+export function digitalInvitationAccessEnabled(value: {
+  package_snapshot?: { version?: number; code?: string; digitalInvitationIncluded?: boolean };
+  digital_invitation_access?: { granted?: boolean };
+}) {
+  return Boolean(
+    (value.package_snapshot?.version === 2 &&
+      value.package_snapshot.code === "plan-3" &&
+      value.package_snapshot.digitalInvitationIncluded === true) ||
+      value.digital_invitation_access?.granted === true,
+  );
+}
+
 export function invitationDateLabels(date: string, time: string) {
   const value = new Date(`${date || "2027-06-19"}T${time || "19:00"}:00+03:00`);
   if (Number.isNaN(value.getTime()))
