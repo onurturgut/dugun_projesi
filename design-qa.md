@@ -54,6 +54,23 @@
 
 final result: passed
 
+# Dijital Davetiye Editörü QA — 2026-11-09
+
+## Evidence
+
+- Source interaction reference: `C:/Users/onurt/Videos/Ekran Kayıtları/Ekran Kaydı 2026-11-08 182344.mp4`.
+- Source phone frame: `C:/Users/onurt/Downloads/realistic-front-view-smartphone-mockup-mobile-iphone-purple-frame-with-blank-white-display-vector/phone_14_01.jpg` and EPS counterpart.
+- Source theme: `C:/Users/onurt/OneDrive/Masaüstü/dijital_davetiye.zip`.
+- Implementation: `/admin/[id]/invitation` editor and `/invitation/[slug]` published experience.
+
+## Verification note
+
+- Production compilation, TypeScript, ESLint and automated business-rule tests pass.
+- The available computer-use environment reported no browser surfaces, so a same-viewport rendered screenshot, console inspection and source-versus-implementation visual comparison could not be completed.
+- Before visual approval, inspect desktop and mobile editor states, all four editor tabs, phone scrolling, autosave status transitions and the published invitation route in a browser.
+
+final result: blocked - browser surface unavailable for the required rendered visual comparison
+
 ---
 
 # Minimal Krem 50x70 Karşılama Tabelası QA - 2026-11-03

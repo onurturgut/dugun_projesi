@@ -626,9 +626,38 @@ try {
     platform,
   );
   assert.equal(
-    (await call(`/weddings/slug/${premiumInvitationEvent.slug}`, "GET")).data
-      .digital_invitation.status,
+    (await call(`/weddings/slug/${premiumInvitationEvent.slug}`, "GET")).data.digital_invitation.status,
     "published",
+  );
+  assert.equal(
+    (await call(`/weddings/slug/${premiumInvitationEvent.slug}`, "GET")).data.digital_invitation.content.message,
+    "Davetlisiniz.",
+  );
+  assert.equal(
+    "published_content" in (await call(`/weddings/slug/${premiumInvitationEvent.slug}`, "GET")).data.digital_invitation,
+    false,
+    "Herkese açık davetiye dahili yayın kopyasını göstermemeli",
+  );
+  const changedDraft = (
+    await call(
+      `/admin/weddings/${premiumInvitationEvent.id}/digital-invitation`,
+      "PUT",
+      {
+        event_date: today,
+        event_time: "19:30",
+        venue: "Test Davet Alanı",
+        map_url: "https://maps.example.com/test",
+        message: "Yayınlanmamış yeni metin.",
+      },
+      platform,
+    )
+  ).data;
+  assert.equal(changedDraft.status, "published");
+  assert.equal(changedDraft.has_unpublished_changes, true);
+  assert.equal(
+    (await call(`/weddings/slug/${premiumInvitationEvent.slug}`, "GET")).data.digital_invitation.content.message,
+    "Davetlisiniz.",
+    "Taslak değişikliği yeniden yayınlanmadan canlı davetiyeyi değiştirmemeli",
   );
   await db
     .collection("weddings")

@@ -78,6 +78,7 @@ import type {
 } from "@/lib/models";
 import { designSchema } from "@/lib/design";
 import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
+import { defaultDigitalInvitationContent } from "@/lib/digital-invitation";
 import { audit } from "./audit";
 import {
   commissionSnapshot,
@@ -326,6 +327,33 @@ const decodeCursor = (value: string | null): MediaCursor | null => {
     throw new HttpError(400, "Geçersiz sayfalama bilgisi.");
   }
 };
+const publishedDigitalInvitation = (w: Wedding) => {
+  const invitation = w.digital_invitation;
+  if (!invitation || invitation.status !== "published") return null;
+  const content = invitation.published_content || invitation.content || {
+    ...defaultDigitalInvitationContent,
+    bride_name: w.bride_name || defaultDigitalInvitationContent.bride_name,
+    groom_name: w.groom_name || defaultDigitalInvitationContent.groom_name,
+    event_type: w.event_type || defaultDigitalInvitationContent.event_type,
+    event_date: invitation.event_date,
+    event_time: invitation.event_time,
+    venue: invitation.venue,
+    map_url: invitation.map_url,
+    message: invitation.message,
+  };
+  return {
+    template_version: invitation.template_version,
+    status: invitation.status,
+    theme_id: invitation.theme_id || "botanical",
+    content,
+    event_date: content.event_date,
+    event_time: content.event_time,
+    venue: content.venue,
+    map_url: content.map_url,
+    message: content.message,
+    published_at: invitation.published_at || null,
+  };
+};
 const publicEvent = (w: Wedding) => ({
   id: w.id,
   slug: w.slug,
@@ -345,7 +373,7 @@ const publicEvent = (w: Wedding) => ({
   w.package_snapshot.code === "plan-3" &&
   w.package_snapshot.digitalInvitationIncluded === true &&
   w.digital_invitation?.status === "published"
-    ? { digital_invitation: w.digital_invitation }
+    ? { digital_invitation: publishedDigitalInvitation(w) }
     : {}),
 });
 export async function handle(
@@ -6977,29 +7005,80 @@ export async function handle(
           requirePermission(user, "organization.update");
           const input = z
             .object({
+              theme_id: z.literal("botanical").default("botanical"),
+              bride_name: z.string().trim().min(1).max(80).optional(),
+              groom_name: z.string().trim().min(1).max(80).optional(),
+              event_type: z.string().trim().min(2).max(80).optional(),
               event_date: z.string().date(),
               event_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-              venue: z.string().trim().min(2).max(200),
+              venue: z.string().trim().max(200),
+              venue_address: z.string().trim().max(500).optional(),
               map_url: z
                 .string()
                 .trim()
-                .url()
-                .refine((value) => value.startsWith("https://"), {
+                .refine((value) => !value || (z.string().url().safeParse(value).success && value.startsWith("https://")), {
                   message: "Harita bağlantısı HTTPS olmalı.",
                 }),
               message: z.string().trim().max(500).default(""),
+              bride_family: z.string().trim().max(240).optional(),
+              groom_family: z.string().trim().max(240).optional(),
+              timeline: z.array(z.object({
+                time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+                title: z.string().trim().min(1).max(100),
+                description: z.string().trim().max(200),
+              }).strict()).max(12).optional(),
+              menu: z.array(z.object({
+                course: z.string().trim().min(1).max(100),
+                items: z.array(z.string().trim().min(1).max(160)).max(12),
+              }).strict()).max(10).optional(),
+              dress_code_title: z.string().trim().max(100).optional(),
+              dress_code_note: z.string().trim().max(300).optional(),
+              special_note: z.string().trim().max(600).optional(),
+              whatsapp_number: z.string().trim().regex(/^$|^[0-9]{10,15}$/).optional(),
+              music_url: z.string().trim().refine((value) => !value || (z.string().url().safeParse(value).success && value.startsWith("https://")), { message: "Müzik bağlantısı HTTPS olmalı." }).optional(),
             })
             .strict()
             .parse(await req.json());
           const now = new Date().toISOString();
+          const content = {
+            ...defaultDigitalInvitationContent,
+            bride_name: event.bride_name || defaultDigitalInvitationContent.bride_name,
+            groom_name: event.groom_name || defaultDigitalInvitationContent.groom_name,
+            event_type: event.event_type || defaultDigitalInvitationContent.event_type,
+            ...event.digital_invitation?.content,
+            ...input,
+          };
+          const legacyPublishedContent =
+            event.digital_invitation?.status === "published" && !event.digital_invitation.published_content
+              ? event.digital_invitation.content || {
+                  ...defaultDigitalInvitationContent,
+                  bride_name: event.bride_name || defaultDigitalInvitationContent.bride_name,
+                  groom_name: event.groom_name || defaultDigitalInvitationContent.groom_name,
+                  event_type: event.event_type || defaultDigitalInvitationContent.event_type,
+                  event_date: event.digital_invitation.event_date,
+                  event_time: event.digital_invitation.event_time,
+                  venue: event.digital_invitation.venue,
+                  map_url: event.digital_invitation.map_url,
+                  message: event.digital_invitation.message,
+                }
+              : null;
+          const publishedContent = event.digital_invitation?.published_content || legacyPublishedContent || null;
           const invitation: NonNullable<Wedding["digital_invitation"]> = {
             template_version: 1,
-            status: "draft",
-            ...input,
+            status: publishedContent ? "published" : "draft",
+            theme_id: "botanical",
+            content,
+            published_content: publishedContent,
+            has_unpublished_changes: Boolean(publishedContent),
+            event_date: content.event_date,
+            event_time: content.event_time,
+            venue: content.venue,
+            map_url: content.map_url,
+            message: content.message,
             updated_at: now,
             updated_by: user.id,
-            published_at: null,
-            published_by: null,
+            published_at: event.digital_invitation?.published_at || null,
+            published_by: event.digital_invitation?.published_by || null,
           };
           await weddings.updateOne(
             { id, ...weddingScope(user) },
@@ -7029,6 +7108,18 @@ export async function handle(
             {
               $set: {
                 "digital_invitation.status": "published",
+                "digital_invitation.published_content": event.digital_invitation.content || {
+                  ...defaultDigitalInvitationContent,
+                  bride_name: event.bride_name || defaultDigitalInvitationContent.bride_name,
+                  groom_name: event.groom_name || defaultDigitalInvitationContent.groom_name,
+                  event_type: event.event_type || defaultDigitalInvitationContent.event_type,
+                  event_date: event.digital_invitation.event_date,
+                  event_time: event.digital_invitation.event_time,
+                  venue: event.digital_invitation.venue,
+                  map_url: event.digital_invitation.map_url,
+                  message: event.digital_invitation.message,
+                },
+                "digital_invitation.has_unpublished_changes": false,
                 "digital_invitation.published_at": now,
                 "digital_invitation.published_by": user.id,
               },

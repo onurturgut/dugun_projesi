@@ -1,5 +1,6 @@
 import type { WeddingDesign } from "./design";
 import type { QrProductId } from "./qr-products";
+import type { DigitalInvitationContent } from "./digital-invitation";
 import type {
   AddOnSelection,
   PackageCode,
@@ -246,6 +247,10 @@ export interface Wedding {
   digital_invitation?: {
     template_version: 1;
     status: "draft" | "published";
+    theme_id?: "botanical";
+    content?: DigitalInvitationContent;
+    published_content?: DigitalInvitationContent | null;
+    has_unpublished_changes?: boolean;
     event_date: string;
     event_time: string;
     venue: string;
