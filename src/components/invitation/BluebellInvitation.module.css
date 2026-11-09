@@ -1,0 +1,46 @@
+.theme { --ivory:#f7f5ef; --blue:#526c94; --navy:#263f63; --kraft:#a88358; min-height:100%; overflow:hidden; background-color:var(--ivory); background-image:url("/digital-invitation/bluebell/bluebell-watercolor.png"); background-repeat:repeat-y; background-position:center top; background-size:100% auto; color:#292d34; font-family:Georgia,"Times New Roman",serif; isolation:isolate; }
+.hero { position:relative; min-height:clamp(720px,100svh,900px); display:grid; place-items:center; overflow:hidden; background:transparent; }
+.hero::after { content:""; position:absolute; inset:48% 7% 7%; border:1px solid rgba(182,155,121,.42); border-radius:48% 48% 2rem 2rem; background:rgba(247,245,239,.76); box-shadow:0 22px 70px rgba(38,63,99,.1); backdrop-filter:blur(2px); }
+.heroCopy { position:relative; z-index:1; width:min(82%,440px); margin-top:clamp(245px,34vh,330px); padding:2rem 1.25rem; text-align:center; }
+.eyebrow { margin:0 0 .75rem; color:var(--blue); font:700 .68rem/1.3 Arial,sans-serif; letter-spacing:.25em; text-transform:uppercase; }
+.hero h1 { margin:0; color:var(--navy); font-family:"Brush Script MT","Segoe Script",cursive; font-size:clamp(3.25rem,12vw,5.75rem); font-weight:500; line-height:.88; text-wrap:balance; }
+.hero h1 span { display:block; margin:.2rem 0; color:var(--kraft); font-family:Georgia,serif; font-size:1.4rem; }
+.message { max-width:350px; margin:1.4rem auto; color:#3f4855; font-size:clamp(.95rem,2.4vw,1.08rem); font-style:italic; line-height:1.72; text-wrap:balance; }
+.date { display:grid; gap:.35rem; justify-items:center; color:var(--navy); text-transform:capitalize; }
+.date strong { font-size:1.2rem; }
+.date small { font:700 .67rem Arial,sans-serif; letter-spacing:.18em; text-transform:uppercase; }
+.section { position:relative; margin:clamp(1rem,4vw,2rem); padding:clamp(3.5rem,9vw,5.5rem) clamp(1rem,5vw,2.4rem); border:1px solid rgba(182,155,121,.24); border-radius:clamp(1.5rem,5vw,2.75rem); text-align:center; background:rgba(247,245,239,.68); box-shadow:0 18px 55px rgba(38,63,99,.07); backdrop-filter:blur(1.5px); }
+.section h2 { max-width:460px; margin:0 auto 2rem; color:var(--navy); font-size:clamp(1.8rem,6vw,2.55rem); font-weight:500; line-height:1.08; text-wrap:balance; }
+.paper { background:rgba(255,253,250,.66); }
+.countdown { display:grid; grid-template-columns:repeat(3,1fr); gap:.75rem; max-width:430px; margin:auto; }
+.countdown div { padding:1.3rem .4rem; border:1px solid rgba(82,108,148,.3); border-radius:999px 999px 18px 18px; background:rgba(255,254,250,.82); box-shadow:0 10px 28px rgba(38,63,99,.08); }
+.countdown strong,.countdown span { display:block; }
+.countdown strong { color:var(--navy); font-size:1.65rem; font-weight:500; }
+.countdown span { margin-top:.35rem; color:var(--blue); font:700 .65rem Arial,sans-serif; text-transform:uppercase; }
+.families { display:grid; grid-template-columns:1fr 1fr; gap:1rem; max-width:500px; margin:auto; }
+.families div { padding:1.75rem .85rem; border-top:1px solid var(--kraft); border-bottom:1px solid var(--kraft); background:rgba(255,255,255,.24); }
+.families span,.families strong { display:block; }
+.families span { color:var(--blue); font:700 .65rem Arial,sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+.families strong { margin-top:.65rem; font-size:1rem; font-weight:500; line-height:1.5; }
+.events { display:grid; gap:1.1rem; max-width:600px; margin:auto; }
+.eventCard { height:100%; padding:2.2rem 1.35rem; border:1px solid rgba(82,108,148,.32); border-radius:7rem 7rem 1.7rem 1.7rem; background:rgba(255,254,250,.84); box-shadow:0 18px 42px rgba(38,63,99,.09); }
+.eventCard>svg { color:var(--blue); }
+.eventCard>span { display:block; margin:.65rem 0; color:var(--blue); font:700 .68rem Arial,sans-serif; letter-spacing:.18em; text-transform:uppercase; }
+.eventCard h3 { margin:.35rem 0; color:var(--navy); font-size:1.45rem; font-weight:500; }
+.eventCard p { margin:.4rem 0; line-height:1.55; }
+.eventCard strong { display:block; margin-top:1rem; color:var(--navy); }
+.eventCard a,.closing a { display:inline-flex; min-height:44px; align-items:center; gap:.4rem; justify-content:center; margin-top:1rem; padding:0 1rem; border-radius:999px; background:var(--navy); color:white; font:700 .72rem Arial,sans-serif; text-decoration:none; }
+.gallerySection { background:rgba(223,230,238,.65); }
+.gallery { display:grid; grid-template-columns:repeat(2,1fr); gap:clamp(.6rem,2vw,1rem); max-width:580px; margin:auto; }
+.gallery img { width:100%; aspect-ratio:4/5; object-fit:cover; border:clamp(4px,1vw,7px) solid rgba(255,255,255,.92); border-radius:1rem; box-shadow:0 14px 34px rgba(38,63,99,.16); }
+.gallery img:nth-child(2n) { transform:translateY(1.4rem); }
+.story { max-width:460px; margin:0 auto; font-size:1.05rem; line-height:1.8; }
+.closing { background:rgba(255,253,250,.7); }
+.closing p { max-width:420px; margin:0 auto 1.5rem; font-size:1.15rem; font-style:italic; line-height:1.7; }
+.closing strong { display:block; color:var(--navy); font-family:"Brush Script MT","Segoe Script",cursive; font-size:2.2rem; font-weight:500; }
+.theme footer { display:grid; gap:.7rem; margin-top:2rem; padding:2rem 1rem 3.5rem; background:rgba(38,63,99,.96); color:white; text-align:center; }
+.theme footer small { font:600 .58rem Arial,sans-serif; letter-spacing:.2em; text-transform:uppercase; opacity:.72; }
+@media (min-width:700px) { .events:has(> :nth-child(2)){grid-template-columns:repeat(2,1fr)} .gallery{grid-template-columns:repeat(3,1fr)} .gallery img:nth-child(2n){transform:translateY(1.75rem)} }
+@media (max-width:520px) { .theme{background-size:115% auto}.hero{min-height:720px}.hero::after{inset:45% 4% 5%}.heroCopy{width:90%;margin-top:220px;padding-inline:.75rem}.section{margin:.75rem;padding:3.4rem 1rem;border-radius:1.65rem}.families{gap:.55rem}.families strong{font-size:.9rem}.countdown{gap:.45rem}.countdown strong{font-size:1.4rem}.gallery img:nth-child(2n){transform:translateY(.8rem)} }
+@media (max-width:360px) { .hero h1{font-size:2.9rem}.hero h1 span{font-size:1.05rem}.families{grid-template-columns:1fr}.countdown div{padding:1rem .25rem}.date strong{font-size:1.05rem} }
+@media (prefers-reduced-motion: reduce) { .theme *, .theme *::before, .theme *::after { animation-duration:.01ms!important; animation-iteration-count:1!important; scroll-behavior:auto!important; } }

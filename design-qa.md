@@ -280,3 +280,22 @@ final result: passed
 - Static print artwork was validated from the generated PDF rather than an interactive browser viewport. Browser interactions and console states are not applicable to this PDF-focused comparison.
 
 final result: passed
+/// <reference types="next" />
+
+## Bluebell digital invitation — 2026-11-09
+
+- Reference: WhatsApp physical invitation photograph.
+- Automated checks: TypeScript, ESLint, unit tests and production build passed.
+- Source visual inspection: completed.
+- Browser capture: blocked because no browser or app surface is available to the computer-use runtime in this session.
+- Remaining check: inspect the authenticated editor theme switch, second-event controls and published wildcard subdomain at mobile and desktop widths.
+
+final result: blocked
+
+## Digital invitation catalog and studio — 2026-11-09
+
+- Added a product-style theme catalog, theme detail preview, studio transition, organization-owned gallery picker, story controls and loading/animation settings.
+- Automated checks: TypeScript, ESLint, unit tests and production build passed.
+- Browser capture remains blocked because no browser or app surface is available to the computer-use runtime in this session.
+
+final result: blocked

@@ -247,7 +247,7 @@ export interface Wedding {
   digital_invitation?: {
     template_version: 1;
     status: "draft" | "published";
-    theme_id?: "botanical";
+    theme_id?: "botanical" | "bluebell-timeless";
     content?: DigitalInvitationContent;
     published_content?: DigitalInvitationContent | null;
     has_unpublished_changes?: boolean;

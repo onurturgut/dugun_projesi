@@ -43,6 +43,28 @@ import {
   weddingImageBelongsToEvent,
   weddingTemplates,
 } from "../src/lib/wedding-templates";
+import { defaultDigitalInvitationContent, digitalInvitationThemes, invitationGalleryBelongsToWedding } from "../src/lib/digital-invitation";
+
+test("digital invitation defaults remain backward compatible and Bluebell asset is bundled", () => {
+  assert.equal(defaultDigitalInvitationContent.theme_id, "botanical");
+  assert.equal(defaultDigitalInvitationContent.show_countdown, true);
+  assert.equal(defaultDigitalInvitationContent.show_families, true);
+  assert.equal(defaultDigitalInvitationContent.show_gallery, true);
+  assert.equal(defaultDigitalInvitationContent.show_story, true);
+  assert.equal(defaultDigitalInvitationContent.loading_style, "theme");
+  assert.equal(defaultDigitalInvitationContent.animation_intensity, "rich");
+  assert.deepEqual(digitalInvitationThemes.map((theme) => theme.id), ["botanical", "bluebell-timeless"]);
+  assert.equal(
+    existsSync("public/digital-invitation/bluebell/bluebell-watercolor.png"),
+    true,
+  );
+});
+
+test("digital invitation gallery enforces wedding ownership and the twenty-image limit", () => {
+  assert.equal(invitationGalleryBelongsToWedding(["/covers/a.jpg"], ["/covers/a.jpg", "/covers/b.jpg"]), true);
+  assert.equal(invitationGalleryBelongsToWedding(["/covers/other.jpg"], ["/covers/a.jpg"]), false);
+  assert.equal(invitationGalleryBelongsToWedding(Array.from({ length: 21 }, () => "/covers/a.jpg"), ["/covers/a.jpg"]), false);
+});
 
 test("existing invitations keep their original video and speed", () => {
   assert.equal(resolveDesign().intro, "video");

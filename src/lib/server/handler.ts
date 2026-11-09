@@ -78,7 +78,7 @@ import type {
 } from "@/lib/models";
 import { designSchema } from "@/lib/design";
 import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
-import { defaultDigitalInvitationContent } from "@/lib/digital-invitation";
+import { defaultDigitalInvitationContent, invitationGalleryBelongsToWedding } from "@/lib/digital-invitation";
 import { audit } from "./audit";
 import {
   commissionSnapshot,
@@ -7005,7 +7005,7 @@ export async function handle(
           requirePermission(user, "organization.update");
           const input = z
             .object({
-              theme_id: z.literal("botanical").default("botanical"),
+              theme_id: z.enum(["botanical", "bluebell-timeless"]).default("botanical"),
               bride_name: z.string().trim().min(1).max(80).optional(),
               groom_name: z.string().trim().min(1).max(80).optional(),
               event_type: z.string().trim().min(2).max(80).optional(),
@@ -7036,9 +7036,30 @@ export async function handle(
               special_note: z.string().trim().max(600).optional(),
               whatsapp_number: z.string().trim().regex(/^$|^[0-9]{10,15}$/).optional(),
               music_url: z.string().trim().refine((value) => !value || (z.string().url().safeParse(value).success && value.startsWith("https://")), { message: "Müzik bağlantısı HTTPS olmalı." }).optional(),
+              ceremony_title: z.string().trim().max(80).optional(),
+              ceremony_date: z.union([z.literal(""), z.string().date()]).optional(),
+              ceremony_time: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).optional(),
+              ceremony_venue: z.string().trim().max(200).optional(),
+              ceremony_address: z.string().trim().max(500).optional(),
+              ceremony_map_url: z.string().trim().refine((value) => !value || (z.string().url().safeParse(value).success && value.startsWith("https://")), { message: "Nikâh harita bağlantısı HTTPS olmalı." }).optional(),
+              show_countdown: z.boolean().optional(),
+              show_families: z.boolean().optional(),
+              show_gallery: z.boolean().optional(),
+              story_title: z.string().trim().max(120).optional(),
+              story_text: z.string().trim().max(1200).optional(),
+              show_story: z.boolean().optional(),
+              gallery_images: z.array(z.string().trim().min(1).max(1000)).max(20).optional(),
+              loading_style: z.enum(["theme", "minimal", "none"]).optional(),
+              loading_message: z.string().trim().max(120).optional(),
+              animation_intensity: z.enum(["reduced", "rich", "cinematic"]).optional(),
             })
             .strict()
             .parse(await req.json());
+          if (input.gallery_images && !invitationGalleryBelongsToWedding(input.gallery_images, event.cover_images || []))
+            throw new HttpError(
+              403,
+              "Galeri yalnızca bu organizasyona ait görselleri kullanabilir.",
+            );
           const now = new Date().toISOString();
           const content = {
             ...defaultDigitalInvitationContent,
@@ -7066,7 +7087,7 @@ export async function handle(
           const invitation: NonNullable<Wedding["digital_invitation"]> = {
             template_version: 1,
             status: publishedContent ? "published" : "draft",
-            theme_id: "botanical",
+            theme_id: content.theme_id,
             content,
             published_content: publishedContent,
             has_unpublished_changes: Boolean(publishedContent),

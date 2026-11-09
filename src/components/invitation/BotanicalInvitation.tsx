@@ -94,15 +94,21 @@ export function BotanicalInvitation({ content }: { content: DigitalInvitationCon
         <div className={styles.menu}><div className={styles.menuInner}><h2 className={styles.sectionTitle}>Menü</h2>{content.menu.map((group, index) => <div className={styles.menuGroup} key={`${group.course}-${index}`}><strong>{group.course}</strong>{group.items.map((item, itemIndex) => <p key={`${item}-${itemIndex}`}>{item}</p>)}</div>)}</div></div>
       </section> : null}
 
+      {content.show_story ? <section className={styles.section}>
+        <p className={styles.eyebrow} style={{ textAlign: "center" }}>Biz</p>
+        <h2 className={styles.sectionTitle}>{content.story_title}</h2>
+        <div className={styles.card} style={{ padding: "1.5rem", textAlign: "center", lineHeight: 1.7 }}><p>{content.story_text}</p></div>
+      </section> : null}
+
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Kıyafet Kodu</h2>
         <div className={`${styles.card}`} style={{ padding: "1.5rem", textAlign: "center" }}><strong>{content.dress_code_title}</strong><p style={{ color: "#806f72" }}>{content.dress_code_note}</p></div>
       </section>
 
-      <section className={styles.section}>
+      {content.show_gallery ? <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Bizden Kareler</h2>
-        <div className={styles.gallery}>{[1,2,3,4].map((number) => <img key={number} src={asset(`gallery-${number}.jpg`)} alt={`${content.bride_name} ve ${content.groom_name} galeri görseli ${number}`} />)}</div>
-      </section>
+        <div className={styles.gallery}>{(content.gallery_images.length ? content.gallery_images : [1,2,3,4].map((number) => asset(`gallery-${number}.jpg`))).map((image, index) => <img key={`${image}-${index}`} src={image} alt={`${content.bride_name} ve ${content.groom_name} galeri görseli ${index + 1}`} />)}</div>
+      </section> : null}
 
       <section className={styles.section}>
         <div className={`${styles.note} ${styles.card}`}><img src={asset("single-rose.png")} alt="" /><h2 className={styles.sectionTitle}>Özel Not</h2><p>“{content.special_note}”</p><div className={styles.rule} /><strong>{content.bride_name} &amp; {content.groom_name}</strong></div>
