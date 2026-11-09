@@ -142,6 +142,17 @@ export function digitalInvitationAccessEnabled(value: {
   );
 }
 
+export function priceSnapshotIncludesDigitalInvitation(value?: {
+  add_ons?: ReadonlyArray<{ effect_type?: string; quantity?: number }>;
+} | null) {
+  return Boolean(
+    value?.add_ons?.some(
+      (item) =>
+        item.effect_type === "digital_invitation" && (item.quantity || 0) > 0,
+    ),
+  );
+}
+
 export function invitationDateLabels(date: string, time: string) {
   const value = new Date(`${date || "2027-06-19"}T${time || "19:00"}:00+03:00`);
   if (Number.isNaN(value.getTime()))

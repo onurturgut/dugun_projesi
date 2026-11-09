@@ -115,7 +115,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             : []),
         ]
       : me.data?.role === "owner"
-        ? [{ href: "/admin", label: "Etkinliğim", icon: Images }]
+        ? [
+            { href: "/admin", label: "Etkinliğim", icon: Images },
+            {
+              href: "/admin/design-center",
+              label: "Tasarım Merkezi",
+              icon: Palette,
+            },
+          ]
         : me.data?.staff_role === "print_vendor"
           ? [
               {

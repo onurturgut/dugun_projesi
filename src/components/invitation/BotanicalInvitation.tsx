@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, MapPin } from "lucide-react";
+import { CalendarDays, MapPin, MessageCircle, Music2 } from "lucide-react";
 import {
   invitationDateLabels,
   type DigitalInvitationContent,
@@ -104,6 +104,14 @@ export function BotanicalInvitation({ content }: { content: DigitalInvitationCon
         <h2 className={styles.sectionTitle}>Kıyafet Kodu</h2>
         <div className={`${styles.card}`} style={{ padding: "1.5rem", textAlign: "center" }}><strong>{content.dress_code_title}</strong><p style={{ color: "#806f72" }}>{content.dress_code_note}</p></div>
       </section>
+
+      {(content.whatsapp_number || content.music_url) ? <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Davetli Rehberi</h2>
+        <div className={styles.guestActions}>
+          {content.whatsapp_number ? <a className={styles.link} href={`https://wa.me/${content.whatsapp_number}`} target="_blank" rel="noreferrer"><MessageCircle size={16} /> WhatsApp ile RSVP</a> : null}
+          {content.music_url ? <a className={styles.link} href={content.music_url} target="_blank" rel="noreferrer"><Music2 size={16} /> Şarkımızı Dinle</a> : null}
+        </div>
+      </section> : null}
 
       {content.show_gallery ? <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Bizden Kareler</h2>

@@ -78,7 +78,7 @@ import type {
 } from "@/lib/models";
 import { designSchema } from "@/lib/design";
 import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
-import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, invitationGalleryBelongsToWedding } from "@/lib/digital-invitation";
+import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, invitationGalleryBelongsToWedding, priceSnapshotIncludesDigitalInvitation } from "@/lib/digital-invitation";
 import { audit } from "./audit";
 import {
   commissionSnapshot,
@@ -4226,7 +4226,30 @@ export async function handle(
           { id: path[2] },
           { projection: { _id: 0 } },
         );
-        if (existing?.status === "paid") return json(existing);
+        if (existing?.status === "paid") {
+          if (priceSnapshotIncludesDigitalInvitation(existing.price_snapshot)) {
+            const access = {
+              granted: true as const,
+              granted_at: existing.paid_at || existing.occurred_at,
+              granted_by: existing.paid_by || user.id,
+              reason: `paid_add_on:${existing.id}`,
+            };
+            const granted = await weddings.updateOne(
+              {
+                id: existing.wedding_id,
+                "digital_invitation_access.granted": { $ne: true },
+              },
+              { $set: { digital_invitation_access: access } },
+            );
+            if (granted.modifiedCount)
+              await audit(req, "digital_invitation.access_granted", user, {
+                wedding_id: existing.wedding_id,
+                sale_id: existing.id,
+                source: "paid_add_on_idempotent_repair",
+              });
+          }
+          return json(existing);
+        }
         throw new HttpError(
           409,
           "SatÄ±ÅŸ taslaÄŸÄ± bulunamadÄ± veya Ã¶deme onayÄ±na uygun deÄŸil.",
@@ -4328,6 +4351,21 @@ export async function handle(
             },
             { session: transaction },
           );
+          if (priceSnapshotIncludesDigitalInvitation(paid.price_snapshot))
+            await weddings.updateOne(
+              { id: paid.wedding_id },
+              {
+                $set: {
+                  digital_invitation_access: {
+                    granted: true,
+                    granted_at: payment.paid_at,
+                    granted_by: user.id,
+                    reason: `paid_add_on:${paid.id}`,
+                  },
+                },
+              },
+              { session: transaction },
+            );
         });
       } catch (reason) {
         if (reason instanceof MongoServerError && reason.code === 11000)
@@ -4341,6 +4379,12 @@ export async function handle(
         wedding_id: paid!.wedding_id,
         payment_reference: payment.payment_reference,
       });
+      if (priceSnapshotIncludesDigitalInvitation(paid!.price_snapshot))
+        await audit(req, "digital_invitation.access_granted", user, {
+          wedding_id: paid!.wedding_id,
+          sale_id: paid!.id,
+          source: "paid_add_on",
+        });
       return json(paid);
     }
     if (
@@ -4401,6 +4445,15 @@ export async function handle(
               },
               { session: transaction },
             );
+          if (priceSnapshotIncludesDigitalInvitation(refunded.price_snapshot))
+            await weddings.updateOne(
+              {
+                id: refunded.wedding_id,
+                "digital_invitation_access.reason": `paid_add_on:${refunded.id}`,
+              },
+              { $unset: { digital_invitation_access: "" } },
+              { session: transaction },
+            );
         });
       } finally {
         await transaction.endSession();
@@ -4409,6 +4462,12 @@ export async function handle(
         sale_id: refunded!.id,
         reason,
       });
+      if (priceSnapshotIncludesDigitalInvitation(refunded!.price_snapshot))
+        await audit(req, "digital_invitation.access_revoked", user, {
+          wedding_id: refunded!.wedding_id,
+          sale_id: refunded!.id,
+          source: "refunded_add_on",
+        });
       return json(refunded);
     }
     if (route === "admin/photographer-sales" && user) {
@@ -6988,13 +7047,50 @@ export async function handle(
       }
       if (path.length >= 4 && path[3] === "digital-invitation") {
         const invitationEntitled = digitalInvitationAccessEnabled(event);
+        if (path.length === 4 && method === "GET")
+          return json(event.digital_invitation || null);
         if (!invitationEntitled)
           throw new HttpError(
             403,
             "Dijital davetiye yalnızca Premium v2 paket hakkıyla kullanılabilir.",
           );
-        if (path.length === 4 && method === "GET")
-          return json(event.digital_invitation || null);
+        if (
+          path.length === 5 &&
+          path[4] === "gallery" &&
+          method === "POST"
+        ) {
+          requirePermission(user, "organization.update");
+          const { image_url } = z
+            .object({
+              image_url: z
+                .string()
+                .regex(/^\/api\/covers\/[0-9a-f-]{36}$/),
+            })
+            .strict()
+            .parse(await req.json());
+          if ((event.cover_images || []).includes(image_url))
+            return json({ cover_images: event.cover_images || [] });
+          await validateCovers([image_url], event.partner_id);
+          const updated = await weddings.findOneAndUpdate(
+            {
+              id,
+              ...weddingScope(user),
+              "cover_images.19": { $exists: false },
+            },
+            {
+              $addToSet: { cover_images: image_url },
+              $set: { updated_at: new Date().toISOString() },
+            },
+            { returnDocument: "after", projection: { _id: 0, cover_images: 1 } },
+          );
+          if (!updated)
+            throw new HttpError(409, "Davetiye galerisine en fazla 20 görsel eklenebilir.");
+          await audit(req, "digital_invitation.gallery_image_added", user, {
+            wedding_id: id,
+            image_url,
+          });
+          return json({ cover_images: updated.cover_images || [] }, 201);
+        }
         if (path.length === 4 && method === "PUT") {
           requirePermission(user, "organization.update");
           const input = z

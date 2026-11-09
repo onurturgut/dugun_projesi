@@ -665,10 +665,23 @@ try {
       { id: premiumInvitationEvent.id },
       { $unset: { package_snapshot: "" } },
     );
-  await call(
+  const retainedInvitationPreview = await call(
     `/admin/weddings/${premiumInvitationEvent.id}/digital-invitation`,
     "GET",
     undefined,
+    platform,
+  );
+  assert.equal(retainedInvitationPreview.data.status, "published");
+  await call(
+    `/admin/weddings/${premiumInvitationEvent.id}/digital-invitation`,
+    "PUT",
+    {
+      event_date: today,
+      event_time: "20:00",
+      venue: "Yetkisiz değişiklik",
+      map_url: "",
+      message: "Kaydedilmemeli.",
+    },
     platform,
     403,
   );

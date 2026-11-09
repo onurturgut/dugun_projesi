@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
-import { ArrowLeft, Check, Copy, ExternalLink, Eye, Images, MessageCircle, Plus, Send, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, ExternalLink, Eye, ImagePlus, Images, LoaderCircle, MessageCircle, Plus, Send, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { prepareAdminImage } from "@/components/admin/CoverUpload";
 import { InvitationRenderer } from "@/components/invitation/InvitationRenderer";
-import { defaultDigitalInvitationContent, digitalInvitationThemes, type DigitalInvitationContent } from "@/lib/digital-invitation";
+import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, digitalInvitationThemes, type DigitalInvitationContent } from "@/lib/digital-invitation";
 import type { Wedding } from "@/lib/models";
 import { api } from "@/lib/api";
 import styles from "./invitation-editor.module.css";
@@ -32,6 +33,7 @@ export default function DigitalInvitationPage() {
   const queryClient = useQueryClient();
   const invitation = useQuery({ queryKey: ["digital-invitation", id], queryFn: () => api<InvitationRecord | null>(`/admin/weddings/${id}/digital-invitation`) });
   const wedding = useQuery({ queryKey: ["wedding", id], queryFn: () => api<Wedding>(`/admin/weddings/${id}`) });
+  const canEdit = digitalInvitationAccessEnabled(wedding.data || {});
   const [form, setForm] = useState<DigitalInvitationContent>(defaultDigitalInvitationContent);
   const [view, setView] = useState<StudioView>("catalog");
   const [previewTheme, setPreviewTheme] = useState<DigitalInvitationContent["theme_id"] | null>(null);
@@ -43,6 +45,8 @@ export default function DigitalInvitationPage() {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [publishedNow, setPublishedNow] = useState(false);
   const [animationReplayKey, setAnimationReplayKey] = useState(0);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const galleryInput = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
   const editVersion = useRef(0);
   const latestForm = useRef(form);
@@ -63,11 +67,12 @@ export default function DigitalInvitationPage() {
       map_url: stored?.map_url || "",
       message: stored?.message || event?.hero_message || defaultDigitalInvitationContent.message,
     });
-    setView(stored?.content ? "studio" : "catalog");
+    setView(!canEdit || stored?.content ? "studio" : "catalog");
     initialized.current = true;
-  }, [invitation.data, invitation.isLoading, wedding.data, wedding.isLoading]);
+  }, [canEdit, invitation.data, invitation.isLoading, wedding.data, wedding.isLoading]);
 
   const persist = useCallback(async (content: DigitalInvitationContent, quiet = false) => {
+    if (!canEdit) return false;
     const version = editVersion.current;
     setSaveState("saving");
     setError("");
@@ -82,21 +87,23 @@ export default function DigitalInvitationPage() {
       setSaveState("error");
       return false;
     }
-  }, [id, queryClient]);
+  }, [canEdit, id, queryClient]);
 
   useEffect(() => {
-    if (!initialized.current || saveState !== "dirty") return;
+    if (!canEdit || !initialized.current || saveState !== "dirty") return;
     const timer = window.setTimeout(() => void persist(latestForm.current, true), 900);
     return () => window.clearTimeout(timer);
-  }, [form, persist, saveState]);
+  }, [canEdit, form, persist, saveState]);
 
   const update = <K extends keyof DigitalInvitationContent>(key: K, value: DigitalInvitationContent[K]) => {
+    if (!canEdit) return;
     editVersion.current += 1;
     setForm((current) => ({ ...current, [key]: value }));
     setSaveState("dirty");
   };
 
   async function publish() {
+    if (!canEdit) return;
     setBusy(true);
     setError("");
     try {
@@ -110,10 +117,13 @@ export default function DigitalInvitationPage() {
     } finally { setBusy(false); }
   }
 
-  const stateLabel = saveState === "saving" ? "Kaydediliyor…" : saveState === "dirty" ? "Değişiklikler bekliyor" : saveState === "error" ? "Kaydedilemedi" : invitation.data?.has_unpublished_changes ? "Yayınlanmamış değişiklik var" : "Tüm değişiklikler kaydedildi";
+  const stateLabel = !canEdit ? "Önizleme modu" : saveState === "saving" ? "Kaydediliyor…" : saveState === "dirty" ? "Değişiklikler bekliyor" : saveState === "error" ? "Kaydedilemedi" : invitation.data?.has_unpublished_changes ? "Yayınlanmamış değişiklik var" : "Tüm değişiklikler kaydedildi";
   const publicUrl = wedding.data?.slug ? `https://${wedding.data.slug}.davetiye.shineqr.com` : "";
   const isPublished = invitation.data?.status === "published" || publishedNow;
   const whatsappUrl = publicUrl ? `https://wa.me/?text=${encodeURIComponent(`Dijital davetiyemizi sizinle paylaşmak istiyoruz:\n\n${publicUrl}`)}` : "";
+  const purchaseWhatsappUrl = `https://wa.me/905512314736?text=${encodeURIComponent(
+    `Merhaba, ${wedding.data?.title || "organizasyonum"} için Dijital Davetiye ek ürününü satın almak istiyorum. Organizasyon kodu: ${id}`,
+  )}`;
 
   useEffect(() => {
     if (!isPublished || !publicUrl) { setQrDataUrl(""); return; }
@@ -134,7 +144,54 @@ export default function DigitalInvitationPage() {
     }
   }
 
+  async function uploadGalleryImages(files: File[]) {
+    if (!canEdit || !files.length || galleryUploading) return;
+    const available = 20 - (wedding.data?.cover_images?.length || 0);
+    if (available <= 0) {
+      toast.error("Davetiye galerisine en fazla 20 görsel eklenebilir.");
+      return;
+    }
+    setGalleryUploading(true);
+    setError("");
+    let gallery = [...latestForm.current.gallery_images];
+    try {
+      for (const file of files.slice(0, available)) {
+        const blob = await prepareAdminImage(file);
+        const body = new FormData();
+        body.append("file", blob, "davetiye-galeri.webp");
+        body.append("event_id", id);
+        const upload = await fetch("/api/admin/covers", { method: "POST", body });
+        const uploaded = await upload.json();
+        if (!upload.ok)
+          throw new Error(uploaded.error || "Görsel yüklenemedi.");
+        const attached = await api<{ cover_images: string[] }>(
+          `/admin/weddings/${id}/digital-invitation/gallery`,
+          { method: "POST", body: JSON.stringify({ image_url: uploaded.url }) },
+        );
+        queryClient.setQueryData<Wedding>(["wedding", id], (current) =>
+          current ? { ...current, cover_images: attached.cover_images } : current,
+        );
+        gallery = [
+          ...gallery.filter((image) => image !== uploaded.url),
+          uploaded.url,
+        ].slice(0, 20);
+        editVersion.current += 1;
+        setForm((current) => ({ ...current, gallery_images: gallery }));
+        setSaveState("dirty");
+      }
+      toast.success("Görsel yüklendi ve davetiye galerisine eklendi.");
+    } catch (reason) {
+      const message =
+        reason instanceof Error ? reason.message : "Görsel yüklenemedi.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setGalleryUploading(false);
+    }
+  }
+
   async function chooseTheme(themeId: DigitalInvitationContent["theme_id"]) {
+    if (!canEdit) return;
     const next = { ...latestForm.current, theme_id: themeId };
     editVersion.current += 1;
     setForm(next);
@@ -152,9 +209,9 @@ export default function DigitalInvitationPage() {
       <div className={styles.catalogFilters}><button type="button" aria-pressed="true">Tümü</button><button type="button">Romantik</button><button type="button">Botanik</button><button type="button">Animasyonlu</button><span>{digitalInvitationThemes.length} premium tema</span></div>
       <section className={styles.themeGrid} aria-label="Dijital davetiye temaları">{digitalInvitationThemes.map((theme) => <article className={styles.catalogCard} key={theme.id}>
         <button type="button" className={styles.catalogVisual} onClick={() => setPreviewTheme(theme.id)} aria-label={`${theme.name} temasını önizle`}><img src={theme.image} alt={`${theme.name} dijital davetiye teması`} /><span><Eye size={16} /> Canlı önizle</span></button>
-        <div className={styles.catalogBody}><small>{theme.category}</small><h2>{theme.name}</h2><p>{theme.description}</p><div className={styles.featureChips}>{theme.features.map((feature) => <span key={feature}>{feature}</span>)}</div><button type="button" className="admin-button primary" onClick={() => void chooseTheme(theme.id)}>Bu temayı seç</button></div>
+        <div className={styles.catalogBody}><small>{theme.category}</small><h2>{theme.name}</h2><p>{theme.description}</p><div className={styles.featureChips}>{theme.features.map((feature) => <span key={feature}>{feature}</span>)}</div>{canEdit ? <button type="button" className="admin-button primary" onClick={() => void chooseTheme(theme.id)}>Bu temayı seç</button> : <a className="admin-button primary" href={purchaseWhatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={15} /> Satın almak için iletişime geç</a>}</div>
       </article>)}</section>
-      {inspectedTheme ? <div className={styles.themeModal} role="dialog" aria-modal="true" aria-label={`${inspectedTheme.name} tema önizlemesi`}><button className={styles.modalBackdrop} type="button" onClick={() => setPreviewTheme(null)} aria-label="Önizlemeyi kapat" /><div className={styles.modalContent}><header><div><small>{inspectedTheme.category}</small><h2>{inspectedTheme.name}</h2></div><button type="button" onClick={() => setPreviewTheme(null)}>Kapat</button></header><div className={styles.modalPreview}><div className={styles.catalogPhone}><InvitationRenderer content={previewContent} preview /></div><aside><p>{inspectedTheme.description}</p>{inspectedTheme.features.map((feature) => <span key={feature}><Check size={14} /> {feature}</span>)}<button type="button" className="admin-button primary" onClick={() => void chooseTheme(inspectedTheme.id)}>Bu temayla devam et</button></aside></div></div></div> : null}
+      {inspectedTheme ? <div className={styles.themeModal} role="dialog" aria-modal="true" aria-label={`${inspectedTheme.name} tema önizlemesi`}><button className={styles.modalBackdrop} type="button" onClick={() => setPreviewTheme(null)} aria-label="Önizlemeyi kapat" /><div className={styles.modalContent}><header><div><small>{inspectedTheme.category}</small><h2>{inspectedTheme.name}</h2></div><button type="button" onClick={() => setPreviewTheme(null)}>Kapat</button></header><div className={styles.modalPreview}><div className={styles.catalogPhone}><InvitationRenderer content={previewContent} preview /></div><aside><p>{inspectedTheme.description}</p>{inspectedTheme.features.map((feature) => <span key={feature}><Check size={14} /> {feature}</span>)}{canEdit ? <button type="button" className="admin-button primary" onClick={() => void chooseTheme(inspectedTheme.id)}>Bu temayla devam et</button> : <a className="admin-button primary" href={purchaseWhatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={15} /> WhatsApp’tan iletişime geç</a>}</aside></div></div></div> : null}
     </div></AdminShell>;
   }
 
@@ -165,9 +222,13 @@ export default function DigitalInvitationPage() {
       <div className={styles.actions}>
         <button className={`admin-button ${styles.secondaryAction}`} type="button" onClick={() => setView("catalog")}><Images size={15} /> Temalar</button>
         {isPublished && publicUrl ? <a className={`admin-button ${styles.secondaryAction}`} href={publicUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Görüntüle</a> : null}
-        <button className="admin-button primary" type="button" disabled={busy || saveState === "saving"} onClick={() => void publish()}><Send size={15} /> {invitation.data?.status === "published" ? "Değişiklikleri yayınla" : "Yayınla"}</button>
+        <button className="admin-button primary" type="button" disabled={!canEdit || busy || saveState === "saving"} onClick={() => void publish()}><Send size={15} /> {canEdit ? (invitation.data?.status === "published" ? "Değişiklikleri yayınla" : "Yayınla") : "Ek ürün gerekli"}</button>
       </div>
     </header>
+    {!canEdit ? <section className={styles.upgradeNotice} aria-label="Dijital davetiye ek ürün bilgisi">
+      <div><Sparkles size={22} /><span><strong>Stüdyo önizleme modunda</strong><p>Dijital davetiyeyi düzenlemek ve yayınlamak için Dijital Davetiye ek ürününü satın almanız gerekir.</p></span></div>
+      <a href={purchaseWhatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp’tan iletişime geç</a>
+    </section> : null}
     <div className={styles.mobileSwitch}><button aria-selected={mobileView === "edit"} onClick={() => setMobileView("edit")}>Düzenle</button><button aria-selected={mobileView === "preview"} onClick={() => setMobileView("preview")}>Önizle</button></div>
     {error ? <div className={styles.error} role="alert">{error}</div> : null}
     {isPublished && publicUrl ? <section className={styles.sharePanel} aria-label="Yayınlanan dijital davetiye bağlantısı">
@@ -183,6 +244,7 @@ export default function DigitalInvitationPage() {
     <div className={styles.workspace}>
       <section className={styles.panel} data-mobile-active={mobileView === "edit"}>
         <nav className={styles.tabs} aria-label="Davetiye bölümleri">{([ ["content", "Karşılama"], ["event", "Etkinlik"], ["details", "Detaylar"], ["design", "Tema"] ] as const).map(([value,label]) => <button type="button" key={value} aria-selected={section === value} onClick={() => setSection(value)}>{label}</button>)}</nav>
+        <fieldset disabled={!canEdit} className={styles.lockedControls}>
         <div className={styles.form}>
           {section === "content" ? <>
             <EditorHeading eyebrow="01 · Karşılama" title="Davetiyenin ilk izlenimi" description="İsimler ve ana mesaj telefon önizlemesinde anında güncellenir." />
@@ -221,6 +283,8 @@ export default function DigitalInvitationPage() {
             <EditorField label="RSVP WhatsApp numarası" value={form.whatsapp_number} onChange={(v) => update("whatsapp_number", v)} placeholder="905551112233" />
             <EditorField label="Müzik bağlantısı" type="url" value={form.music_url} onChange={(v) => update("music_url", v)} placeholder="https://…" />
             <EditorHeading eyebrow="Galeri" title="Organizasyon fotoğraflarını seçin" description="Yalnızca bu organizasyona ait görseller kullanılabilir. Seçim sırası davetiyedeki sıradır." />
+            <input ref={galleryInput} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(event) => { const files = Array.from(event.target.files || []); event.target.value = ""; void uploadGalleryImages(files); }} />
+            <button type="button" className={styles.galleryUpload} disabled={galleryUploading || (wedding.data?.cover_images?.length || 0) >= 20} onClick={() => galleryInput.current?.click()}>{galleryUploading ? <LoaderCircle size={19} className="animate-spin" /> : <ImagePlus size={19} />}<span><strong>{galleryUploading ? "Görseller yükleniyor…" : "Galeriden görsel yükle"}</strong><small>JPG, PNG veya WebP · En fazla 20 görsel</small></span></button>
             {wedding.data?.cover_images?.length ? <div className={styles.mediaPicker}>{wedding.data.cover_images.map((image) => { const selected = form.gallery_images.includes(image); return <button type="button" key={image} aria-pressed={selected} onClick={() => update("gallery_images", selected ? form.gallery_images.filter((item) => item !== image) : [...form.gallery_images, image].slice(0,20))}><img src={image} alt="Organizasyon galeri adayı" />{selected ? <span><Check size={14} /> Seçildi</span> : <span>Galeriye ekle</span>}</button>; })}</div> : <div className={styles.emptyMedia}><Images size={24} /><strong>Henüz organizasyon fotoğrafı yok</strong><p>Organizasyon medyasına yüklenen fotoğraflar burada güvenli biçimde seçilebilir.</p></div>}
             <EditorHeading eyebrow="Görünürlük" title="Davetiyede gösterilecek bölümler" description="İhtiyacınız olmayan bölümleri yayından kaldırabilirsiniz." />
             <div className={styles.toggleList}><EditorToggle label="Geri sayım" checked={form.show_countdown} onChange={(v) => update("show_countdown", v)} /><EditorToggle label="Aile bilgileri" checked={form.show_families} onChange={(v) => update("show_families", v)} /><EditorToggle label="Fotoğraf galerisi" checked={form.show_gallery} onChange={(v) => update("show_gallery", v)} /></div>
@@ -237,6 +301,7 @@ export default function DigitalInvitationPage() {
             <p style={{fontSize:'.78rem',lineHeight:1.6,color:'#75695e',marginTop:16}}>Yeni Lovable temaları aynı katalogda ayrı seçenek olarak görünecek. Tema ortak kullanılır; her organizasyonun içeriği ve yayın kaydı birbirinden ayrıdır.</p>
           </> : null}
         </div>
+        </fieldset>
       </section>
       <aside className={styles.previewStage} data-mobile-active={mobileView === "preview"} aria-label="Telefon içinde canlı davetiye önizlemesi">
         <div className={styles.phone}><div className={styles.screen}><div className={styles.screenScroll}><div className={styles.screenScale}><InvitationRenderer content={form} preview replayKey={animationReplayKey} /></div></div></div><img className={styles.phoneFrame} src="/editor/purple-phone-frame.webp" alt="Mor telefon önizleme çerçevesi" /></div>

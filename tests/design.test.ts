@@ -43,7 +43,7 @@ import {
   weddingImageBelongsToEvent,
   weddingTemplates,
 } from "../src/lib/wedding-templates";
-import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, digitalInvitationThemes, invitationGalleryBelongsToWedding } from "../src/lib/digital-invitation";
+import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, digitalInvitationThemes, invitationGalleryBelongsToWedding, priceSnapshotIncludesDigitalInvitation } from "../src/lib/digital-invitation";
 
 test("digital invitation defaults remain backward compatible and Bluebell asset is bundled", () => {
   assert.equal(defaultDigitalInvitationContent.theme_id, "botanical");
@@ -54,6 +54,11 @@ test("digital invitation defaults remain backward compatible and Bluebell asset 
   assert.equal(defaultDigitalInvitationContent.loading_style, "theme");
   assert.equal(defaultDigitalInvitationContent.animation_intensity, "rich");
   assert.deepEqual(digitalInvitationThemes.map((theme) => theme.id), ["botanical", "bluebell-timeless"]);
+  assert.equal(new Set(digitalInvitationThemes.map((theme) => theme.id)).size, digitalInvitationThemes.length);
+  for (const theme of digitalInvitationThemes) {
+    assert.equal(existsSync(`public${theme.image}`), true);
+    assert.ok(theme.features.length > 0);
+  }
   assert.equal(
     existsSync("public/digital-invitation/bluebell/bluebell-watercolor.png"),
     true,
@@ -70,6 +75,13 @@ test("digital invitation access accepts frozen Plan 3 rights or an explicit audi
   assert.equal(digitalInvitationAccessEnabled({ package_snapshot: { version: 2, code: "plan-3", digitalInvitationIncluded: true } }), true);
   assert.equal(digitalInvitationAccessEnabled({ package_snapshot: { version: 2, code: "plan-1" } }), false);
   assert.equal(digitalInvitationAccessEnabled({ package_snapshot: { version: 2, code: "plan-1" }, digital_invitation_access: { granted: true } }), true);
+});
+
+test("digital invitation add-on is recognized only from a positive frozen sale line", () => {
+  assert.equal(priceSnapshotIncludesDigitalInvitation(), false);
+  assert.equal(priceSnapshotIncludesDigitalInvitation({ add_ons: [{ effect_type: "digital_invitation", quantity: 0 }] }), false);
+  assert.equal(priceSnapshotIncludesDigitalInvitation({ add_ons: [{ effect_type: "custom_design", quantity: 1 }] }), false);
+  assert.equal(priceSnapshotIncludesDigitalInvitation({ add_ons: [{ effect_type: "digital_invitation", quantity: 1 }] }), true);
 });
 
 test("existing invitations keep their original video and speed", () => {

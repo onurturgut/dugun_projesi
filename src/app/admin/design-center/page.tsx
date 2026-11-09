@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { DigitalInvitationThemeCatalog } from "@/components/admin/DigitalInvitationThemeCatalog";
 import { LoadingTemplateCatalog } from "@/components/admin/LoadingTemplateCatalog";
 import { QrThemeAccordion } from "@/components/admin/QrThemeAccordion";
 import {
@@ -15,6 +16,7 @@ import {
   isVideoIntro,
   videoIntroAssets,
 } from "@/lib/design";
+import { digitalInvitationThemes } from "@/lib/digital-invitation";
 import { weddingTemplates } from "@/lib/wedding-templates";
 import type { AddOnProduct } from "@/lib/models";
 import { session } from "@/lib/server/auth";
@@ -22,6 +24,14 @@ import { db } from "@/lib/server/db";
 import "./design-center.css";
 
 const modules = [
+  {
+    id: "digital-invitation",
+    title: "Dijital Davetiye Temaları",
+    detail: `${digitalInvitationThemes.length} premium tema`,
+    description:
+      "Müşterilerin organizasyon stüdyosunda seçip kişiselleştirebildiği dijital davetiye temalarını telefon görünümünde inceleyin.",
+    Icon: MonitorSmartphone,
+  },
   {
     id: "wedding",
     title: "Wedding Tasarımları",
@@ -91,42 +101,57 @@ const money = (value: number) =>
 
 export default async function DesignCenterPage() {
   const user = await session();
-  if (user?.role !== "platform") redirect("/admin");
-  const database = await db();
-  const addOns = await database
-    .collection<AddOnProduct>("add_on_products")
-    .find({ active: true }, { projection: { _id: 0 } })
-    .sort({ category: 1, name: 1 })
-    .toArray();
+  if (!user || (user.role !== "platform" && user.role !== "owner"))
+    redirect("/admin");
+  const isPlatform = user.role === "platform";
+  const addOns = isPlatform
+    ? await (await db())
+        .collection<AddOnProduct>("add_on_products")
+        .find({ active: true }, { projection: { _id: 0 } })
+        .sort({ category: 1, name: 1 })
+        .toArray()
+    : [];
+  const visibleModules = isPlatform
+    ? modules
+    : modules.filter((module) => module.id !== "addons");
 
   return (
     <AdminShell>
       <section className="design-center">
         <header className="design-center__hero">
           <div>
-            <p>TASARIM MERKEZİ · V2</p>
-            <h1>Her yüzey, tek bir yaratıcı sistem.</h1>
+            <p>TASARIM MERKEZİ</p>
+            <h1>
+              {isPlatform
+                ? "Her yüzey, tek bir yaratıcı sistem."
+                : "Organizasyonunuzun görsel dünyasını keşfedin."}
+            </h1>
             <span>
-              Yayınlanan şablonları, kontrollü preset’leri, fiziksel ürünleri ve
-              organizasyon eşleştirmelerini yönetin.
+              {isPlatform
+                ? "Yayınlanan şablonları, kontrollü preset’leri, fiziksel ürünleri ve organizasyon eşleştirmelerini yönetin."
+                : "Dijital davetiye, wedding, loading ve fiziksel QR koleksiyonlarını canlı olarak inceleyin."}
             </span>
           </div>
           <div className="design-center__status">
-            <strong>FAZ 1 + 2</strong>
-            <span>Aktif koleksiyonlar üretime hazırlanıyor</span>
+            <strong>{isPlatform ? "FAZ 1 + 2" : "CANLI KATALOG"}</strong>
+            <span>
+              {isPlatform
+                ? "Aktif koleksiyonlar üretime hazırlanıyor"
+                : "Yayınlanan tasarımlar incelemeye hazır"}
+            </span>
           </div>
         </header>
 
         <div className="design-center__section-head">
           <div>
-            <p>TASARIM AKIŞLARI</p>
-            <h2>Yönetmek istediğiniz alanı açın</h2>
+            <p>TASARIM KOLEKSİYONLARI</p>
+            <h2>{isPlatform ? "Yönetmek istediğiniz alanı açın" : "İncelemek istediğiniz alanı açın"}</h2>
           </div>
           <span>Her bölüm ayrı ayrı açılıp kapatılabilir.</span>
         </div>
 
         <div className="design-center__modules">
-          {modules.map(({ id, title, detail, description, Icon }) => (
+          {visibleModules.map(({ id, title, detail, description, Icon }) => (
             <details className="design-center__module" key={id}>
               <summary>
                 <span className="design-center__module-icon">
@@ -140,7 +165,20 @@ export default async function DesignCenterPage() {
               </summary>
               <div className="design-center__module-content">
                 <p>{description}</p>
-                {id === "wedding" ? (
+                {id === "digital-invitation" ? (
+                  <>
+                    <div className="design-center__collection-head">
+                      <div>
+                        <span>DİJİTAL DAVETİYE KOLEKSİYONU</span>
+                        <h3>Telefonda tema önizlemeleri</h3>
+                      </div>
+                      <small>
+                        {digitalInvitationThemes.length} yayınlanmış tema
+                      </small>
+                    </div>
+                    <DigitalInvitationThemeCatalog />
+                  </>
+                ) : id === "wedding" ? (
                   <>
                     <div className="design-center__collection-head">
                       <div>

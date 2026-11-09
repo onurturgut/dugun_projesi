@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, MapPin, Music2 } from "lucide-react";
+import { CalendarDays, Clock3, MapPin, MessageCircle, Music2, Shirt, UtensilsCrossed } from "lucide-react";
 import { invitationDateLabels, type DigitalInvitationContent } from "@/lib/digital-invitation";
 import styles from "./BluebellInvitation.module.css";
 
@@ -67,7 +67,7 @@ export function BluebellInvitation({ content, preview = false }: { content: Digi
       </div>
     </section>
 
-    {content.show_countdown ? <section className={styles.section} data-reveal>
+    {content.show_countdown ? <section className={`${styles.section} ${styles.countdownSection}`} data-reveal>
       <p className={styles.eyebrow}>Bu güzel güne</p><h2>Birlikte geri sayalım</h2>
       <div className={styles.countdown}>{[["Gün", countdown.days], ["Saat", countdown.hours], ["Dakika", countdown.minutes]].map(([label,value]) => <div key={label} data-reveal-item><strong>{String(value).padStart(2,"0")}</strong><span>{label}</span></div>)}</div>
     </section> : null}
@@ -79,7 +79,7 @@ export function BluebellInvitation({ content, preview = false }: { content: Digi
 
     {content.show_story ? <section className={`${styles.section} ${styles.paper}`} data-reveal><p className={styles.eyebrow}>Biz</p><h2>{content.story_title}</h2><p className={styles.story}>{content.story_text}</p></section> : null}
 
-    <section className={styles.section} data-reveal>
+    <section className={`${styles.section} ${styles.programSection}`} data-reveal>
       <p className={styles.eyebrow}>Davet</p><h2>Günün programı</h2>
       <div className={styles.events}>
         <div data-reveal-item><EventCard title={content.event_type} date={labels.dateLabel} time={labels.timeLabel} venue={content.venue} address={content.venue_address} mapUrl={content.map_url} /></div>
@@ -87,14 +87,33 @@ export function BluebellInvitation({ content, preview = false }: { content: Digi
       </div>
     </section>
 
+    {content.timeline.length ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
+      <Clock3 size={22} className={styles.sectionIcon} />
+      <p className={styles.eyebrow}>Program</p><h2>Etkinlik akışı</h2>
+      <ol className={styles.timeline}>{content.timeline.map((item,index) => <li key={`${item.time}-${index}`} data-reveal-item><time>{item.time}</time><div><strong>{item.title}</strong>{item.description ? <p>{item.description}</p> : null}</div></li>)}</ol>
+    </section> : null}
+
+    {content.menu.some((group) => group.course || group.items.length) ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
+      <UtensilsCrossed size={22} className={styles.sectionIcon} />
+      <p className={styles.eyebrow}>İkramlar</p><h2>Menü</h2>
+      <div className={styles.menu}>{content.menu.map((group,index) => <div key={`${group.course}-${index}`} data-reveal-item><strong>{group.course}</strong>{group.items.map((item,itemIndex) => <p key={`${item}-${itemIndex}`}>{item}</p>)}</div>)}</div>
+    </section> : null}
+
+    {(content.dress_code_title || content.dress_code_note || content.whatsapp_number || content.music_url) ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
+      <p className={styles.eyebrow}>Davetli rehberi</p><h2>Günün detayları</h2>
+      <div className={styles.guestDetails}>
+        {(content.dress_code_title || content.dress_code_note) ? <div data-reveal-item><Shirt size={21} /><span>Kıyafet kodu</span><strong>{content.dress_code_title}</strong>{content.dress_code_note ? <p>{content.dress_code_note}</p> : null}</div> : null}
+        {content.whatsapp_number ? <a data-reveal-item href={`https://wa.me/${content.whatsapp_number}`} target="_blank" rel="noreferrer"><MessageCircle size={21} /><span>RSVP</span><strong>WhatsApp ile katılım bildir</strong></a> : null}
+        {content.music_url ? <a data-reveal-item href={content.music_url} target="_blank" rel="noreferrer"><Music2 size={21} /><span>Müzik</span><strong>Şarkımızı dinle</strong></a> : null}
+      </div>
+    </section> : null}
+
     {content.show_gallery ? <section className={`${styles.section} ${styles.gallerySection}`} data-reveal>
       <p className={styles.eyebrow}>Hatıralar</p><h2>Bizden kareler</h2>
       <div className={styles.gallery}>{(content.gallery_images.length ? content.gallery_images : [1,2,3,4].map((number) => `/digital-invitation/botanical/gallery-${number}.jpg`)).map((image,index) => <img data-reveal-item key={`${image}-${index}`} src={image} alt={`${content.bride_name} ve ${content.groom_name} galeri görseli ${index + 1}`} />)}</div>
     </section> : null}
 
-    <section className={`${styles.section} ${styles.closing}`} data-reveal><p>“{content.special_note}”</p><strong>{content.bride_name} &amp; {content.groom_name}</strong>
-      {content.music_url ? <a href={content.music_url} target="_blank" rel="noreferrer"><Music2 size={16} /> Müziğimizi dinle</a> : null}
-    </section>
+    <section className={`${styles.section} ${styles.closing}`} data-reveal><p>“{content.special_note}”</p><strong>{content.bride_name} &amp; {content.groom_name}</strong></section>
     <footer><span>{labels.dateLabel}</span><small>Made with ShineQR</small></footer>
   </article>;
 }

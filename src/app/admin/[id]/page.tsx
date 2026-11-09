@@ -832,11 +832,7 @@ export default function EventDetail() {
                 <Palette size={18} /> Tasarım
               </Link>
             )}
-            {!isPhotographer &&
-            ((w.package_snapshot?.version === 2 &&
-              w.package_snapshot.code === "plan-3" &&
-              w.package_snapshot.digitalInvitationIncluded) ||
-              w.digital_invitation_access?.granted) ? (
+            {!isPhotographer ? (
               <Link href={`/admin/${id}/invitation`}>
                 <Share2 size={18} /> Dijital davetiye
               </Link>
