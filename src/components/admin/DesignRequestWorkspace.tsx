@@ -109,6 +109,9 @@ export function DesignRequestWorkspace({
   const [printQuantity, setPrintQuantity] = useState("1");
   const [printDueDate, setPrintDueDate] = useState("");
   const [printNotes, setPrintNotes] = useState("");
+  const [approvalMessage, setApprovalMessage] = useState(
+    event.design_request?.approval_message || "",
+  );
   const [printPdf, setPrintPdf] = useState<File | null>(null);
   const locked = Boolean(
     event.design_request &&
@@ -567,6 +570,11 @@ export function DesignRequestWorkspace({
                         Tamamlanan dosya · v{surface.delivery.version}
                       </span>
                     </div>
+                  ) : step.id !== "qr" && surface.mode === "catalog" && template?.asset ? (
+                    <div className={styles.summaryDelivery}>
+                      <Image src={template.poster || template.asset} alt={`${step.label} hazır tasarımı`} width={520} height={360} unoptimized />
+                      <span>Hazır tasarım · Doğrudan kullanılacak</span>
+                    </div>
                   ) : (
                     <small>Henüz tamamlanan dosya yüklenmedi.</small>
                   )}
@@ -845,7 +853,7 @@ export function DesignRequestWorkspace({
               </section>
             ) : null}
             {(active !== "qr" || current.mode === "custom" || qrStage === 4) &&
-              !(active === "loading" && current.mode === "catalog") && (
+              !(active !== "qr" && current.mode === "catalog") && (
                 <div
                   className={
                     active === "qr" && current.mode === "catalog"
@@ -1130,7 +1138,7 @@ export function DesignRequestWorkspace({
                   )}
                 </div>
               )}
-            <UploadBox
+            {active === "qr" || current.mode === "custom" ? <UploadBox
               label={
                 platform
                   ? "Tamamlanan tasarımı yükle"
@@ -1140,7 +1148,7 @@ export function DesignRequestWorkspace({
               onFile={(file) =>
                 upload(file, platform ? "delivery" : "reference")
               }
-            />
+            /> : <div className={styles.directUseNotice}><Check size={18} /><div><strong>Hazır tasarım doğrudan kullanılacak</strong><p>Seçtiğiniz {active === "loading" ? "Loading page" : "Wedding"} tasarımı sisteme otomatik kaydedilir; ayrıca düzenleme veya onay beklemez.</p></div></div>}
           </section>
           <aside className={styles.aside}>
             <Palette />
@@ -1197,8 +1205,10 @@ export function DesignRequestWorkspace({
                   height={360}
                   unoptimized
                 />
+                {current.delivery.notes ? <p className={styles.deliveryMessage}>{current.delivery.notes}</p> : null}
+                {active === "qr" && event.design_request?.approval_message ? <p className={styles.deliveryMessage}>{event.design_request.approval_message}</p> : null}
                 {event.design_request?.status === "awaiting_approval" &&
-                  !platform && (
+                  !platform && active === "qr" && (
                     <div>
                       <button onClick={() => respond("approve")}>Onayla</button>
                       <button onClick={() => respond("revision")}>
@@ -1367,11 +1377,16 @@ export function DesignRequestWorkspace({
         {platform ? (
           <>
             <Link href="/admin/design-plans">Tasarım planlarına dön</Link>
+            <label className={styles.approvalMessage}>
+              Müşteriye gönderilecek açıklama
+              <textarea value={approvalMessage} onChange={(event) => setApprovalMessage(event.target.value)} maxLength={1000} placeholder="QR tasarımıyla ilgili teslim notunu ve müşteriden beklediğiniz kontrolü yazın." />
+            </label>
             <button
               onClick={async () => {
                 try {
                   await api(`/admin/weddings/${event.id}/design-request/send`, {
                     method: "POST",
+                    body: JSON.stringify({ message: approvalMessage }),
                   });
                   await qc.invalidateQueries({
                     queryKey: ["admin-wedding", event.id],

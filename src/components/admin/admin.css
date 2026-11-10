@@ -220,6 +220,11 @@
   color: var(--admin-muted);
   line-height: 1.55;
 }
+.owner-package-card { display:grid; gap:10px; }
+.owner-package-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:6px; }
+.owner-package-facts span { display:grid; gap:3px; padding:14px; border:1px solid var(--border); border-radius:14px; background:var(--surface); color:var(--text-muted); font-size:.76rem; }
+.owner-package-facts strong { color:var(--text); font-size:1rem; }
+@media (max-width:640px) { .owner-package-facts { grid-template-columns:1fr; } }
 .finance-report-filters {
   display: grid;
   grid-template-columns: repeat(5, minmax(140px, 1fr));
@@ -2467,6 +2472,14 @@
   color: var(--admin-muted);
   font-size: 11px;
 }
+.account-profile-form { display:grid; gap:12px; margin:18px 0; padding:16px; border:1px solid var(--border); border-radius:16px; background:var(--surface); }
+.account-profile-form>div { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.account-profile-form label { display:grid; gap:6px; color:var(--text-muted); font-size:.75rem; font-weight:700; }
+.account-profile-form input { min-width:0; min-height:44px; border:1px solid var(--border); border-radius:11px; background:var(--surface-raised); color:var(--text); padding:0 12px; }
+.account-profile-form input[readonly] { opacity:.72; }
+.account-profile-form small { color:var(--text-muted); line-height:1.5; }
+.account-profile-form button { justify-self:start; }
+@media (max-width:640px) { .account-profile-form>div { grid-template-columns:1fr; } .account-profile-form button { width:100%; justify-content:center; } }
 .account-appearance {
   display: grid;
   gap: 12px;

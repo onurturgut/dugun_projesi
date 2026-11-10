@@ -718,6 +718,9 @@
   display: flex;
   gap: 8px;
 }
+.deliveryMessage { margin:0; padding:12px; border-radius:10px; background:#f7f1e8; color:#5f4a34; font-size:.82rem; line-height:1.55; }
+.directUseNotice { display:flex; gap:12px; align-items:flex-start; margin-top:18px; padding:16px; border:1px solid #c9ddcd; border-radius:14px; background:#f4faf5; color:#315b3a; }
+.directUseNotice p { margin:4px 0 0; color:#58705d; font-size:.8rem; line-height:1.5; }
 .delivery button,
 .actions button,
 .actions a {
@@ -739,6 +742,8 @@
   background: #fffefddd;
   backdrop-filter: blur(12px);
 }
+.approvalMessage { display:grid; flex:1; gap:6px; min-width:min(100%,320px); color:#5f5144; font-size:.72rem; font-weight:750; }
+.approvalMessage textarea { min-height:72px; resize:vertical; border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit; font-weight:500; }
 .actions button:last-child {
   background: #916632;
   color: #fff;

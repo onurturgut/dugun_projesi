@@ -2,7 +2,7 @@
 import { SelectField } from "@/components/admin/SelectField";
 import Link from "next/link";
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useInfiniteQuery,
@@ -70,8 +70,14 @@ const money = (cents: number) =>
   new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(cents / 100);
 export default function EventDetail() {
   const { id } = useParams<{ id: string }>(),
+    searchParams = useSearchParams(),
     qc = useQueryClient();
-  const [section, setSection] = useState("album"),
+  const requestedSection = searchParams.get("section");
+  const [section, setSection] = useState(
+      ["album", "share", "settings", "photographer"].includes(requestedSection || "")
+        ? requestedSection!
+        : "album",
+    ),
     [trash, setTrash] = useState(false),
     [kind, setKind] = useState("all"),
     [source, setSource] = useState("all"),
@@ -105,6 +111,10 @@ export default function EventDetail() {
     );
     return () => window.clearTimeout(timeout);
   }, [search]);
+  useEffect(() => {
+    if (["album", "share", "settings", "photographer"].includes(requestedSection || ""))
+      setSection(requestedSection!);
+  }, [requestedSection]);
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api<Account>("/auth/me"),
@@ -564,7 +574,7 @@ export default function EventDetail() {
               <p>Kalıcı silinme: {dateText(w.expires_at, true)} (İstanbul)</p>
             </details>
           </div>
-          <section
+          {(me.data?.role !== "owner" || section === "photographer") ? <section
             className="event-photographer-card"
             aria-labelledby="event-photographer-title"
           >
@@ -824,8 +834,15 @@ export default function EventDetail() {
                   )}
                 </div>
               ) : null}
+              {me.data?.role === "owner" && !photographerSale.data ? (
+                <div className="event-photographer-approval">
+                  <strong>Profesyonel fotoğrafçı paketi</strong>
+                  <p>Profesyonel çekim, teslimat ve albüm süreci ShineQR panelinizden takip edilir. Organizasyonunuza uygun paket ve müsaitlik bilgisi için bizimle WhatsApp üzerinden iletişime geçin.</p>
+                  <a className="admin-button primary" href={`https://wa.me/905512314736?text=${encodeURIComponent(`Merhaba, ${w.title} organizasyonum için profesyonel fotoğrafçı paketi hakkında bilgi almak istiyorum. Organizasyon kodu: ${w.id}`)}`} target="_blank" rel="noreferrer">WhatsApp’tan bilgi al</a>
+                </div>
+              ) : null}
             </div>
-          </section>
+          </section> : null}
           <nav className="admin-tabs" aria-label="Organizasyon bölümleri">
             {!isPhotographer && (
               <Link href={`/admin/${id}/design/wedding`}>
@@ -853,12 +870,18 @@ export default function EventDetail() {
                 >
                   <QrCode size={18} /> Paylaşım ve QR
                 </button>
-                {me.data?.role !== "owner" ? <button
+                {me.data?.role === "owner" ? <button
+                  aria-pressed={section === "photographer"}
+                  onClick={() => setSection("photographer")}
+                >
+                  <Camera size={18} /> Fotoğrafçı talebi
+                </button> : null}
+                <button
                   aria-pressed={section === "settings"}
                   onClick={() => setSection("settings")}
                 >
                   <Settings2 size={18} /> Ayarlar
-                </button> : null}
+                </button>
               </>
             )}
           </nav>
@@ -939,7 +962,6 @@ export default function EventDetail() {
             )}
           {section === "settings" &&
             me.data &&
-            me.data.role !== "owner" &&
             !isPhotographer && (
               <div className="space-y-6">
                 {me.data.role === "platform" && (
@@ -976,6 +998,12 @@ export default function EventDetail() {
                     </button>
                   </div>
                 )}
+                {me.data.role === "owner" ? <div className="admin-panel owner-package-card">
+                  <p className="admin-kicker">PAKET VE ORGANİZASYON</p>
+                  <h2>{w.package_snapshot?.name || w.package_code || "Organizasyon paketiniz"}</h2>
+                  <p className="admin-hint">Organizasyon bilgilerinizi, kapak görsellerini, logo ve misafir mesajlarını bu alandan güncelleyebilirsiniz. Paket haklarınız mevcut satış kaydınıza göre korunur.</p>
+                  <div className="owner-package-facts"><span><strong>{w.upload_days}</strong> gün yükleme</span><span><strong>{w.trash_days}</strong> gün çöp kutusu</span><span><strong>{formatBytes(effectiveStorageLimit)}</strong> depolama</span></div>
+                </div> : null}
                 <div className="admin-panel">
                   <h2>Organizasyon bilgileri</h2>
                   <EventForm
@@ -988,7 +1016,7 @@ export default function EventDetail() {
                     }}
                   />
                 </div>
-                <OwnerForm id={id} />
+                {me.data.role !== "owner" ? <OwnerForm id={id} /> : null}
               </div>
             )}
           {section === "album" && canViewAlbum && (

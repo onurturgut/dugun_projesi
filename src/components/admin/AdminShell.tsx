@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -27,6 +27,8 @@ import {
   Camera,
   Printer,
   ClipboardList,
+  QrCode,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Account } from "@/lib/api";
@@ -35,6 +37,7 @@ import { AdminUtilities } from "./AdminUtilities";
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter(),
     pathname = usePathname(),
+    searchParams = useSearchParams(),
     qc = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -70,6 +73,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       );
     }
   };
+  const ownerEventId = pathname.match(/^\/admin\/([^/]+)/)?.[1];
   const navigation =
     me.data?.role === "platform"
       ? [
@@ -117,6 +121,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       : me.data?.role === "owner"
         ? [
             { href: "/admin", label: "Etkinliğim", icon: Images },
+            ...(ownerEventId
+              ? [
+                  { href: `/admin/${ownerEventId}/design/qr`, label: "Tasarım", icon: Palette },
+                  { href: `/admin/${ownerEventId}/invitation`, label: "Dijital davetiye", icon: Share2 },
+                  { href: `/admin/${ownerEventId}?section=share`, label: "Paylaşım ve QR", icon: QrCode },
+                  { href: `/admin/${ownerEventId}?section=photographer`, label: "Fotoğrafçı talebi", icon: Camera },
+                  { href: `/admin/${ownerEventId}?section=settings`, label: "Organizasyon ayarları", icon: Settings },
+                ]
+              : []),
             {
               href: "/admin/design-center",
               label: "Tasarım Merkezi",
@@ -160,11 +173,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   ]
                 : []),
             ];
-  const current = navigation.find((item) =>
-    item.href === "/admin"
-      ? pathname === "/admin" || /^\/admin\/[^/]+/.test(pathname)
-      : pathname.startsWith(item.href),
-  );
+  const current = navigation.find((item) => {
+    const [hrefPath, hrefQuery] = item.href.split("?");
+    const hrefSection = new URLSearchParams(hrefQuery || "").get("section");
+    if (hrefPath === "/admin") return pathname === "/admin";
+    return pathname === hrefPath &&
+      (hrefSection ? searchParams.get("section") === hrefSection : !searchParams.get("section"));
+  });
   const roleLabel =
     me.data?.role === "platform"
       ? "Platform yönetimi"
@@ -202,11 +217,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="dashboard-nav-label">ÇALIŞMA ALANI</div>
       <nav className="dashboard-sidebar-nav" aria-label="Panel menüsü">
         {navigation.map(({ href, label, icon: Icon }) => {
+          const [hrefPath, hrefQuery] = href.split("?");
+          const hrefSection = new URLSearchParams(hrefQuery || "").get("section");
           const active =
-            href === "/admin"
+            hrefPath === "/admin"
               ? pathname === "/admin" ||
                 /^\/admin\/[^/]+\/(design)(\/|$)/.test(pathname)
-              : pathname.startsWith(href);
+              : pathname === hrefPath &&
+                (hrefSection ? searchParams.get("section") === hrefSection : !searchParams.get("section"));
           return (
             <Link
               href={href}

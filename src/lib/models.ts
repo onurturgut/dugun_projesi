@@ -59,6 +59,7 @@ export interface Account {
   role: Role;
   partner_id: string | null;
   display_name: string;
+  phone?: string;
   must_change_password: boolean;
   disabled: boolean;
   mfa_enabled?: boolean;
@@ -406,6 +407,7 @@ export interface DesignRequest {
   submitted_by?: string | null;
   sent_at?: string | null;
   sent_by?: string | null;
+  approval_message?: string;
 }
 export interface PhotographerAssignment {
   id: string;

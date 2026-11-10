@@ -276,6 +276,7 @@ export default function DigitalInvitationPage() {
           </> : null}
           {section === "details" ? <>
             <EditorHeading eyebrow="03 · Detaylar" title="Menü ve davetli notları" description="Boş bıraktığınız isteğe bağlı bilgiler davetiyede gösterilmez." />
+            <div className={styles.emptyBehaviorNote} role="note"><strong>Akıllı görünürlük</strong><span>Menü, etkinlik akışı, aileler, hikâye, kıyafet kodu, RSVP, müzik, galeri ve özel not alanları boş bırakılırsa yayınlanan davetiyede ilgili bölüm hiç gösterilmez.</span></div>
             {form.menu.map((group,index) => <div className={styles.repeatCard} key={index}><button type="button" aria-label="Menü grubunu sil" onClick={() => update("menu", form.menu.filter((_,i) => i !== index))}><Trash2 size={15} /></button><EditorField label="Menü başlığı" value={group.course} onChange={(v) => update("menu", form.menu.map((x,i) => i === index ? {...x,course:v} : x))} /><EditorField label="Ürünler (her satıra bir ürün)" textarea value={group.items.join("\n")} onChange={(v) => update("menu", form.menu.map((x,i) => i === index ? {...x,items:v.split("\n").filter(Boolean)} : x))} /></div>)}
             <button type="button" className={styles.addButton} onClick={() => update("menu", [...form.menu,{course:"Yeni bölüm",items:[]}])}><Plus size={15} /> Menü bölümü ekle</button><div style={{height:16}} />
             <EditorField label="Kıyafet kodu başlığı" value={form.dress_code_title} onChange={(v) => update("dress_code_title", v)} />

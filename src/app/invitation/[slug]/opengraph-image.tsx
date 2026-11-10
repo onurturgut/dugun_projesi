@@ -49,8 +49,8 @@ export default async function OpenGraphImage({
   const background = `data:${mime};base64,${image.toString("base64")}`;
   const bride = published ? wedding?.bride_name || "Gelin" : "Dijital";
   const groom = published ? wedding?.groom_name || "Damat" : "Davetiye";
-  const message =
-    content?.message || "Bu özel günü birlikte kutlamaya davetlisiniz.";
+  const loadingMessage =
+    content?.loading_message || "Davetiyemiz hazırlanıyor";
 
   return new ImageResponse(
     <div
@@ -74,7 +74,7 @@ export default async function OpenGraphImage({
           width: "100%",
           height: "100%",
           objectFit: "cover",
-          opacity: 0.48,
+          opacity: theme === "bluebell-timeless" ? 0.72 : 0.58,
         }}
       />
       <div
@@ -82,32 +82,35 @@ export default async function OpenGraphImage({
           position: "absolute",
           inset: 0,
           display: "flex",
-          background: "linear-gradient(90deg,rgba(250,248,243,.96),rgba(250,248,243,.72),rgba(250,248,243,.35))",
+          background: "rgba(250,248,243,.2)",
         }}
       />
       <div
         style={{
           position: "relative",
           display: "flex",
-          width: "100%",
-          height: "100%",
+          width: 820,
+          minHeight: 430,
           flexDirection: "column",
+          alignItems: "center",
           justifyContent: "center",
-          padding: "72px 92px",
+          padding: "54px 72px",
+          border: "2px solid rgba(82,108,148,.28)",
+          borderRadius: 72,
+          background: "rgba(250,248,243,.86)",
+          boxShadow: "0 28px 90px rgba(38,63,99,.18)",
           color: "#263f63",
+          textAlign: "center",
         }}
       >
-        <span style={{ fontSize: 22, letterSpacing: 8, textTransform: "uppercase" }}>
-          {published ? wedding?.event_type || "Davet" : "ShineQR"} · Dijital Davetiye
+        <span style={{ fontSize: 19, letterSpacing: 9, textTransform: "uppercase" }}>
+          Dijital Davetiye
         </span>
-        <strong style={{ maxWidth: 820, marginTop: 28, fontSize: 86, fontWeight: 500, lineHeight: 1 }}>
+        <strong style={{ maxWidth: 700, marginTop: 28, fontSize: 76, fontWeight: 500, lineHeight: 1 }}>
           {bride} &amp; {groom}
         </strong>
-        <p style={{ maxWidth: 720, marginTop: 30, fontSize: 28, lineHeight: 1.45, color: "#46566e" }}>
-          {message}
-        </p>
-        <span style={{ marginTop: 35, fontSize: 20, letterSpacing: 4, textTransform: "uppercase" }}>
-          davetiye.shineqr.com
+        <span style={{ maxWidth: 680, marginTop: 42, fontSize: 36, fontWeight: 800, lineHeight: 1.15, letterSpacing: 5, textTransform: "uppercase" }}>
+          {loadingMessage}
         </span>
       </div>
     </div>,

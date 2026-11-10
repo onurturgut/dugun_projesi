@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Clock3, MapPin, MessageCircle, Music2, Shirt, UtensilsCrossed } from "lucide-react";
-import { invitationDateLabels, type DigitalInvitationContent } from "@/lib/digital-invitation";
+import { invitationDateLabels, invitationRsvpUrl, invitationTextPresent, type DigitalInvitationContent } from "@/lib/digital-invitation";
 import styles from "./BluebellInvitation.module.css";
 
 function useCountdown(date: string, time: string) {
@@ -27,6 +27,21 @@ export function BluebellInvitation({ content, preview = false }: { content: Digi
     ? invitationDateLabels(content.ceremony_date, content.ceremony_time)
     : null;
   const countdown = useCountdown(content.event_date, content.event_time);
+  const timeline = content.timeline.filter((item) =>
+    [item.time, item.title, item.description].some(invitationTextPresent),
+  );
+  const menu = content.menu
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(invitationTextPresent),
+    }))
+    .filter((group) => invitationTextPresent(group.course) || group.items.length);
+  const hasFamilies = [content.bride_family, content.groom_family].some(invitationTextPresent);
+  const hasStory = [content.story_title, content.story_text].some(invitationTextPresent);
+  const hasPrimaryEvent = [content.event_date, content.event_time, content.venue, content.venue_address, content.map_url].some(invitationTextPresent);
+  const hasGallery = content.gallery_images.some(invitationTextPresent);
+  const attendingUrl = invitationRsvpUrl(content, true);
+  const notAttendingUrl = invitationRsvpUrl(content, false);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -60,64 +75,64 @@ export function BluebellInvitation({ content, preview = false }: { content: Digi
   return <article ref={rootRef} className={styles.theme} data-preview={preview} data-motion={content.animation_intensity}>
     <section className={styles.hero}>
       <div className={styles.heroCopy} data-reveal>
-        <p className={styles.eyebrow}>{content.event_type} davetiyesi</p>
+        {invitationTextPresent(content.event_type) ? <p className={styles.eyebrow}>{content.event_type} davetiyesi</p> : null}
         <h1>{content.bride_name}<span>&amp;</span>{content.groom_name}</h1>
-        <p className={styles.message}>{content.message}</p>
-        <div className={styles.date}><small>{labels.weekdayLabel}</small><strong>{labels.dateLabel}</strong><small>Saat {labels.timeLabel}</small></div>
+        {invitationTextPresent(content.message) ? <p className={styles.message}>{content.message}</p> : null}
+        {(invitationTextPresent(content.event_date) || invitationTextPresent(content.event_time)) ? <div className={styles.date}>{invitationTextPresent(content.event_date) ? <><small>{labels.weekdayLabel}</small><strong>{labels.dateLabel}</strong></> : null}{invitationTextPresent(content.event_time) ? <small>Saat {labels.timeLabel}</small> : null}</div> : null}
       </div>
     </section>
 
-    {content.show_countdown ? <section className={`${styles.section} ${styles.countdownSection}`} data-reveal>
+    {content.show_countdown && invitationTextPresent(content.event_date) && invitationTextPresent(content.event_time) ? <section className={`${styles.section} ${styles.countdownSection}`} data-reveal>
       <p className={styles.eyebrow}>Bu güzel güne</p><h2>Birlikte geri sayalım</h2>
       <div className={styles.countdown}>{[["Gün", countdown.days], ["Saat", countdown.hours], ["Dakika", countdown.minutes]].map(([label,value]) => <div key={label} data-reveal-item><strong>{String(value).padStart(2,"0")}</strong><span>{label}</span></div>)}</div>
     </section> : null}
 
-    {content.show_families ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
+    {content.show_families && hasFamilies ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
       <p className={styles.eyebrow}>Ailelerimiz</p><h2>Sevgiyle yan yanayız</h2>
-      <div className={styles.families}><div data-reveal-item><span>Gelin tarafı</span><strong>{content.bride_family || "Aile bilgisi eklenecek"}</strong></div><div data-reveal-item><span>Damat tarafı</span><strong>{content.groom_family || "Aile bilgisi eklenecek"}</strong></div></div>
+      <div className={styles.families}>{invitationTextPresent(content.bride_family) ? <div data-reveal-item><span>Gelin tarafı</span><strong>{content.bride_family}</strong></div> : null}{invitationTextPresent(content.groom_family) ? <div data-reveal-item><span>Damat tarafı</span><strong>{content.groom_family}</strong></div> : null}</div>
     </section> : null}
 
-    {content.show_story ? <section className={`${styles.section} ${styles.paper}`} data-reveal><p className={styles.eyebrow}>Biz</p><h2>{content.story_title}</h2><p className={styles.story}>{content.story_text}</p></section> : null}
+    {content.show_story && hasStory ? <section className={`${styles.section} ${styles.paper}`} data-reveal><p className={styles.eyebrow}>Biz</p>{invitationTextPresent(content.story_title) ? <h2>{content.story_title}</h2> : null}{invitationTextPresent(content.story_text) ? <p className={styles.story}>{content.story_text}</p> : null}</section> : null}
 
-    <section className={`${styles.section} ${styles.programSection}`} data-reveal>
+    {hasPrimaryEvent ? <section className={`${styles.section} ${styles.programSection}`} data-reveal>
       <p className={styles.eyebrow}>Davet</p><h2>Günün programı</h2>
       <div className={styles.events}>
-        <div data-reveal-item><EventCard title={content.event_type} date={labels.dateLabel} time={labels.timeLabel} venue={content.venue} address={content.venue_address} mapUrl={content.map_url} /></div>
+        <div data-reveal-item><EventCard title={content.event_type} date={invitationTextPresent(content.event_date) ? labels.dateLabel : ""} time={invitationTextPresent(content.event_time) ? labels.timeLabel : ""} venue={content.venue} address={content.venue_address} mapUrl={content.map_url} /></div>
         {ceremonyLabels ? <div data-reveal-item><EventCard title={content.ceremony_title || "Nikâh"} date={ceremonyLabels.dateLabel} time={ceremonyLabels.timeLabel} venue={content.ceremony_venue} address={content.ceremony_address} mapUrl={content.ceremony_map_url} /></div> : null}
       </div>
-    </section>
+    </section> : null}
 
-    {content.timeline.length ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
+    {timeline.length ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
       <Clock3 size={22} className={styles.sectionIcon} />
       <p className={styles.eyebrow}>Program</p><h2>Etkinlik akışı</h2>
-      <ol className={styles.timeline}>{content.timeline.map((item,index) => <li key={`${item.time}-${index}`} data-reveal-item><time>{item.time}</time><div><strong>{item.title}</strong>{item.description ? <p>{item.description}</p> : null}</div></li>)}</ol>
+      <ol className={styles.timeline}>{timeline.map((item,index) => <li key={`${item.time}-${index}`} data-reveal-item>{invitationTextPresent(item.time) ? <time>{item.time}</time> : null}<div>{invitationTextPresent(item.title) ? <strong>{item.title}</strong> : null}{invitationTextPresent(item.description) ? <p>{item.description}</p> : null}</div></li>)}</ol>
     </section> : null}
 
-    {content.menu.some((group) => group.course || group.items.length) ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
+    {menu.length ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
       <UtensilsCrossed size={22} className={styles.sectionIcon} />
       <p className={styles.eyebrow}>İkramlar</p><h2>Menü</h2>
-      <div className={styles.menu}>{content.menu.map((group,index) => <div key={`${group.course}-${index}`} data-reveal-item><strong>{group.course}</strong>{group.items.map((item,itemIndex) => <p key={`${item}-${itemIndex}`}>{item}</p>)}</div>)}</div>
+      <div className={styles.menu}>{menu.map((group,index) => <div key={`${group.course}-${index}`} data-reveal-item>{invitationTextPresent(group.course) ? <strong>{group.course}</strong> : null}{group.items.map((item,itemIndex) => <p key={`${item}-${itemIndex}`}>{item}</p>)}</div>)}</div>
     </section> : null}
 
-    {(content.dress_code_title || content.dress_code_note || content.whatsapp_number || content.music_url) ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
+    {([content.dress_code_title, content.dress_code_note, content.music_url].some(invitationTextPresent) || attendingUrl) ? <section className={`${styles.section} ${styles.paper}`} data-reveal>
       <p className={styles.eyebrow}>Davetli rehberi</p><h2>Günün detayları</h2>
       <div className={styles.guestDetails}>
         {(content.dress_code_title || content.dress_code_note) ? <div data-reveal-item><Shirt size={21} /><span>Kıyafet kodu</span><strong>{content.dress_code_title}</strong>{content.dress_code_note ? <p>{content.dress_code_note}</p> : null}</div> : null}
-        {content.whatsapp_number ? <a data-reveal-item href={`https://wa.me/${content.whatsapp_number}`} target="_blank" rel="noreferrer"><MessageCircle size={21} /><span>RSVP</span><strong>WhatsApp ile katılım bildir</strong></a> : null}
-        {content.music_url ? <a data-reveal-item href={content.music_url} target="_blank" rel="noreferrer"><Music2 size={21} /><span>Müzik</span><strong>Şarkımızı dinle</strong></a> : null}
+        {attendingUrl ? <div className={styles.rsvp} data-reveal-item><MessageCircle size={21} /><span>RSVP</span><strong>Katılım durumunuzu bildirin</strong><div><a href={attendingUrl} target="_blank" rel="noreferrer">Katılacağım</a><a href={notAttendingUrl} target="_blank" rel="noreferrer">Katılamayacağım</a></div></div> : null}
+        {invitationTextPresent(content.music_url) ? <a data-reveal-item href={content.music_url} target="_blank" rel="noreferrer"><Music2 size={21} /><span>Müzik</span><strong>Şarkımızı dinle</strong></a> : null}
       </div>
     </section> : null}
 
-    {content.show_gallery ? <section className={`${styles.section} ${styles.gallerySection}`} data-reveal>
+    {content.show_gallery && hasGallery ? <section className={`${styles.section} ${styles.gallerySection}`} data-reveal>
       <p className={styles.eyebrow}>Hatıralar</p><h2>Bizden kareler</h2>
-      <div className={styles.gallery}>{(content.gallery_images.length ? content.gallery_images : [1,2,3,4].map((number) => `/digital-invitation/botanical/gallery-${number}.jpg`)).map((image,index) => <img data-reveal-item key={`${image}-${index}`} src={image} alt={`${content.bride_name} ve ${content.groom_name} galeri görseli ${index + 1}`} />)}</div>
+      <div className={styles.gallery}>{content.gallery_images.filter(invitationTextPresent).map((image,index) => <img data-reveal-item key={`${image}-${index}`} src={image} alt={`${content.bride_name} ve ${content.groom_name} galeri görseli ${index + 1}`} />)}</div>
     </section> : null}
 
-    <section className={`${styles.section} ${styles.closing}`} data-reveal><p>“{content.special_note}”</p><strong>{content.bride_name} &amp; {content.groom_name}</strong></section>
-    <footer><span>{labels.dateLabel}</span><small>Made with ShineQR</small></footer>
+    {invitationTextPresent(content.special_note) ? <section className={`${styles.section} ${styles.closing}`} data-reveal><p>“{content.special_note}”</p><strong>{content.bride_name} &amp; {content.groom_name}</strong></section> : null}
+    <footer>{invitationTextPresent(content.event_date) ? <span>{labels.dateLabel}</span> : null}<a href="https://www.shineqr.com/" target="_blank" rel="noreferrer">Made with ShineQR</a></footer>
   </article>;
 }
 
 function EventCard({ title, date, time, venue, address, mapUrl }: { title: string; date: string; time: string; venue: string; address: string; mapUrl: string }) {
-  return <article className={styles.eventCard}><CalendarDays size={20} /><span>{title}</span><h3>{date}</h3><p>Saat {time}</p>{venue ? <strong>{venue}</strong> : null}{address ? <p>{address}</p> : null}{mapUrl ? <a href={mapUrl} target="_blank" rel="noreferrer"><MapPin size={15} /> Haritada gör</a> : null}</article>;
+  return <article className={styles.eventCard}><CalendarDays size={20} />{invitationTextPresent(title) ? <span>{title}</span> : null}{invitationTextPresent(date) ? <h3>{date}</h3> : null}{invitationTextPresent(time) ? <p>Saat {time}</p> : null}{invitationTextPresent(venue) ? <strong>{venue}</strong> : null}{invitationTextPresent(address) ? <p>{address}</p> : null}{invitationTextPresent(mapUrl) ? <a href={mapUrl} target="_blank" rel="noreferrer"><MapPin size={15} /> Haritada gör</a> : null}</article>;
 }

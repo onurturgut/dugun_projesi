@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Account } from "@/lib/api";
 import { Notice } from "./Fields";
@@ -19,6 +19,8 @@ export function SecurityPanel() {
   const [secret, setSecret] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [profile, setProfile] = useState({ display_name: "", phone: "" });
+  const [profileBusy, setProfileBusy] = useState(false);
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api<Account>("/auth/me"),
@@ -27,6 +29,13 @@ export function SecurityPanel() {
     queryKey: ["sessions"],
     queryFn: () => api<SessionRow[]>("/auth/sessions"),
   });
+  useEffect(() => {
+    if (me.data)
+      setProfile({
+        display_name: me.data.display_name || "",
+        phone: me.data.phone || "",
+      });
+  }, [me.data]);
   const refresh = async () => {
     setCode("");
     setSecret("");
@@ -66,6 +75,27 @@ export function SecurityPanel() {
           </div>
         </div>
       ) : null}
+      {me.data ? <form className="account-profile-form" onSubmit={async (event) => {
+        event.preventDefault();
+        try {
+          setProfileBusy(true);
+          setError("");
+          await api("/auth/preferences", {
+            method: "PATCH",
+            body: JSON.stringify(profile),
+          });
+          await qc.invalidateQueries({ queryKey: ["me"] });
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : "Profil güncellenemedi.");
+        } finally {
+          setProfileBusy(false);
+        }
+      }}>
+        <div><label>Ad soyad<input value={profile.display_name} minLength={2} maxLength={100} required disabled={me.data.preview_read_only} onChange={(event) => setProfile((current) => ({ ...current, display_name: event.target.value }))} /></label><label>Telefon<input value={profile.phone} inputMode="numeric" placeholder="05xxxxxxxxx" minLength={11} maxLength={11} disabled={me.data.preview_read_only} onChange={(event) => setProfile((current) => ({ ...current, phone: event.target.value.replace(/\D/g, "").slice(0, 11) }))} /></label></div>
+        <label>E-posta<input value={me.data.email} readOnly aria-describedby="account-email-note" /></label>
+        <small id="account-email-note">Güvenlik nedeniyle giriş e-postası değişikliği ShineQR desteği tarafından doğrulanır.</small>
+        <button className="admin-button primary" disabled={profileBusy || me.data.preview_read_only}>{profileBusy ? "Kaydediliyor…" : "Kişisel bilgileri kaydet"}</button>
+      </form> : null}
       {me.data ? (
         <div className="account-appearance">
           <div>

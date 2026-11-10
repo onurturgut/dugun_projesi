@@ -15,6 +15,8 @@ import {
   templateCatalog,
 } from "../src/lib/design";
 import { buildQrCards } from "../src/lib/qr-card";
+import { designRequestReadyToSend, submittedSurfaceStatus } from "../src/lib/design-request-workflow";
+import type { DesignRequest } from "../src/lib/models";
 import {
   defaultQrProduct,
   qrProductEntitlement,
@@ -43,7 +45,7 @@ import {
   weddingImageBelongsToEvent,
   weddingTemplates,
 } from "../src/lib/wedding-templates";
-import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, digitalInvitationThemes, invitationGalleryBelongsToWedding, priceSnapshotIncludesDigitalInvitation } from "../src/lib/digital-invitation";
+import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, digitalInvitationThemes, invitationGalleryBelongsToWedding, invitationRsvpUrl, invitationTextPresent, priceSnapshotIncludesDigitalInvitation } from "../src/lib/digital-invitation";
 
 test("digital invitation defaults remain backward compatible and Bluebell asset is bundled", () => {
   assert.equal(defaultDigitalInvitationContent.theme_id, "botanical");
@@ -82,6 +84,58 @@ test("digital invitation add-on is recognized only from a positive frozen sale l
   assert.equal(priceSnapshotIncludesDigitalInvitation({ add_ons: [{ effect_type: "digital_invitation", quantity: 0 }] }), false);
   assert.equal(priceSnapshotIncludesDigitalInvitation({ add_ons: [{ effect_type: "custom_design", quantity: 1 }] }), false);
   assert.equal(priceSnapshotIncludesDigitalInvitation({ add_ons: [{ effect_type: "digital_invitation", quantity: 1 }] }), true);
+});
+
+test("digital invitation optional content and RSVP links are normalized safely", () => {
+  assert.equal(invitationTextPresent("   "), false);
+  assert.equal(invitationTextPresent("Menü"), true);
+  const attending = invitationRsvpUrl({
+    whatsapp_number: "+90 (551) 231 47 36",
+    bride_name: "Esra",
+    groom_name: "Hüseyin Can",
+    event_type: "Nişan",
+  }, true);
+  assert.match(attending, /^https:\/\/wa\.me\/905512314736\?text=/);
+  assert.match(decodeURIComponent(attending), /Nişan davetinize katılacağım/);
+  assert.equal(invitationRsvpUrl({ whatsapp_number: "", bride_name: "", groom_name: "", event_type: "" }, false), "");
+});
+
+test("catalog Loading and Wedding selections bypass approval while QR still requires delivery", () => {
+  assert.equal(submittedSurfaceStatus("qr", "catalog"), "submitted");
+  assert.equal(submittedSurfaceStatus("loading", "catalog"), "completed");
+  assert.equal(submittedSurfaceStatus("wedding", "catalog"), "completed");
+  assert.equal(submittedSurfaceStatus("loading", "custom"), "submitted");
+  const surface = (mode: "catalog" | "custom", delivered = false) => ({
+    mode,
+    color: "",
+    heading: "",
+    title: "title",
+    description: "",
+    cta: "cta",
+    footer: "",
+    back_title: "",
+    back_description: "",
+    back_names: "",
+    back_date: "",
+    style: "",
+    format: "",
+    typography: "",
+    layout: "",
+    notes: "",
+    reference_image_urls: [],
+    status: "submitted" as const,
+    ...(delivered ? { delivery: { preview_url: "/api/covers/test", notes: "", version: 1, uploaded_at: "2026-01-01", uploaded_by: "platform" } } : {}),
+  });
+  const request = {
+    version: 1,
+    status: "submitted",
+    surfaces: { qr: surface("catalog", true), loading: surface("catalog"), wedding: surface("catalog") },
+    updated_at: "2026-01-01",
+    updated_by: "owner",
+  } as DesignRequest;
+  assert.equal(designRequestReadyToSend(request), true);
+  request.surfaces.loading = surface("custom") as DesignRequest["surfaces"]["loading"];
+  assert.equal(designRequestReadyToSend(request), false);
 });
 
 test("existing invitations keep their original video and speed", () => {

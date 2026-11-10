@@ -31,6 +31,7 @@ const actionLabels: Record<string, string> = {
   "partner.updated": "İşletme güncellendi",
   "account.created": "Hesap oluşturuldu",
   "account.updated": "Hesap güncellendi",
+  "account.preferences_updated": "Hesap profili ve tercihleri güncellendi",
   "wedding.created": "Organizasyon oluşturuldu",
   "account.password_reset": "Hesap parolası sıfırlandı",
   "operation.retried": "Operasyon yeniden denendi",

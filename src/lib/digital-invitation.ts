@@ -153,6 +153,29 @@ export function priceSnapshotIncludesDigitalInvitation(value?: {
   );
 }
 
+export function invitationTextPresent(value?: string | null) {
+  return Boolean(value?.trim());
+}
+
+export function invitationRsvpUrl(
+  content: Pick<
+    DigitalInvitationContent,
+    "whatsapp_number" | "bride_name" | "groom_name" | "event_type"
+  >,
+  attending: boolean,
+) {
+  const phone = content.whatsapp_number.replace(/\D/g, "");
+  if (!phone) return "";
+  const couple = [content.bride_name.trim(), content.groom_name.trim()]
+    .filter(Boolean)
+    .join(" & ");
+  const event = content.event_type.trim() || "etkinliğiniz";
+  const message = attending
+    ? `Merhaba${couple ? ` ${couple}` : ""}, ${event} davetinize katılacağım. Bu güzel gününüzde yanınızda olmaktan mutluluk duyacağım.`
+    : `Merhaba${couple ? ` ${couple}` : ""}, ${event} davetinize ne yazık ki katılamayacağım. Mutluluğunuzu içtenlikle paylaşıyor, size harika bir gün diliyorum.`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
 export function invitationDateLabels(date: string, time: string) {
   const value = new Date(`${date || "2027-06-19"}T${time || "19:00"}:00+03:00`);
   if (Number.isNaN(value.getTime()))

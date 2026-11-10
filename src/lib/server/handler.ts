@@ -76,7 +76,8 @@ import type {
   PrintJobStatus,
   DesignRequest,
 } from "@/lib/models";
-import { designSchema } from "@/lib/design";
+import { designSchema, resolveDesign } from "@/lib/design";
+import { designRequestReadyToSend, submittedSurfaceStatus } from "@/lib/design-request-workflow";
 import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
 import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, invitationGalleryBelongsToWedding, priceSnapshotIncludesDigitalInvitation } from "@/lib/digital-invitation";
 import { audit } from "./audit";
@@ -836,13 +837,26 @@ export async function handle(
     if (route === "auth/me" && method === "GET") return json(user);
     if (route === "auth/preferences" && method === "PATCH" && user) {
       const data = z
-        .object({ theme: z.enum(["light", "dark", "system"]) })
+        .object({
+          theme: z.enum(["light", "dark", "system"]).optional(),
+          display_name: z.string().trim().min(2).max(100).optional(),
+          phone: z
+            .string()
+            .regex(/^0[0-9]{10}$/, "Telefon 0 ile başlayan 11 hane olmalı.")
+            .or(z.literal(""))
+            .optional(),
+        })
+        .strict()
+        .refine((value) => Object.keys(value).length > 0, "Güncellenecek bilgi bulunamadı.")
         .parse(await req.json());
       await database
         .collection("users")
         .updateOne({ id: user.id }, { $set: data });
       invalidateSessionCache();
-      return json({ ok: true });
+      await audit(req, "account.preferences_updated", user, {
+        fields: Object.keys(data),
+      });
+      return json({ ok: true, ...data });
     }
     if (route === "auth/sessions" && method === "GET" && user) {
       const current = hash((await cookies()).get("wm_session")?.value || "");
@@ -6809,7 +6823,11 @@ export async function handle(
                 400,
                 `${surface} için geçerli bir tasarım seçin.`,
               );
-            if (input.action === "submit" && (!value.title || !value.cta))
+            if (
+              input.action === "submit" &&
+              (surface === "qr" || value.mode === "custom") &&
+              (!value.title || !value.cta)
+            )
               throw new HttpError(
                 400,
                 "Her bölümde başlık ve CTA metni gereklidir.",
@@ -6829,7 +6847,10 @@ export async function handle(
                 ...value,
                 template_name: template?.name,
                 template_asset: template?.asset,
-                status: input.action === "submit" ? "submitted" : "draft",
+                status:
+                  input.action === "submit"
+                    ? submittedSurfaceStatus(surface, value.mode)
+                    : "draft",
               },
             ];
           }),
@@ -6854,9 +6875,26 @@ export async function handle(
           ),
           event.partner_id,
         );
+        const currentDesign = resolveDesign(event.design);
+        const appliedDesign = input.action === "submit"
+          ? designSchema.parse({
+              ...currentDesign,
+              ...(input.surfaces.loading.mode === "catalog"
+                ? { intro: input.surfaces.loading.template_id }
+                : {}),
+              ...(input.surfaces.wedding.mode === "catalog"
+                ? { pageTemplate: input.surfaces.wedding.template_id }
+                : {}),
+            })
+          : currentDesign;
         await weddings.updateOne(
           { id, ...weddingScope(user) },
-          { $set: { design_request: request } },
+          {
+            $set: {
+              design_request: request,
+              ...(input.action === "submit" ? { design: appliedDesign } : {}),
+            },
+          },
         );
         await audit(
           req,
@@ -6922,27 +6960,27 @@ export async function handle(
       ) {
         requirePlatform(user);
         requirePermission(user, "design.select");
-        if (
-          !event.design_request ||
-          surfaceIds.some(
-            (surface) => !event.design_request?.surfaces[surface].delivery,
-          )
-        )
+        const designRequest = event.design_request;
+        if (!designRequestReadyToSend(designRequest))
           throw new HttpError(
             409,
-            "Üç tasarımın da teslim dosyası yüklenmelidir.",
+            "QR teslim dosyası ve varsa özel Loading/Wedding teslimleri yüklenmelidir.",
           );
+        const { message } = z
+          .object({ message: z.string().trim().max(1000).default("") })
+          .parse(await req.json().catch(() => ({})));
         const now = new Date().toISOString();
         const set: Record<string, unknown> = {
           "design_request.status": "awaiting_approval",
           "design_request.sent_at": now,
           "design_request.sent_by": user.id,
+          "design_request.approval_message": message,
           "design_request.updated_at": now,
           "design_request.updated_by": user.id,
         };
-        surfaceIds.forEach((surface) => {
-          set[`design_request.surfaces.${surface}.status`] =
-            "awaiting_approval";
+        set["design_request.surfaces.qr.status"] = "awaiting_approval";
+        (["loading", "wedding"] as const).forEach((surface) => {
+          set[`design_request.surfaces.${surface}.status`] = "completed";
         });
         await weddings.updateOne({ id }, { $set: set });
         await audit(req, "wedding.design_delivery_sent", user, {
@@ -6974,6 +7012,11 @@ export async function handle(
             reason: z.string().trim().max(1000).default(""),
           })
           .parse(await req.json());
+        if (input.surface !== "qr")
+          throw new HttpError(
+            409,
+            "Hazır Loading ve Wedding seçimleri doğrudan kullanılır; yalnızca QR tasarımı onaylanır.",
+          );
         if (input.decision === "revision" && input.reason.length < 5)
           throw new HttpError(400, "Revizyon nedenini açıklayın.");
         const now = new Date().toISOString();

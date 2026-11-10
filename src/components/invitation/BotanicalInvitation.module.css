@@ -61,6 +61,12 @@
 .menuGroup strong { color: var(--gold); font: 700 .7rem Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
 .menuGroup p { margin: .3rem 0; }
 .guestActions { display:flex; flex-wrap:wrap; justify-content:center; gap:.75rem; }
+.rsvp { flex:1 1 100%; display:grid; justify-items:center; gap:.45rem; padding:1.1rem; border:1px solid #eadbdd; border-radius:1.25rem; background:rgba(255,255,255,.72); }
+.rsvp>svg { color:var(--sage); }
+.rsvp>strong { font-weight:500; }
+.rsvp>div { display:flex; flex-wrap:wrap; justify-content:center; gap:.6rem; }
+.rsvp .link { margin-top:.2rem; }
+.rsvp .secondaryLink { border:1px solid var(--sage); background:transparent; color:var(--sage); }
 .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
 .gallery img { width: 100%; aspect-ratio: 4 / 5; border-radius: 1rem; object-fit: cover; }
 .note { position: relative; padding: 3.25rem 1.5rem 1.75rem; text-align: center; background: var(--rose-soft); }
@@ -68,7 +74,7 @@
 .note p { font-size: 1.05rem; font-style: italic; line-height: 1.65; }
 .footer { padding: 1rem 1rem 3rem; text-align: center; }
 .footer strong { display: block; color: #9e5268; font-family: "Brush Script MT", "Segoe Script", cursive; font-size: 2.2rem; font-weight: 500; }
-.footer small { display: block; margin-top: 1.5rem; color: var(--muted); font: .6rem Arial, sans-serif; letter-spacing: .24em; text-transform: uppercase; }
+.footer a { display: block; margin-top: 1.5rem; color: var(--muted); font: .6rem Arial, sans-serif; letter-spacing: .24em; text-decoration:none; text-transform: uppercase; }
 
 @media (max-width: 420px) {
   .section { padding-inline: 1rem; }

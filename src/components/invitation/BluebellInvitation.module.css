@@ -47,6 +47,10 @@
 .guestDetails span { color:var(--blue); font:700 .62rem Arial,sans-serif; letter-spacing:.15em; text-transform:uppercase; }
 .guestDetails strong { color:var(--navy); font-weight:500; }
 .guestDetails p { margin:.15rem 0 0; color:#58606b; font-size:.82rem; line-height:1.45; }
+.guestDetails .rsvp { grid-template-columns:auto minmax(0,1fr); }
+.rsvp>div { grid-column:2; display:flex; flex-wrap:wrap; gap:.55rem; margin-top:.45rem; }
+.rsvp a { display:inline-flex; min-height:44px; align-items:center; justify-content:center; padding:0 .9rem; border:1px solid rgba(82,108,148,.38); border-radius:999px; color:var(--navy); font:700 .7rem Arial,sans-serif; text-decoration:none; }
+.rsvp a:first-child { border-color:var(--navy); background:var(--navy); color:white; }
 .gallerySection { background:rgba(223,230,238,.65); }
 .gallery { display:grid; grid-template-columns:repeat(2,1fr); gap:clamp(.6rem,2vw,1rem); max-width:580px; margin:auto; }
 .gallery img { width:100%; aspect-ratio:4/5; object-fit:cover; border:clamp(4px,1vw,7px) solid rgba(255,255,255,.92); border-radius:1rem; box-shadow:0 14px 34px rgba(38,63,99,.16); }
@@ -56,7 +60,7 @@
 .closing p { max-width:420px; margin:0 auto 1.5rem; font-size:1.15rem; font-style:italic; line-height:1.7; }
 .closing strong { display:block; color:var(--navy); font-family:"Brush Script MT","Segoe Script",cursive; font-size:2.2rem; font-weight:500; }
 .theme footer { display:grid; gap:.7rem; margin-top:2rem; padding:2rem 1rem 3.5rem; background:rgba(38,63,99,.96); color:white; text-align:center; }
-.theme footer small { font:600 .58rem Arial,sans-serif; letter-spacing:.2em; text-transform:uppercase; opacity:.72; }
+.theme footer a { color:inherit; font:600 .58rem Arial,sans-serif; letter-spacing:.2em; text-decoration:none; text-transform:uppercase; opacity:.72; }
 @media (min-width:700px) { .events:has(> :nth-child(2)){grid-template-columns:repeat(2,1fr)} .gallery{grid-template-columns:repeat(3,1fr)} .gallery img:nth-child(2n){transform:translateY(1.75rem)} }
 @media (max-width:520px) { .theme{background-size:115% auto}.hero{min-height:720px}.heroCopy{width:90%;margin-top:220px;padding-inline:.75rem}.section{margin:.75rem;padding:3.4rem 1rem;border-radius:1.65rem}.countdownSection,.programSection{border-radius:0}.families{gap:.55rem}.families strong{font-size:.9rem}.countdown{gap:.45rem}.countdown strong{font-size:1.4rem}.gallery img:nth-child(2n){transform:translateY(.8rem)} }
 @media (max-width:360px) { .hero h1{font-size:2.9rem}.hero h1 span{font-size:1.05rem}.families{grid-template-columns:1fr}.countdown div{padding:1rem .25rem}.date strong{font-size:1.05rem} }
