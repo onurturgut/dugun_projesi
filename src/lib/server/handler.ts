@@ -76,7 +76,11 @@ import type {
   PrintJobStatus,
   DesignRequest,
 } from "@/lib/models";
-import { designSchema, resolveDesign } from "@/lib/design";
+import {
+  designSchema,
+  resolveDesign,
+  runtimeIntroForTemplate,
+} from "@/lib/design";
 import { designRequestReadyToSend, submittedSurfaceStatus } from "@/lib/design-request-workflow";
 import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
 import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, invitationGalleryBelongsToWedding, priceSnapshotIncludesDigitalInvitation } from "@/lib/digital-invitation";
@@ -6880,7 +6884,11 @@ export async function handle(
           ? designSchema.parse({
               ...currentDesign,
               ...(input.surfaces.loading.mode === "catalog"
-                ? { intro: input.surfaces.loading.template_id }
+                ? {
+                    intro: runtimeIntroForTemplate(
+                      input.surfaces.loading.template_id,
+                    ),
+                  }
                 : {}),
               ...(input.surfaces.wedding.mode === "catalog"
                 ? { pageTemplate: input.surfaces.wedding.template_id }

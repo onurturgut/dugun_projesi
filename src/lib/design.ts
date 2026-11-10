@@ -392,6 +392,9 @@ const publishedLoadingTemplateIds = new Set([
   "phone-pink-curtain",
   "phone-floral-envelope",
 ]);
+export function runtimeIntroForTemplate(id: string | undefined) {
+  return id === "phone-floral-envelope" ? "blush-floral-envelope" : id;
+}
 export const templateCatalog: readonly TemplateMetadata[] = [
   {
     id: "filmstrip",
@@ -681,6 +684,8 @@ export function resolveDesign(
     migrated.qrTemplateId = "botanical";
   if (migrated.qrProductId === "table-card-150x200-duplex")
     migrated.qrProductId = "portrait-mini-75x100-duplex";
+  if (typeof migrated.intro === "string")
+    migrated.intro = runtimeIntroForTemplate(migrated.intro);
   const parsed = designSchema.safeParse({
     ...defaultDesign,
     ...migrated,

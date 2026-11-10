@@ -13,6 +13,7 @@ import {
   availableTemplates,
   availableDesignRequestTemplates,
   templateCatalog,
+  runtimeIntroForTemplate,
 } from "../src/lib/design";
 import { buildQrCards } from "../src/lib/qr-card";
 import { designRequestReadyToSend, submittedSurfaceStatus } from "../src/lib/design-request-workflow";
@@ -289,7 +290,7 @@ test("retired loading templates remain valid historical records", () => {
   );
 });
 
-test("non-phone counterparts remain valid history but are hidden from customers", () => {
+test("non-phone loading counterparts remain runtime assets rather than customer cards", () => {
   const publishedIds = availableDesignRequestTemplates("loading").map(
     (template) => template.id,
   );
@@ -302,7 +303,7 @@ test("non-phone counterparts remain valid history but are hidden from customers"
   }
 });
 
-test("customer phone loading designs are shared by Design Center and organization flow", () => {
+test("customer presentation stays phone-framed while runtime uses intro.mp4", () => {
   const templates = availableDesignRequestTemplates("loading");
   for (const [id, name] of [
     ["phone-pink-curtain", "Telefonda pembe perde"],
@@ -319,6 +320,14 @@ test("customer phone loading designs are shared by Design Center and organizatio
       true,
     );
   }
+  assert.equal(
+    runtimeIntroForTemplate("phone-floral-envelope"),
+    "blush-floral-envelope",
+  );
+  assert.equal(
+    resolveDesign({ ...defaultDesign, intro: "phone-floral-envelope" }).intro,
+    "blush-floral-envelope",
+  );
 });
 test("all QR reference designs are available as valid presets", () => {
   assert.equal(cardPresets.length, 10);

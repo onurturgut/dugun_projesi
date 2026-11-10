@@ -3516,10 +3516,21 @@
     padding-right: 62px;
   }
   .dashboard-mobile-sidebar .dashboard-sidebar-nav {
-    flex: 1;
+    min-height: 0;
+    flex: 1 1 auto;
+    align-content: start;
+    grid-auto-rows: minmax(46px, max-content);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
   }
   .admin-main {
     padding: 24px 16px 120px;
+  }
+  .dashboard-page {
+    max-width: 100%;
+    overflow-x: clip;
   }
   .admin-heading {
     margin-top: 2px;
@@ -6703,6 +6714,17 @@ html[data-admin-theme="dark"] .admin-calendar-menu .rdp-day_button {
   .admin-bulk-bar .admin-button {
     flex: 1 1 130px;
   }
+  .admin-app[data-role="owner"] .admin-main > *,
+  .admin-app[data-role="owner"] .admin-panel,
+  .admin-app[data-role="owner"] .admin-summary {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .admin-app[data-role="owner"] .admin-panel,
+  .admin-app[data-role="owner"] .admin-summary,
+  .admin-app[data-role="owner"] .admin-event-card {
+    overflow-wrap: anywhere;
+  }
 }
 
 @media (max-width: 480px) {
@@ -6729,5 +6751,12 @@ html[data-admin-theme="dark"] .admin-calendar-menu .rdp-day_button {
   .finance-history-values pre {
     max-width: 100%;
     font-size: 11px;
+  }
+  .admin-app[data-role="owner"] .admin-heading > .admin-actions {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  }
+  .admin-app[data-role="owner"] .admin-heading > .admin-actions .admin-button {
+    min-height: 44px;
+    padding: 9px 12px;
   }
 }
