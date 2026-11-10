@@ -1001,20 +1001,36 @@ export default function EventDetail() {
                 {me.data.role === "owner" ? <div className="admin-panel owner-package-card">
                   <p className="admin-kicker">PAKET VE ORGANİZASYON</p>
                   <h2>{w.package_snapshot?.name || w.package_code || "Organizasyon paketiniz"}</h2>
-                  <p className="admin-hint">Organizasyon bilgilerinizi, kapak görsellerini, logo ve misafir mesajlarını bu alandan güncelleyebilirsiniz. Paket haklarınız mevcut satış kaydınıza göre korunur.</p>
+                  <p className="admin-hint">Paket haklarınız ve organizasyon bilgileriniz onaylanan satış kaydınıza göre korunur.</p>
                   <div className="owner-package-facts"><span><strong>{w.upload_days}</strong> gün yükleme</span><span><strong>{w.trash_days}</strong> gün çöp kutusu</span><span><strong>{formatBytes(effectiveStorageLimit)}</strong> depolama</span></div>
                 </div> : null}
                 <div className="admin-panel">
                   <h2>Organizasyon bilgileri</h2>
-                  <EventForm
-                    event={w}
-                    user={me.data}
-                    onSaved={() => {
-                      qc.invalidateQueries({ queryKey: ["admin-wedding", id] });
-                      qc.invalidateQueries({ queryKey: ["admin-weddings"] });
-                      toast.success("Organizasyon güncellendi.");
-                    }}
-                  />
+                  {me.data.role === "owner" ? (
+                    <>
+                      <p className="admin-hint owner-event-readonly-note">
+                        Bu bilgiler onaylanan organizasyon kaydınıza aittir ve müşteri panelinden değiştirilemez. Düzeltme gerekiyorsa ShineQR ile iletişime geçin.
+                      </p>
+                      <dl className="owner-event-readonly" aria-label="Salt okunur organizasyon bilgileri">
+                        <div><dt>Organizasyon başlığı</dt><dd>{w.title}</dd></div>
+                        <div><dt>Organizasyon türü</dt><dd>{w.event_type}</dd></div>
+                        <div><dt>Organizasyon tarihi</dt><dd>{dateText(w.wedding_date)}</dd></div>
+                        <div><dt>Sayfa adresi</dt><dd>{w.slug}</dd></div>
+                        <div><dt>Gelin adı</dt><dd>{w.bride_name}</dd></div>
+                        <div><dt>Damat adı</dt><dd>{w.groom_name}</dd></div>
+                      </dl>
+                    </>
+                  ) : (
+                    <EventForm
+                      event={w}
+                      user={me.data}
+                      onSaved={() => {
+                        qc.invalidateQueries({ queryKey: ["admin-wedding", id] });
+                        qc.invalidateQueries({ queryKey: ["admin-weddings"] });
+                        toast.success("Organizasyon güncellendi.");
+                      }}
+                    />
+                  )}
                 </div>
                 {me.data.role !== "owner" ? <OwnerForm id={id} /> : null}
               </div>

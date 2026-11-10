@@ -8358,6 +8358,11 @@ export async function handle(
           });
         }
         if (method === "PATCH") {
+          if (user.role === "owner")
+            throw new HttpError(
+              403,
+              "Organizasyon bilgileri müşteri panelinden değiştirilemez.",
+            );
           requirePermission(user, "organization.update");
           if (user.role !== "platform" && event.approval_status === "submitted")
             throw new HttpError(

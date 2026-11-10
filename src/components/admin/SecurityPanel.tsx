@@ -3,6 +3,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Account } from "@/lib/api";
+import { accountAvatarUrl } from "@/lib/customer-panel";
 import { Notice } from "./Fields";
 
 type SessionRow = {
@@ -50,9 +51,9 @@ export function SecurityPanel() {
       {me.data ? (
         <div className="account-profile-card">
           <div className="account-profile-logo">
-            {me.data.partner_logo_url ? (
+            {accountAvatarUrl(me.data.role, me.data.partner_logo_url) ? (
               <Image
-                src={me.data.partner_logo_url}
+                src={accountAvatarUrl(me.data.role, me.data.partner_logo_url)!}
                 alt={`${me.data.partner_name || "İşletme"} logosu`}
                 fill
                 unoptimized

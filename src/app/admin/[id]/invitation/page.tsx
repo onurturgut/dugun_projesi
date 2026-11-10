@@ -25,7 +25,7 @@ type InvitationRecord = {
   message: string;
   has_unpublished_changes?: boolean;
 };
-type EditorSection = "content" | "event" | "details" | "design";
+type EditorSection = "content" | "event" | "details";
 type StudioView = "catalog" | "studio";
 
 export default function DigitalInvitationPage() {
@@ -44,7 +44,6 @@ export default function DigitalInvitationPage() {
   const [error, setError] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [publishedNow, setPublishedNow] = useState(false);
-  const [animationReplayKey, setAnimationReplayKey] = useState(0);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const galleryInput = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
@@ -243,7 +242,7 @@ export default function DigitalInvitationPage() {
     </section> : null}
     <div className={styles.workspace}>
       <section className={styles.panel} data-mobile-active={mobileView === "edit"}>
-        <nav className={styles.tabs} aria-label="Davetiye bölümleri">{([ ["content", "Karşılama"], ["event", "Etkinlik"], ["details", "Detaylar"], ["design", "Tema"] ] as const).map(([value,label]) => <button type="button" key={value} aria-selected={section === value} onClick={() => setSection(value)}>{label}</button>)}</nav>
+        <nav className={styles.tabs} aria-label="Davetiye bölümleri">{([ ["content", "Karşılama"], ["event", "Etkinlik"], ["details", "Detaylar"] ] as const).map(([value,label]) => <button type="button" key={value} aria-selected={section === value} onClick={() => setSection(value)}>{label}</button>)}</nav>
         <fieldset disabled={!canEdit} className={styles.lockedControls}>
         <div className={styles.form}>
           {section === "content" ? <>
@@ -290,22 +289,11 @@ export default function DigitalInvitationPage() {
             <EditorHeading eyebrow="Görünürlük" title="Davetiyede gösterilecek bölümler" description="İhtiyacınız olmayan bölümleri yayından kaldırabilirsiniz." />
             <div className={styles.toggleList}><EditorToggle label="Geri sayım" checked={form.show_countdown} onChange={(v) => update("show_countdown", v)} /><EditorToggle label="Aile bilgileri" checked={form.show_families} onChange={(v) => update("show_families", v)} /><EditorToggle label="Fotoğraf galerisi" checked={form.show_gallery} onChange={(v) => update("show_gallery", v)} /></div>
           </> : null}
-          {section === "design" ? <>
-            <EditorHeading eyebrow="04 · Tema" title="Davetiye koleksiyonu" description="Tema değiştiğinde içerikleriniz korunur; yalnızca davetiyenin görsel dili değişir." />
-            <button type="button" className={styles.themeCard} aria-pressed={form.theme_id === "botanical"} onClick={() => update("theme_id", "botanical")}><img src="/digital-invitation/botanical/gallery-1.jpg" alt="Botanical tema önizlemesi" /><div><strong>{form.theme_id === "botanical" ? <Check size={15} /> : null} Botanical</strong><span>Romantik çiçekler, pudra tonları ve zarif tipografi.</span></div></button>
-            <button type="button" className={styles.themeCard} aria-pressed={form.theme_id === "bluebell-timeless"} onClick={() => update("theme_id", "bluebell-timeless")}><img src="/digital-invitation/bluebell/bluebell-watercolor.png" alt="Bluebell tema önizlemesi" /><div><strong>{form.theme_id === "bluebell-timeless" ? <Check size={15} /> : null} Bluebell — Zamansız Zarafet</strong><span>Mavi çan çiçekleri, fildişi kâğıt ve klasik davetiye düzeni.</span></div></button>
-            <EditorHeading eyebrow="Deneyim" title="Loading ve hareket sistemi" description="Düşük hareket tercih eden ziyaretçiler için erişilebilir yedek görünüm otomatik uygulanır." />
-            <label className={styles.field}><span>Loading deneyimi</span><select value={form.loading_style} onChange={(event) => update("loading_style", event.target.value as DigitalInvitationContent["loading_style"])}><option value="theme">Temaya özel açılış</option><option value="minimal">Minimal loading</option><option value="none">Loading gösterme</option></select></label>
-            <EditorField label="Loading mesajı" value={form.loading_message} onChange={(v) => update("loading_message", v)} maxLength={120} />
-            <label className={styles.field}><span>Animasyon yoğunluğu</span><select value={form.animation_intensity} onChange={(event) => update("animation_intensity", event.target.value as DigitalInvitationContent["animation_intensity"])}><option value="reduced">Sade</option><option value="rich">Zengin</option><option value="cinematic">Sinematik</option></select></label>
-            <button type="button" className={styles.previewIntroButton} onClick={() => { setMobileView("preview"); setAnimationReplayKey((value) => value + 1); toast.success("Açılış animasyonu yeniden başlatıldı."); }}><Sparkles size={16} /> Açılışı oynat</button>
-            <p style={{fontSize:'.78rem',lineHeight:1.6,color:'#75695e',marginTop:16}}>Yeni Lovable temaları aynı katalogda ayrı seçenek olarak görünecek. Tema ortak kullanılır; her organizasyonun içeriği ve yayın kaydı birbirinden ayrıdır.</p>
-          </> : null}
         </div>
         </fieldset>
       </section>
       <aside className={styles.previewStage} data-mobile-active={mobileView === "preview"} aria-label="Telefon içinde canlı davetiye önizlemesi">
-        <div className={styles.phone}><div className={styles.screen}><div className={styles.screenScroll}><div className={styles.screenScale}><InvitationRenderer content={form} preview replayKey={animationReplayKey} /></div></div></div><img className={styles.phoneFrame} src="/editor/purple-phone-frame.webp" alt="Mor telefon önizleme çerçevesi" /></div>
+        <div className={styles.phone}><div className={styles.screen}><div className={styles.screenScroll}><div className={styles.screenScale}><InvitationRenderer content={form} preview /></div></div></div><img className={styles.phoneFrame} src="/editor/purple-phone-frame.webp" alt="Mor telefon önizleme çerçevesi" /></div>
         <span className={styles.previewHint}>Telefon içinde kaydırarak kontrol edin</span>
       </aside>
     </div>

@@ -26,6 +26,10 @@ import {
 } from "../src/lib/qr-products";
 import { packageSnapshot } from "../src/lib/commercial-policy";
 import {
+  accountAvatarUrl,
+  organizationIdFromAdminPath,
+} from "../src/lib/customer-panel";
+import {
   qrTemplates,
   resolvePhysicalQrBackground,
   resolveGeneratedQrFieldMapFace,
@@ -833,4 +837,24 @@ test("ImageGen field-map catalog contains every collection color size and face",
           );
           assert.equal(existsSync(`public${asset}`), true, asset);
         }
+});
+
+test("customer panel keeps catalog routes separate from organization workspaces", () => {
+  const organizationId = "c4751278-c139-4c3f-a212-c4324fa367a3";
+
+  assert.equal(organizationIdFromAdminPath("/admin"), undefined);
+  assert.equal(organizationIdFromAdminPath("/admin/design-center"), undefined);
+  assert.equal(organizationIdFromAdminPath(`/admin/${organizationId}`), organizationId);
+  assert.equal(
+    organizationIdFromAdminPath(`/admin/${organizationId}/design/qr`),
+    organizationId,
+  );
+});
+
+test("customer accounts never inherit the partner brand image as a personal avatar", () => {
+  const logo = "https://cdn.example.com/partner-logo.jpg";
+
+  assert.equal(accountAvatarUrl("owner", logo), undefined);
+  assert.equal(accountAvatarUrl("partner", logo), logo);
+  assert.equal(accountAvatarUrl("platform", null), undefined);
 });

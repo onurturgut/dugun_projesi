@@ -32,6 +32,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Account } from "@/lib/api";
+import {
+  accountAvatarUrl,
+  organizationIdFromAdminPath,
+} from "@/lib/customer-panel";
 import "./admin.css";
 import { AdminUtilities } from "./AdminUtilities";
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -73,7 +77,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       );
     }
   };
-  const ownerEventId = pathname.match(/^\/admin\/([^/]+)/)?.[1];
+  const ownerEventId = organizationIdFromAdminPath(pathname);
+  const avatarUrl = me.data
+    ? accountAvatarUrl(me.data.role, me.data.partner_logo_url)
+    : undefined;
   const navigation =
     me.data?.role === "platform"
       ? [
@@ -222,7 +229,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           const active =
             hrefPath === "/admin"
               ? pathname === "/admin" ||
-                /^\/admin\/[^/]+\/(design)(\/|$)/.test(pathname)
+                (me.data?.role !== "owner" &&
+                  /^\/admin\/[^/]+\/(design)(\/|$)/.test(pathname))
               : pathname === hrefPath &&
                 (hrefSection ? searchParams.get("section") === hrefSection : !searchParams.get("section"));
           return (
@@ -248,9 +256,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </Link>
         <div className="dashboard-tenant">
           <span className="admin-avatar">
-            {me.data?.partner_logo_url ? (
+            {avatarUrl ? (
               <Image
-                src={me.data.partner_logo_url}
+                src={avatarUrl}
                 alt=""
                 fill
                 unoptimized
@@ -270,7 +278,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className={`admin-app ${collapsed ? "dashboard-collapsed" : ""}`}>
+    <div className={`admin-app ${collapsed ? "dashboard-collapsed" : ""}`} data-role={me.data?.role || "loading"}>
       <a href="#admin-content" className="admin-skip">
         İçeriğe geç
       </a>
@@ -358,10 +366,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <details className="admin-account">
               <summary aria-label="Hesap ve gezinme menüsü">
                 <span className="admin-avatar">
-                  {me.data?.partner_logo_url ? (
+                  {avatarUrl ? (
                     <Image
-                      src={me.data.partner_logo_url}
-                      alt={`${me.data.partner_name || "İşletme"} logosu`}
+                      src={avatarUrl}
+                      alt={`${me.data?.partner_name || "İşletme"} logosu`}
                       fill
                       unoptimized
                       sizes="34px"

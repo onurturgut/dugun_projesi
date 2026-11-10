@@ -1769,7 +1769,7 @@ try {
     "PATCH",
     { title: "Müşteri tarafından güncellendi" },
     owner,
-    200,
+    403,
   );
   const publicData = (await call("/weddings/slug/event-a")).data;
   assert.equal(publicData.can_upload, true);
