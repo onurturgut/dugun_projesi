@@ -48,6 +48,15 @@ try {
       .createIndex({ idempotency_key: 1 }, { unique: true }),
     db.collection("sales").createIndex({ wedding_id: 1 }, { unique: true }),
     db.collection("sales").createIndex({ payment_reference: 1 }, { unique: true, partialFilterExpression: { payment_reference: { $type: "string" } } }),
+    db.collection("payments").createIndex({ id: 1 }, { unique: true }),
+    db.collection("payments").createIndex({ idempotency_key: 1 }, { unique: true }),
+    db.collection("payments").createIndex({ reference: 1 }, { unique: true }),
+    db.collection("payments").createIndex({ sale_id: 1, status: 1, paid_at: -1 }),
+    db.collection("accounting_documents").createIndex({ id: 1 }, { unique: true }),
+    db.collection("accounting_documents").createIndex({ sale_id: 1, type: 1 }, { unique: true }),
+    db.collection("bank_transactions").createIndex({ id: 1 }, { unique: true }),
+    db.collection("bank_transactions").createIndex({ reference: 1, amount_cents: 1, occurred_at: 1 }, { unique: true }),
+    db.collection("bank_transactions").createIndex({ status: 1, occurred_at: -1 }),
     db
       .collection("sales")
       .createIndex({ partner_id: 1, period: 1, occurred_at: -1 }),

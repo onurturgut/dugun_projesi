@@ -29,6 +29,7 @@ import {
   ClipboardList,
   QrCode,
   Share2,
+  BookOpenText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Account } from "@/lib/api";
@@ -114,6 +115,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             label: "Satış defteri ve hakediş",
             icon: WalletCards,
           },
+          { href: "/admin/current-accounts", label: "Cari hesaplar", icon: BookOpenText },
+          { href: "/admin/accounting", label: "Muhasebe işlemleri", icon: WalletCards },
           { href: "/admin/audit", label: "İşlem kayıtları", icon: FileClock },
           ...(!me.data?.staff_role || me.data.staff_role === "platform_admin"
             ? [
@@ -172,6 +175,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       label: "Komisyon ve kazanç",
                       icon: WalletCards,
                     },
+                    { href: "/admin/current-accounts", label: "Müşteri carileri", icon: BookOpenText },
                     {
                       href: "/admin/accounts",
                       label: "Yetkili hesaplar",
@@ -386,7 +390,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <small className="admin-account-partner">
                   {me.data?.partner_name}
                 </small>
-                <Link href="/account/password">
+                <Link href="/account/settings">
                   <KeyRound size={16} /> Hesap ayarları
                 </Link>
                 <button

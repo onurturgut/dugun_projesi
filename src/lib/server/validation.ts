@@ -32,6 +32,8 @@ export const eventInput = z.object({
   description: z.string().trim().max(1200).default(""),
   bride_name: z.string().trim().min(1, "Gelin adı gerekli.").max(100),
   groom_name: z.string().trim().min(1, "Damat adı gerekli.").max(100),
+  bride_email: loginName.or(z.literal("")).optional(),
+  groom_email: loginName.or(z.literal("")).optional(),
   wedding_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   cover_images: z.array(imageUrl).max(20),
   logo_url: imageUrl.default(""),
@@ -45,41 +47,91 @@ export const eventInput = z.object({
   upload_days: z.number().int().min(1).max(90).optional(),
   trash_days: z.number().int().min(1).max(30).optional(),
   upload_enabled: z.boolean().optional(),
+  payment_plan: z.enum(["full", "deferred"]).optional(),
+  preferred_payment_method: z
+    .enum(["card", "cash", "bank_transfer"])
+    .optional(),
+  deposit_rate_bps: z.literal(2000).optional(),
+  payment_due_at: z.string().date().nullable().optional(),
 });
-export const eventDraftInput = eventInput.partial().extend({
-  id: z.string().uuid().optional(),
-  wizard_step: z.number().int().min(1).max(7).default(1),
-  customer_name: z.string().trim().max(100).default(""),
-  customer_email: loginName.or(z.literal("")).default(""),
-  customer_phone: z.string().regex(/^0[0-9]{10}$/, "Telefon 0 ile başlayan 11 hane olmalı.").or(z.literal("")).default(""),
-  photographer_package_requested: z.boolean().default(false),
-  custom_design_request: z.object({
-    description: z.string().trim().max(2000).default(""),
-    colors: z.string().trim().max(500).default(""),
-    text_content: z.string().trim().max(2000).default(""),
-    main_image_url: imageUrl.default(""),
-    reference_image_urls: z.array(imageUrl).max(10).default([]),
-    surfaces: z.array(z.enum(["qr_card", "loading_page", "wedding_page", "welcome_sign"])).max(4).default([]),
-    due_date: z.string().date().or(z.literal("")).default(""),
-    notes: z.string().trim().max(2000).default(""),
-  }).optional(),
-  package_code: z.enum(["plan-1", "plan-2", "plan-3"]).optional(),
-  add_on_selections: z.array(z.object({
-    product_id: z.string().uuid(),
-    quantity: z.number().int().min(1).max(100),
-  })).max(20).default([]),
-  qr_quantity_selections: z.array(z.object({
-    product_id: z.string().uuid(),
-    total_quantity: z.number().int().min(0).max(10_000),
-  })).max(20).default([]),
-}).superRefine((value, context) => {
-  const ids = value.add_on_selections.map((item) => item.product_id);
-  if (new Set(ids).size !== ids.length)
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["add_on_selections"], message: "Aynı ek ürün birden fazla kez seçilemez." });
-  const qrIds = value.qr_quantity_selections.map((item) => item.product_id);
-  if (new Set(qrIds).size !== qrIds.length)
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["qr_quantity_selections"], message: "Aynı QR ürünü birden fazla kez seçilemez." });
-});
+export const eventDraftInput = eventInput
+  .partial()
+  .extend({
+    id: z.string().uuid().optional(),
+    wizard_step: z.number().int().min(1).max(7).default(1),
+    customer_name: z.string().trim().max(100).default(""),
+    customer_email: loginName.or(z.literal("")).default(""),
+    customer_phone: z
+      .string()
+      .regex(/^0[0-9]{10}$/, "Telefon 0 ile başlayan 11 hane olmalı.")
+      .or(z.literal(""))
+      .default(""),
+    photographer_package_requested: z.boolean().default(false),
+    custom_design_request: z
+      .object({
+        description: z.string().trim().max(2000).default(""),
+        colors: z.string().trim().max(500).default(""),
+        text_content: z.string().trim().max(2000).default(""),
+        main_image_url: imageUrl.default(""),
+        reference_image_urls: z.array(imageUrl).max(10).default([]),
+        surfaces: z
+          .array(
+            z.enum(["qr_card", "loading_page", "wedding_page", "welcome_sign"]),
+          )
+          .max(4)
+          .default([]),
+        due_date: z.string().date().or(z.literal("")).default(""),
+        notes: z.string().trim().max(2000).default(""),
+      })
+      .optional(),
+    package_code: z.enum(["plan-1", "plan-2", "plan-3"]).optional(),
+    add_on_selections: z
+      .array(
+        z.object({
+          product_id: z.string().uuid(),
+          quantity: z.number().int().min(1).max(100),
+        }),
+      )
+      .max(20)
+      .default([]),
+    qr_quantity_selections: z
+      .array(
+        z.object({
+          product_id: z.string().uuid(),
+          total_quantity: z.number().int().min(0).max(10_000),
+        }),
+      )
+      .max(20)
+      .default([]),
+  })
+  .superRefine((value, context) => {
+    if (value.payment_plan === "deferred" && !value.payment_due_at)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_due_at"],
+        message: "İleri tarihli ödemede son ödeme tarihi gereklidir.",
+      });
+    if (value.payment_plan === "deferred" && value.deposit_rate_bps !== 2000)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["deposit_rate_bps"],
+        message: "İleri tarihli organizasyonlarda kapora oranı %20 olmalıdır.",
+      });
+    const ids = value.add_on_selections.map((item) => item.product_id);
+    if (new Set(ids).size !== ids.length)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["add_on_selections"],
+        message: "Aynı ek ürün birden fazla kez seçilemez.",
+      });
+    const qrIds = value.qr_quantity_selections.map((item) => item.product_id);
+    if (new Set(qrIds).size !== qrIds.length)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["qr_quantity_selections"],
+        message: "Aynı QR ürünü birden fazla kez seçilemez.",
+      });
+  });
 export const accountInput = z.object({
   username: loginName,
   password: passwordSchema,
@@ -91,9 +143,18 @@ export const approvalDecisionInput = z.object({
   reason: z.string().trim().min(3).max(1000),
 });
 export const agentNames = [
-  "accounting-analyst", "architecture-guardian", "business-analyst", "code-reviewer",
-  "frontend-developer", "marketing-strategist", "orchestrator", "qa-engineer",
-  "security-reviewer", "senior-backend", "system-operator", "ui-ux-designer",
+  "accounting-analyst",
+  "architecture-guardian",
+  "business-analyst",
+  "code-reviewer",
+  "frontend-developer",
+  "marketing-strategist",
+  "orchestrator",
+  "qa-engineer",
+  "security-reviewer",
+  "senior-backend",
+  "system-operator",
+  "ui-ux-designer",
 ] as const;
 export const agentReportInput = z.object({
   run_id: z.string().uuid(),
@@ -101,19 +162,30 @@ export const agentReportInput = z.object({
   task_title: z.string().trim().min(3).max(200),
   status: z.enum(["complete", "needs-review", "blocked"]),
   scope: z.array(z.string().trim().min(1).max(300)).min(1).max(100),
-  findings: z.array(z.object({
-    severity: z.enum(["critical", "warning", "info"]),
-    title: z.string().trim().min(3).max(200),
-    evidence: z.string().trim().min(1).max(4000),
-  })).max(100),
-  verification: z.array(z.object({
-    check: z.string().trim().min(1).max(500),
-    result: z.enum(["passed", "failed", "not_run"]),
-    evidence: z.string().trim().max(4000),
-  })).max(100),
+  findings: z
+    .array(
+      z.object({
+        severity: z.enum(["critical", "warning", "info"]),
+        title: z.string().trim().min(3).max(200),
+        evidence: z.string().trim().min(1).max(4000),
+      }),
+    )
+    .max(100),
+  verification: z
+    .array(
+      z.object({
+        check: z.string().trim().min(1).max(500),
+        result: z.enum(["passed", "failed", "not_run"]),
+        evidence: z.string().trim().max(4000),
+      }),
+    )
+    .max(100),
   risks: z.array(z.string().trim().min(1).max(1000)).max(50),
   recommendation: z.enum(["approve", "revise", "reject"]),
-  handoff: z.object({ role: z.enum([...agentNames, "human-owner"]), action: z.string().trim().min(3).max(1000) }),
+  handoff: z.object({
+    role: z.enum([...agentNames, "human-owner"]),
+    action: z.string().trim().min(3).max(1000),
+  }),
   change_ref: z.string().trim().max(200).optional(),
 });
 export const agentReportReviewInput = z.object({
@@ -121,31 +193,37 @@ export const agentReportReviewInput = z.object({
   note: z.string().trim().min(3).max(2000),
 });
 export const mediaIds = z.array(z.string().uuid()).min(1).max(200);
-export const uploadInput = z.object({
-  weddingId: z.string().uuid(),
-  file_name: z.string().min(1).max(180),
-  mime_type: z.enum([
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/heic",
-    "image/heif",
-    "image/avif",
-    "image/gif",
-    "video/mp4",
-    "video/quicktime",
-    "video/webm",
-  ]),
-  size_bytes: z.number().int().positive(),
-  duration_seconds: z.number().positive().max(15 * 60).optional(),
-  uploader_session_id: z.string().uuid(),
-  guest_name: z.string().trim().max(100).default(""),
-  guest_message: z.string().trim().max(1000).default(""),
-}).superRefine((value, context) => {
-  if (value.mime_type.startsWith("video/") && value.duration_seconds == null)
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["duration_seconds"],
-      message: "Video süresi doğrulanamadı.",
-    });
-});
+export const uploadInput = z
+  .object({
+    weddingId: z.string().uuid(),
+    file_name: z.string().min(1).max(180),
+    mime_type: z.enum([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif",
+      "image/avif",
+      "image/gif",
+      "video/mp4",
+      "video/quicktime",
+      "video/webm",
+    ]),
+    size_bytes: z.number().int().positive(),
+    duration_seconds: z
+      .number()
+      .positive()
+      .max(15 * 60)
+      .optional(),
+    uploader_session_id: z.string().uuid(),
+    guest_name: z.string().trim().max(100).default(""),
+    guest_message: z.string().trim().max(1000).default(""),
+  })
+  .superRefine((value, context) => {
+    if (value.mime_type.startsWith("video/") && value.duration_seconds == null)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["duration_seconds"],
+        message: "Video süresi doğrulanamadı.",
+      });
+  });

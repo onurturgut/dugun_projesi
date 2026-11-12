@@ -133,7 +133,7 @@ export function SecurityPanel() {
           </div>
         </div>
       ) : null}
-      {me.data?.role === "platform" ? (
+      {me.data ? (
         <div className="mt-4 border-b border-border pb-5">
           <h3>İki aşamalı doğrulama</h3>
           <p className="admin-hint mt-1 text-xs">

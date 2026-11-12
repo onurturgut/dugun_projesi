@@ -1,16 +1,21 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, type Account } from "@/lib/api";
 import { Notice, PasswordField } from "@/components/admin/Fields";
 import { SecurityPanel } from "@/components/admin/SecurityPanel";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { PartnerSettingsPanel } from "@/components/admin/PartnerSettingsPanel";
+import { effectiveStaffRole } from "@/lib/access-control";
+import { AccountRoleCenter } from "@/components/admin/AccountRoleCenter";
 export default function Password() {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const router = useRouter(),
     qc = useQueryClient();
+  const me = useQuery({ queryKey: ["me"], queryFn: () => api<Account>("/auth/me") });
+  const partnerOwner = me.data?.role === "partner" && effectiveStaffRole(me.data) === "partner_owner";
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -46,8 +51,15 @@ export default function Password() {
           <p className="admin-subtitle">Profil, görünüm ve güvenlik tercihlerinizi tek yerden yönetin.</p>
         </div>
       </div>
+      <nav className="account-settings-nav" aria-label="Hesap ayarları bölümleri">
+        <a href="#profile-security">Profil ve güvenlik</a>
+        <a href="#password-settings">Parola</a>
+        {partnerOwner ? <a href="#business-settings">İşletme ayarları</a> : null}
+      </nav>
+      <div id="profile-security" />
       <div className="account-settings-grid">
       <form
+        id="password-settings"
         onSubmit={submit}
         className="admin-panel account-password-card"
       >
@@ -89,6 +101,8 @@ export default function Password() {
       </form>
       <SecurityPanel />
       </div>
+      {me.data ? <AccountRoleCenter account={me.data} /> : null}
+      {partnerOwner ? <PartnerSettingsPanel /> : null}
     </AdminShell>
   );
 }

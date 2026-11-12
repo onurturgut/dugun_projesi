@@ -88,6 +88,59 @@ export interface Partner {
   active: boolean;
   created_at: string;
   business_types?: BusinessType[];
+  settings?: PartnerSettings;
+}
+export interface PartnerSettings {
+  version: 1;
+  profile: {
+    public_name: string;
+    website_url: string;
+    instagram_url: string;
+    service_cities: string[];
+    working_hours: string;
+    operations_contact_name: string;
+    operations_contact_email: string;
+  };
+  brand: {
+    customer_facing_name: string;
+    support_phone: string;
+    support_email: string;
+    primary_color: string;
+    welcome_text: string;
+    completion_text: string;
+    show_partner_brand: boolean;
+  };
+  locations: Array<{
+    id: string;
+    name: string;
+    address: string;
+    map_url: string;
+    capacity: number | null;
+    working_hours: string;
+    closed_weekdays: number[];
+    active: boolean;
+  }>;
+  organization_defaults: {
+    event_type: string;
+    venue: string;
+    hero_message: string;
+    thank_you_message: string;
+  };
+  notifications: {
+    approval_updates: boolean;
+    photographer_delivery: boolean;
+    quota_warning: boolean;
+    retention_warning: boolean;
+    print_updates: boolean;
+    finance_updates: boolean;
+    weekly_summary: boolean;
+  };
+  privacy: {
+    customer_data_contact_email: string;
+    security_alerts: boolean;
+  };
+  updated_at?: string;
+  updated_by?: string;
 }
 export type AgentName =
   | "accounting-analyst"
@@ -172,6 +225,72 @@ export interface SaleRecord {
   refunded_at?: string | null;
   refunded_by?: string | null;
   refund_reason?: string | null;
+  customer_account_id?: string;
+  due_at?: string | null;
+  paid_cents?: number;
+  payment_status?: "unpaid" | "partial" | "paid" | "refunded";
+}
+export interface PaymentRecord {
+  id: string;
+  idempotency_key: string;
+  partner_id: string;
+  wedding_id: string;
+  sale_id: string;
+  customer_account_id: string;
+  kind: "deposit" | "installment" | "settlement";
+  status: "verified" | "cancelled" | "refunded";
+  amount_cents: number;
+  currency: "TRY";
+  method: "bank_transfer" | "cash" | "card" | "other";
+  reference: string;
+  paid_at: string;
+  recorded_at: string;
+  recorded_by: string;
+}
+export interface AccountingDocument {
+  id: string;
+  partner_id: string;
+  sale_id: string;
+  wedding_id: string;
+  type:
+    | "sales_invoice"
+    | "refund_document"
+    | "expense_document"
+    | "payout_document";
+  status:
+    | "draft"
+    | "pending_approval"
+    | "submitted"
+    | "accepted"
+    | "rejected"
+    | "cancelled";
+  document_number?: string;
+  external_id?: string;
+  issue_date: string;
+  net_cents: number;
+  vat_cents: number;
+  gross_cents: number;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+}
+export interface BankTransaction {
+  id: string;
+  partner_id: string | null;
+  account_name: string;
+  occurred_at: string;
+  amount_cents: number;
+  currency: "TRY";
+  direction: "in" | "out";
+  description: string;
+  reference: string;
+  status: "unmatched" | "matched" | "ignored";
+  payment_id?: string | null;
+  matched_at?: string | null;
+  matched_by?: string | null;
+  created_at: string;
+  created_by: string;
 }
 export interface PhotographerSaleRecord {
   id: string;
@@ -232,6 +351,12 @@ export interface ServicePayoutLedgerEntry {
   payment_proof_uploaded_by?: string | null;
 }
 export interface Wedding {
+  customer_account_id?: string;
+  payment_plan?: "full" | "deferred";
+  preferred_payment_method?: "card" | "cash" | "bank_transfer";
+  deposit_rate_bps?: 2000;
+  deposit_expected_cents?: number | null;
+  payment_due_at?: string | null;
   digital_invitation_access?: {
     granted: true;
     granted_at: string;
@@ -326,6 +451,8 @@ export interface Wedding {
   archived_at?: string | null;
   bride_name: string;
   groom_name: string;
+  bride_email?: string;
+  groom_email?: string;
   wedding_date: string | null;
   cover_images: string[];
   logo_url: string;

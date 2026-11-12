@@ -251,8 +251,8 @@ export default function FinancePage() {
       ]),
   });
   const confirmSalePayment = useMutation({
-    mutationFn: ({ saleId, payment_method, payment_reference, paid_at }: { saleId: string; payment_method: "bank_transfer" | "cash" | "card" | "other"; payment_reference: string; paid_at: string }) =>
-      api(`/admin/sales/${saleId}/confirm-payment`, { method: "POST", body: JSON.stringify({ payment_method, payment_reference, paid_at }) }),
+    mutationFn: ({ saleId, ...input }: { saleId: string; payment_method: "bank_transfer" | "cash" | "card" | "other"; payment_reference: string; paid_at: string; amount_cents: number; kind: "deposit" | "installment" | "settlement"; due_at: string | null }) =>
+      api(`/admin/sales/${saleId}/confirm-payment`, { method: "POST", body: JSON.stringify(input) }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["sales"] }),
@@ -427,7 +427,7 @@ export default function FinancePage() {
               <div className="finance-ledger-status-cell" data-label="Durum"><span className={`finance-status finance-status-${sale.status === "refunded" || sale.status === "cancelled" ? "danger" : sale.status === "draft" ? "warning" : "success"}`}>{saleStatusText(sale.status)}</span><ChevronDown size={17} aria-hidden="true" /></div>
               </summary>
               <SaleDetailPanel sale={sale} />
-              {sale.status === "draft" && me.data && accountHasPermission(me.data, "commission.manage") ? <div className="finance-ledger-approval"><PaymentApprovalForm sale={sale} busy={confirmSalePayment.isPending} onConfirm={(input) => confirmSalePayment.mutate({ saleId: sale.id, ...input })} /></div> : null}
+              {sale.status === "draft" && me.data && accountHasPermission(me.data, "commission.manage") ? <div className="finance-ledger-approval"><PartialPaymentForm sale={sale} busy={confirmSalePayment.isPending} onConfirm={(input) => confirmSalePayment.mutate({ saleId: sale.id, ...input })} /></div> : null}
             </details>
           ))}
         </div>
@@ -790,5 +790,21 @@ function PaymentApprovalForm({ sale, busy, onConfirm }: { sale: SaleRecord; busy
     <input required type="datetime-local" value={paidAt} onChange={(event) => setPaidAt(event.target.value)} />
     <button className="admin-button primary" disabled={busy}>Tahsilatı kesinleştir</button>
     <button className="admin-button" type="button" disabled={busy} onClick={() => setOpen(false)}>Vazgeç</button>
+  </form>;
+}
+
+function PartialPaymentForm({ sale, busy, onConfirm }: { sale: SaleRecord; busy: boolean; onConfirm: (input: { payment_method: "bank_transfer" | "cash" | "card" | "other"; payment_reference: string; paid_at: string; amount_cents: number; kind: "deposit" | "installment" | "settlement"; due_at: string | null }) => void }) {
+  const remaining = Math.max(0, sale.gross_cents - (sale.paid_cents || 0));
+  const [open, setOpen] = useState(false), [method, setMethod] = useState<"bank_transfer" | "cash" | "card" | "other">("bank_transfer"), [kind, setKind] = useState<"deposit" | "installment" | "settlement">(sale.paid_cents ? "installment" : "deposit"), [reference, setReference] = useState(""), [amount, setAmount] = useState(String(remaining / 100)), [dueAt, setDueAt] = useState(sale.due_at?.slice(0, 10) || ""), [paidAt, setPaidAt] = useState(() => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); });
+  if (!open) return <button className="admin-button" type="button" onClick={() => setOpen(true)}>Tahsilat kaydet</button>;
+  return <form className="finance-payment-approval" onSubmit={(event) => { event.preventDefault(); const cents = Math.round(Number(amount.replace(",", ".")) * 100); if (!reference.trim() || !Number.isSafeInteger(cents) || cents < 1 || cents > remaining) return; if (!window.confirm(`${money(cents)} tahsilat kaydedilsin mi? ${cents === remaining ? "Kalan bakiye kapanacak." : "Satış kısmi ödemede kalacak."}`)) return; onConfirm({ payment_method: method, payment_reference: reference.trim(), paid_at: new Date(paidAt).toISOString(), amount_cents: cents, kind, due_at: dueAt ? new Date(`${dueAt}T23:59:59+03:00`).toISOString() : null }); }}>
+    <div className="finance-payment-balance"><span>Toplam <b>{money(sale.gross_cents)}</b></span><span>Ödenen <b>{money(sale.paid_cents || 0)}</b></span><span>Kalan <b>{money(remaining)}</b></span></div>
+    <select aria-label="Tahsilat türü" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="deposit">Kapora</option><option value="installment">Taksit</option><option value="settlement">Kapanış</option></select>
+    <input required inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Tutar (TL)" />
+    <select aria-label="Ödeme yöntemi" value={method} onChange={(e) => setMethod(e.target.value as typeof method)}><option value="bank_transfer">Banka transferi</option><option value="cash">Nakit</option><option value="card">Kart</option><option value="other">Diğer</option></select>
+    <input required maxLength={120} value={reference} onChange={(e) => setReference(e.target.value)} placeholder="İşlem / banka referansı" />
+    <input required type="datetime-local" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+    <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} aria-label="Kalan bakiye vadesi" />
+    <button className="admin-button primary" disabled={busy}>Tahsilatı kesinleştir</button><button className="admin-button" type="button" disabled={busy} onClick={() => setOpen(false)}>Vazgeç</button>
   </form>;
 }

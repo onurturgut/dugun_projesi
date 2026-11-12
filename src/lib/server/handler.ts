@@ -75,15 +75,31 @@ import type {
   PrintJob,
   PrintJobStatus,
   DesignRequest,
+  Partner,
+  PaymentRecord,
+  AccountingDocument,
+  BankTransaction,
 } from "@/lib/models";
+import {
+  organizationDepositCents,
+  organizationSellerPartnerId,
+} from "@/lib/organization-sales";
 import {
   designSchema,
   resolveDesign,
   runtimeIntroForTemplate,
 } from "@/lib/design";
-import { designRequestReadyToSend, submittedSurfaceStatus } from "@/lib/design-request-workflow";
+import {
+  designRequestReadyToSend,
+  submittedSurfaceStatus,
+} from "@/lib/design-request-workflow";
 import { weddingImageBelongsToEvent } from "@/lib/wedding-templates";
-import { defaultDigitalInvitationContent, digitalInvitationAccessEnabled, invitationGalleryBelongsToWedding, priceSnapshotIncludesDigitalInvitation } from "@/lib/digital-invitation";
+import {
+  defaultDigitalInvitationContent,
+  digitalInvitationAccessEnabled,
+  invitationGalleryBelongsToWedding,
+  priceSnapshotIncludesDigitalInvitation,
+} from "@/lib/digital-invitation";
 import { audit } from "./audit";
 import {
   commissionSnapshot,
@@ -125,6 +141,12 @@ import {
 import { approvedPrintSource, canTransitionPrintJob } from "@/lib/print-jobs";
 import { sendPasswordResetEmail } from "./email";
 import { createPaymentQuote } from "./payment-quote";
+import { buildCustomerCurrentAccounts } from "@/lib/current-accounts";
+import {
+  canManagePartnerSettings,
+  partnerSettingsInput,
+  resolvePartnerSettings,
+} from "@/lib/partner-settings";
 import {
   createTotpSecret,
   decryptTotpSecret,
@@ -225,6 +247,9 @@ async function ensureSaleDraft(
         0,
       ),
     payment_reference: null,
+    due_at: event.payment_due_at || null,
+    paid_cents: 0,
+    payment_status: "unpaid",
     paid_at: null,
     paid_by: null,
     refunded_at: null,
@@ -239,6 +264,19 @@ async function ensureSaleDraft(
       projection: { _id: 0 },
       session: transaction,
     },
+  );
+}
+
+async function organizationDepositExpectation(
+  database: Db,
+  grossCents: number,
+  photographerPackageRequested: boolean,
+) {
+  if (!photographerPackageRequested)
+    return organizationDepositCents(grossCents);
+  const photographerPackage = await currentPhotographerPackage(database);
+  return organizationDepositCents(
+    grossCents + photographerPackage.grossPriceCents,
   );
 }
 async function ensureRequestedPhotographerSale(
@@ -335,17 +373,18 @@ const decodeCursor = (value: string | null): MediaCursor | null => {
 const publishedDigitalInvitation = (w: Wedding) => {
   const invitation = w.digital_invitation;
   if (!invitation || invitation.status !== "published") return null;
-  const content = invitation.published_content || invitation.content || {
-    ...defaultDigitalInvitationContent,
-    bride_name: w.bride_name || defaultDigitalInvitationContent.bride_name,
-    groom_name: w.groom_name || defaultDigitalInvitationContent.groom_name,
-    event_type: w.event_type || defaultDigitalInvitationContent.event_type,
-    event_date: invitation.event_date,
-    event_time: invitation.event_time,
-    venue: invitation.venue,
-    map_url: invitation.map_url,
-    message: invitation.message,
-  };
+  const content = invitation.published_content ||
+    invitation.content || {
+      ...defaultDigitalInvitationContent,
+      bride_name: w.bride_name || defaultDigitalInvitationContent.bride_name,
+      groom_name: w.groom_name || defaultDigitalInvitationContent.groom_name,
+      event_type: w.event_type || defaultDigitalInvitationContent.event_type,
+      event_date: invitation.event_date,
+      event_time: invitation.event_time,
+      venue: invitation.venue,
+      map_url: invitation.map_url,
+      message: invitation.message,
+    };
   return {
     template_version: invitation.template_version,
     status: invitation.status,
@@ -374,7 +413,8 @@ const publicEvent = (w: Wedding) => ({
   design: w.design,
   can_upload: uploadsOpenForRuntime(w),
   uploads_close_at: w.uploads_close_at,
-  ...(digitalInvitationAccessEnabled(w) && w.digital_invitation?.status === "published"
+  ...(digitalInvitationAccessEnabled(w) &&
+  w.digital_invitation?.status === "published"
     ? { digital_invitation: publishedDigitalInvitation(w) }
     : {}),
 });
@@ -851,7 +891,10 @@ export async function handle(
             .optional(),
         })
         .strict()
-        .refine((value) => Object.keys(value).length > 0, "Güncellenecek bilgi bulunamadı.")
+        .refine(
+          (value) => Object.keys(value).length > 0,
+          "Güncellenecek bilgi bulunamadı.",
+        )
         .parse(await req.json());
       await database
         .collection("users")
@@ -915,7 +958,6 @@ export async function handle(
       return json({ ok: true });
     }
     if (route === "auth/2fa/setup" && method === "POST" && user) {
-      requirePlatform(user);
       const secret = createTotpSecret();
       await database
         .collection("users")
@@ -931,7 +973,6 @@ export async function handle(
       });
     }
     if (route === "auth/2fa/enable" && method === "POST" && user) {
-      requirePlatform(user);
       const { code } = z
         .object({ code: z.string().regex(/^\d{6}$/) })
         .parse(await req.json());
@@ -955,7 +996,6 @@ export async function handle(
       return json({ ok: true });
     }
     if (route === "auth/2fa/disable" && method === "POST" && user) {
-      requirePlatform(user);
       const { code } = z
         .object({ code: z.string().regex(/^\d{6}$/) })
         .parse(await req.json());
@@ -1596,6 +1636,341 @@ export async function handle(
         await audit(req, "account.created", user, { user_id: id, partner_id });
         return json({ id }, 201);
       }
+    }
+    if (route === "admin/partner-settings" && user) {
+      if (!canManagePartnerSettings(user))
+        throw new HttpError(
+          403,
+          "Partner ayarlarını yalnızca işletme sahibi yönetebilir.",
+        );
+      const partnerId = user.partner_id!;
+      const partners = database.collection<Partner>("partners");
+      const partner = await partners.findOne(
+        { id: partnerId, active: { $ne: false } },
+        { projection: { _id: 0, id: 1, name: 1, settings: 1 } },
+      );
+      if (!partner) throw new HttpError(404, "İşletme bulunamadı.");
+      if (method === "GET") return json(resolvePartnerSettings(partner));
+      if (method === "PATCH") {
+        const input = partnerSettingsInput.parse(await req.json());
+        const settings = {
+          version: 1 as const,
+          ...input,
+          updated_at: new Date().toISOString(),
+          updated_by: user.id,
+        };
+        await partners.updateOne(
+          { id: partnerId, active: { $ne: false } },
+          { $set: { settings } },
+        );
+        await audit(req, "partner.settings_updated", user, {
+          partner_id: partnerId,
+          sections: Object.keys(input),
+        });
+        return json(settings);
+      }
+    }
+    if (route === "admin/current-accounts" && method === "GET" && user) {
+      const canViewAll = accountHasPermission(user, "finance.view_all");
+      if (!canViewAll && !accountHasPermission(user, "finance.view_own"))
+        throw new HttpError(403, "Cari hesapları görüntüleme yetkiniz yok.");
+      const saleFilter = canViewAll
+        ? {}
+        : { partner_id: user.partner_id || "__unassigned__" };
+      const saleRows = await database
+        .collection<SaleRecord>("sales")
+        .find(saleFilter, { projection: { _id: 0 } })
+        .sort({ occurred_at: -1 })
+        .limit(5000)
+        .toArray();
+      const weddingIds = [...new Set(saleRows.map((sale) => sale.wedding_id))];
+      const weddingRows = await weddings
+        .find(
+          { id: { $in: weddingIds } },
+          {
+            projection: {
+              _id: 0,
+              id: 1,
+              owner_id: 1,
+              customer_account_id: 1,
+              customer_name: 1,
+              customer_email: 1,
+              customer_phone: 1,
+              title: 1,
+            },
+          },
+        )
+        .toArray();
+      const items = buildCustomerCurrentAccounts(saleRows, weddingRows);
+      return json({
+        items,
+        summary: {
+          customers: items.length,
+          sales_cents: items.reduce(
+            (sum, item) => sum + item.total_sales_cents,
+            0,
+          ),
+          paid_cents: items.reduce(
+            (sum, item) => sum + item.total_paid_cents,
+            0,
+          ),
+          refunded_cents: items.reduce(
+            (sum, item) => sum + item.total_refunded_cents,
+            0,
+          ),
+          balance_cents: items.reduce(
+            (sum, item) => sum + item.balance_cents,
+            0,
+          ),
+        },
+      });
+    }
+    if (route === "admin/accounting-documents" && user) {
+      const canAll = accountHasPermission(user, "finance.view_all");
+      if (method === "GET") {
+        if (!canAll && !accountHasPermission(user, "finance.view_own"))
+          throw new HttpError(
+            403,
+            "Muhasebe belgelerini görüntüleme yetkiniz yok.",
+          );
+        return json(
+          await database
+            .collection<AccountingDocument>("accounting_documents")
+            .find(
+              canAll ? {} : { partner_id: user.partner_id || "__unassigned__" },
+              { projection: { _id: 0 } },
+            )
+            .sort({ created_at: -1 })
+            .limit(1000)
+            .toArray(),
+        );
+      }
+      if (method === "POST") {
+        requirePermission(user, "commission.manage");
+        const input = z
+          .object({
+            sale_id: z.string().uuid(),
+            type: z.enum([
+              "sales_invoice",
+              "refund_document",
+              "expense_document",
+              "payout_document",
+            ]),
+            issue_date: z.string().date(),
+          })
+          .strict()
+          .parse(await req.json());
+        const sale = await database
+          .collection<SaleRecord>("sales")
+          .findOne({ id: input.sale_id });
+        if (!sale) throw new HttpError(404, "Satış bulunamadı.");
+        const now = new Date().toISOString();
+        const document: AccountingDocument = {
+          id: randomUUID(),
+          partner_id: sale.partner_id,
+          sale_id: sale.id,
+          wedding_id: sale.wedding_id,
+          type: input.type,
+          status: "draft",
+          issue_date: input.issue_date,
+          net_cents: sale.net_cents,
+          vat_cents: sale.vat_cents,
+          gross_cents: sale.gross_cents,
+          created_at: now,
+          created_by: user.id,
+          updated_at: now,
+          updated_by: user.id,
+        };
+        await database
+          .collection<AccountingDocument>("accounting_documents")
+          .insertOne(document);
+        await audit(req, "accounting_document.created", user, {
+          document_id: document.id,
+          sale_id: sale.id,
+        });
+        return json(document, 201);
+      }
+    }
+    if (
+      path.length === 3 &&
+      path[0] === "admin" &&
+      path[1] === "accounting-documents" &&
+      method === "PATCH" &&
+      user
+    ) {
+      requirePermission(user, "finance.view_all");
+      const input = z
+        .object({
+          status: z.enum([
+            "pending_approval",
+            "submitted",
+            "accepted",
+            "rejected",
+            "cancelled",
+          ]),
+          document_number: z.string().trim().max(120).optional(),
+          external_id: z.string().trim().max(200).optional(),
+        })
+        .strict()
+        .parse(await req.json());
+      const document = await database
+        .collection<AccountingDocument>("accounting_documents")
+        .findOneAndUpdate(
+          { id: path[2], status: { $nin: ["cancelled"] } },
+          {
+            $set: {
+              ...input,
+              updated_at: new Date().toISOString(),
+              updated_by: user.id,
+            },
+          },
+          { returnDocument: "after", projection: { _id: 0 } },
+        );
+      if (!document)
+        throw new HttpError(404, "Muhasebe belgesi bulunamadı veya kapalı.");
+      await audit(req, "accounting_document.status_changed", user, {
+        document_id: document.id,
+        status: input.status,
+      });
+      return json(document);
+    }
+    if (route === "admin/payments" && method === "GET" && user) {
+      const canAll = accountHasPermission(user, "finance.view_all");
+      if (!canAll && !accountHasPermission(user, "finance.view_own"))
+        throw new HttpError(403, "Tahsilatları görüntüleme yetkiniz yok.");
+      return json(
+        await database
+          .collection<PaymentRecord>("payments")
+          .find(
+            canAll ? {} : { partner_id: user.partner_id || "__unassigned__" },
+            { projection: { _id: 0 } },
+          )
+          .sort({ paid_at: -1 })
+          .limit(2000)
+          .toArray(),
+      );
+    }
+    if (route === "admin/beneficiary-accounts" && method === "GET" && user) {
+      const canAll = accountHasPermission(user, "finance.view_all");
+      if (!canAll && !accountHasPermission(user, "commission.view_own"))
+        throw new HttpError(403, "Lehtar carilerini görüntüleme yetkiniz yok.");
+      const filter = canAll
+        ? {}
+        : { beneficiary_id: user.partner_id || "__unassigned__" };
+      const rows = await database
+        .collection<ServicePayoutLedgerEntry>("service_payout_ledger")
+        .find(filter, { projection: { _id: 0 } })
+        .sort({ created_at: -1 })
+        .limit(5000)
+        .toArray();
+      const grouped = new Map();
+      for (const row of rows) {
+        const key = `${row.beneficiary_type}:${row.beneficiary_id}`;
+        const value = grouped.get(key) || {
+          id: key,
+          beneficiary_type: row.beneficiary_type,
+          beneficiary_id: row.beneficiary_id,
+          accrued_cents: 0,
+          paid_cents: 0,
+          open_cents: 0,
+          entries: [],
+        };
+        if (row.type === "accrual") value.accrued_cents += row.gross_cents;
+        if (row.status === "paid" || row.status === "recognized")
+          value.paid_cents += row.gross_cents;
+        if (!["paid", "recognized", "reversed"].includes(row.status))
+          value.open_cents += row.gross_cents;
+        value.entries.push(row);
+        grouped.set(key, value);
+      }
+      return json([...grouped.values()]);
+    }
+    if (route === "admin/bank-transactions" && user) {
+      requirePermission(user, "finance.view_all");
+      const collection =
+        database.collection<BankTransaction>("bank_transactions");
+      if (method === "GET")
+        return json(
+          await collection
+            .find({}, { projection: { _id: 0 } })
+            .sort({ occurred_at: -1 })
+            .limit(2000)
+            .toArray(),
+        );
+      if (method === "POST") {
+        const input = z
+          .object({
+            account_name: z.string().trim().min(2).max(120),
+            occurred_at: z.string().datetime(),
+            amount_cents: z.number().int().min(1),
+            direction: z.enum(["in", "out"]),
+            description: z.string().trim().max(500),
+            reference: z.string().trim().min(3).max(160),
+            partner_id: z.string().max(100).nullable().default(null),
+          })
+          .strict()
+          .parse(await req.json());
+        const row: BankTransaction = {
+          id: randomUUID(),
+          ...input,
+          currency: "TRY",
+          status: "unmatched",
+          created_at: new Date().toISOString(),
+          created_by: user.id,
+        };
+        await collection.insertOne(row);
+        await audit(req, "bank_transaction.imported", user, {
+          bank_transaction_id: row.id,
+        });
+        return json(row, 201);
+      }
+    }
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "bank-transactions" &&
+      path[3] === "match" &&
+      method === "POST" &&
+      user
+    ) {
+      requirePermission(user, "finance.view_all");
+      const { payment_id } = z
+        .object({ payment_id: z.string().uuid() })
+        .strict()
+        .parse(await req.json());
+      const payment = await database
+        .collection<PaymentRecord>("payments")
+        .findOne({ id: payment_id, status: "verified" });
+      if (!payment) throw new HttpError(404, "Tahsilat bulunamadı.");
+      const matched = await database
+        .collection<BankTransaction>("bank_transactions")
+        .findOneAndUpdate(
+          {
+            id: path[2],
+            status: "unmatched",
+            direction: "in",
+            amount_cents: payment.amount_cents,
+          },
+          {
+            $set: {
+              status: "matched",
+              payment_id,
+              matched_at: new Date().toISOString(),
+              matched_by: user.id,
+            },
+          },
+          { returnDocument: "after", projection: { _id: 0 } },
+        );
+      if (!matched)
+        throw new HttpError(
+          409,
+          "Banka hareketi eşleşmeye uygun değil veya tutar farklı.",
+        );
+      await audit(req, "bank_transaction.matched", user, {
+        bank_transaction_id: path[2],
+        payment_id,
+      });
+      return json(matched);
     }
     if (route === "admin/photographers" && method === "GET" && user) {
       requireManager(user);
@@ -4235,6 +4610,11 @@ export async function handle(
           payment_method: z.enum(["bank_transfer", "cash", "card", "other"]),
           payment_reference: z.string().trim().min(3).max(120),
           paid_at: z.string().datetime(),
+          amount_cents: z.number().int().min(1).optional(),
+          kind: z
+            .enum(["deposit", "installment", "settlement"])
+            .default("settlement"),
+          due_at: z.string().datetime().nullable().optional(),
         })
         .parse(await req.json());
       const sales = database.collection<SaleRecord>("sales");
@@ -4283,6 +4663,94 @@ export async function handle(
           409,
           "Ödeme onayı için onaylanmış bir organizasyon taslağı gerekli.",
         );
+      const payments = database.collection<PaymentRecord>("payments");
+      const existingPaid = await payments
+        .aggregate<{ total: number }>([
+          { $match: { sale_id: draft.id, status: "verified" } },
+          { $group: { _id: null, total: { $sum: "$amount_cents" } } },
+        ])
+        .next();
+      const paidBefore = existingPaid?.total || 0;
+      const remaining = draft.gross_cents - paidBefore;
+      const amount = payment.amount_cents ?? remaining;
+      if (remaining <= 0)
+        throw new HttpError(409, "Satış tutarı zaten tamamen tahsil edilmiş.");
+      if (amount > remaining)
+        throw new HttpError(409, "Tahsilat kalan bakiyeyi aşamaz.");
+      const customerAccountId =
+        paymentEvent.customer_account_id || randomUUID();
+      if (!paymentEvent.customer_account_id)
+        await weddings.updateOne(
+          { id: paymentEvent.id },
+          { $set: { customer_account_id: customerAccountId } },
+        );
+      if (amount < remaining) {
+        const row: PaymentRecord = {
+          id: randomUUID(),
+          idempotency_key: `sale-payment:${draft.id}:${payment.payment_reference}`,
+          partner_id: draft.partner_id,
+          wedding_id: draft.wedding_id,
+          sale_id: draft.id,
+          customer_account_id: customerAccountId,
+          kind: payment.kind,
+          status: "verified",
+          amount_cents: amount,
+          currency: "TRY",
+          method: payment.payment_method,
+          reference: payment.payment_reference,
+          paid_at: payment.paid_at,
+          recorded_at: new Date().toISOString(),
+          recorded_by: user.id,
+        };
+        const partialSession = (await mongoClient()).startSession();
+        try {
+          await partialSession.withTransaction(async () => {
+            await payments.insertOne(row, { session: partialSession });
+            const changed = await sales.updateOne(
+              {
+                id: draft.id,
+                status: "draft",
+                paid_cents: draft.paid_cents ?? { $exists: false },
+              },
+              {
+                $set: {
+                  customer_account_id: customerAccountId,
+                  due_at: payment.due_at ?? null,
+                  paid_cents: paidBefore + amount,
+                  payment_status: "partial",
+                },
+              },
+              { session: partialSession },
+            );
+            if (!changed.modifiedCount)
+              throw new HttpError(
+                409,
+                "Satış bakiyesi başka bir oturumda değişti. Yenileyip tekrar deneyin.",
+              );
+          });
+        } catch (reason) {
+          if (reason instanceof MongoServerError && reason.code === 11000)
+            throw new HttpError(
+              409,
+              "Bu ödeme referansı daha önce kullanılmış.",
+            );
+          throw reason;
+        } finally {
+          await partialSession.endSession();
+        }
+        await audit(req, "sale.partial_payment_confirmed", user, {
+          sale_id: draft.id,
+          payment_id: row.id,
+          amount_cents: amount,
+        });
+        return json({
+          ...draft,
+          customer_account_id: customerAccountId,
+          paid_cents: paidBefore + amount,
+          payment_status: "partial",
+          due_at: payment.due_at ?? null,
+        });
+      }
       const period = istanbulCalendarMonth(payment.paid_at);
       const transaction = (await mongoClient()).startSession();
       let paid: SaleRecord | null = null;
@@ -4345,6 +4813,10 @@ export async function handle(
                 paid_by: user.id,
                 payment_method: payment.payment_method,
                 payment_reference: payment.payment_reference,
+                customer_account_id: customerAccountId,
+                due_at: payment.due_at ?? null,
+                paid_cents: paidBefore + amount,
+                payment_status: "paid",
                 qualifying_ordinal: ordinal,
                 commission_rate_bps: commissionRateBps,
                 commission_cents: commissionCents,
@@ -4356,6 +4828,26 @@ export async function handle(
           );
           if (!paid)
             throw new HttpError(409, "SatÄ±ÅŸ baÅŸka bir oturumda onaylandÄ±.");
+          await payments.insertOne(
+            {
+              id: randomUUID(),
+              idempotency_key: `sale-payment:${draft.id}:${payment.payment_reference}`,
+              partner_id: draft.partner_id,
+              wedding_id: draft.wedding_id,
+              sale_id: draft.id,
+              customer_account_id: customerAccountId,
+              kind: payment.kind,
+              status: "verified",
+              amount_cents: amount,
+              currency: "TRY",
+              method: payment.payment_method,
+              reference: payment.payment_reference,
+              paid_at: payment.paid_at,
+              recorded_at: new Date().toISOString(),
+              recorded_by: user.id,
+            },
+            { session: transaction },
+          );
           await database.collection("commission_ledger").insertOne(
             {
               id: randomUUID(),
@@ -6321,8 +6813,12 @@ export async function handle(
           .collection("partners")
           .findOne({ id: partner_id, active: true });
         if (!partner) throw new HttpError(400, "İşletme bulunamadı.");
-        await ensureActivePartners([
+        const sellerPartnerId = organizationSellerPartnerId(
+          user,
           data.seller_partner_id,
+        );
+        await ensureActivePartners([
+          sellerPartnerId,
           data.venue_partner_id,
           data.planner_partner_id,
         ]);
@@ -6347,14 +6843,14 @@ export async function handle(
           id: randomUUID(),
           partner_id,
           lead_partner_id: data.lead_partner_id || partner_id,
-          seller_partner_id: data.seller_partner_id || partner_id,
+          seller_partner_id: sellerPartnerId,
           venue_partner_id: data.venue_partner_id || null,
           planner_partner_id: data.planner_partner_id || null,
           participant_partner_ids: [
             ...new Set(
               [
                 partner_id,
-                data.seller_partner_id,
+                sellerPartnerId,
                 data.venue_partner_id,
                 data.planner_partner_id,
               ].filter((value): value is string => !!value),
@@ -6411,8 +6907,12 @@ export async function handle(
             409,
             "Onay bekleyen organizasyon değiştirilemez.",
           );
+        const sellerPartnerId = organizationSellerPartnerId(
+          user,
+          data.seller_partner_id || existing.seller_partner_id,
+        );
         await ensureActivePartners([
-          data.seller_partner_id,
+          sellerPartnerId,
           data.venue_partner_id,
           data.planner_partner_id,
         ]);
@@ -6473,6 +6973,14 @@ export async function handle(
               : "Ek ürün seçimi geçersiz.",
           );
         }
+        const depositExpectedCents =
+          data.payment_plan === "deferred"
+            ? await organizationDepositExpectation(
+                database,
+                pricing.gross_cents,
+                data.photographer_package_requested,
+              )
+            : null;
         const packageChanges = package_code
           ? {
               package_code,
@@ -6493,9 +7001,7 @@ export async function handle(
                 ...new Set(
                   [
                     existing.lead_partner_id || existing.partner_id,
-                    changes.seller_partner_id ||
-                      existing.seller_partner_id ||
-                      existing.partner_id,
+                    sellerPartnerId,
                     changes.venue_partner_id ?? existing.venue_partner_id,
                     changes.planner_partner_id ?? existing.planner_partner_id,
                   ].filter((value): value is string => !!value),
@@ -6504,6 +7010,9 @@ export async function handle(
               add_on_selections: normalizedSelections,
               qr_quantity_selections,
               price_snapshot: pricing,
+              seller_partner_id: sellerPartnerId,
+              deposit_rate_bps: 2000,
+              deposit_expected_cents: depositExpectedCents,
               updated_at: new Date().toISOString(),
             },
           },
@@ -6535,8 +7044,12 @@ export async function handle(
               .collection("partners")
               .findOne({ id: partner_id, active: true });
       if (!partner) throw new HttpError(400, "İşletme bulunamadı.");
-      await ensureActivePartners([
+      const sellerPartnerId = organizationSellerPartnerId(
+        user,
         data.seller_partner_id,
+      );
+      await ensureActivePartners([
+        sellerPartnerId,
         data.venue_partner_id,
         data.planner_partner_id,
       ]);
@@ -6587,19 +7100,27 @@ export async function handle(
           reason instanceof Error ? reason.message : "Ek ürün seçimi geçersiz.",
         );
       }
+      const depositExpectedCents =
+        data.payment_plan === "deferred"
+          ? await organizationDepositExpectation(
+              database,
+              pricing.gross_cents,
+              data.photographer_package_requested,
+            )
+          : null;
       const draft: Wedding = {
         id,
         slug: data.slug || `taslak-${id}`,
         partner_id,
         lead_partner_id: partner_id,
-        seller_partner_id: data.seller_partner_id || partner_id,
+        seller_partner_id: sellerPartnerId,
         venue_partner_id: data.venue_partner_id || null,
         planner_partner_id: data.planner_partner_id || null,
         participant_partner_ids: [
           ...new Set(
             [
               partner_id,
-              data.seller_partner_id,
+              sellerPartnerId,
               data.venue_partner_id,
               data.planner_partner_id,
             ].filter((value): value is string => !!value),
@@ -6632,6 +7153,8 @@ export async function handle(
         add_on_selections: normalizedSelections,
         qr_quantity_selections: qrSelections,
         price_snapshot: pricing,
+        deposit_rate_bps: 2000,
+        deposit_expected_cents: depositExpectedCents,
         upload_days: packageUploadDays(packageCode),
         trash_days: data.trash_days || 7,
         uploads_open_at: now,
@@ -6880,21 +7403,22 @@ export async function handle(
           event.partner_id,
         );
         const currentDesign = resolveDesign(event.design);
-        const appliedDesign = input.action === "submit"
-          ? designSchema.parse({
-              ...currentDesign,
-              ...(input.surfaces.loading.mode === "catalog"
-                ? {
-                    intro: runtimeIntroForTemplate(
-                      input.surfaces.loading.template_id,
-                    ),
-                  }
-                : {}),
-              ...(input.surfaces.wedding.mode === "catalog"
-                ? { pageTemplate: input.surfaces.wedding.template_id }
-                : {}),
-            })
-          : currentDesign;
+        const appliedDesign =
+          input.action === "submit"
+            ? designSchema.parse({
+                ...currentDesign,
+                ...(input.surfaces.loading.mode === "catalog"
+                  ? {
+                      intro: runtimeIntroForTemplate(
+                        input.surfaces.loading.template_id,
+                      ),
+                    }
+                  : {}),
+                ...(input.surfaces.wedding.mode === "catalog"
+                  ? { pageTemplate: input.surfaces.wedding.template_id }
+                  : {}),
+              })
+            : currentDesign;
         await weddings.updateOne(
           { id, ...weddingScope(user) },
           {
@@ -7105,17 +7629,11 @@ export async function handle(
             403,
             "Dijital davetiye yalnızca Premium v2 paket hakkıyla kullanılabilir.",
           );
-        if (
-          path.length === 5 &&
-          path[4] === "gallery" &&
-          method === "POST"
-        ) {
+        if (path.length === 5 && path[4] === "gallery" && method === "POST") {
           requirePermission(user, "organization.update");
           const { image_url } = z
             .object({
-              image_url: z
-                .string()
-                .regex(/^\/api\/covers\/[0-9a-f-]{36}$/),
+              image_url: z.string().regex(/^\/api\/covers\/[0-9a-f-]{36}$/),
             })
             .strict()
             .parse(await req.json());
@@ -7132,10 +7650,16 @@ export async function handle(
               $addToSet: { cover_images: image_url },
               $set: { updated_at: new Date().toISOString() },
             },
-            { returnDocument: "after", projection: { _id: 0, cover_images: 1 } },
+            {
+              returnDocument: "after",
+              projection: { _id: 0, cover_images: 1 },
+            },
           );
           if (!updated)
-            throw new HttpError(409, "Davetiye galerisine en fazla 20 görsel eklenebilir.");
+            throw new HttpError(
+              409,
+              "Davetiye galerisine en fazla 20 görsel eklenebilir.",
+            );
           await audit(req, "digital_invitation.gallery_image_added", user, {
             wedding_id: id,
             image_url,
@@ -7146,7 +7670,9 @@ export async function handle(
           requirePermission(user, "organization.update");
           const input = z
             .object({
-              theme_id: z.enum(["botanical", "bluebell-timeless"]).default("botanical"),
+              theme_id: z
+                .enum(["botanical", "bluebell-timeless"])
+                .default("botanical"),
               bride_name: z.string().trim().min(1).max(80).optional(),
               groom_name: z.string().trim().min(1).max(80).optional(),
               event_type: z.string().trim().min(2).max(80).optional(),
@@ -7157,46 +7683,108 @@ export async function handle(
               map_url: z
                 .string()
                 .trim()
-                .refine((value) => !value || (z.string().url().safeParse(value).success && value.startsWith("https://")), {
-                  message: "Harita bağlantısı HTTPS olmalı.",
-                }),
+                .refine(
+                  (value) =>
+                    !value ||
+                    (z.string().url().safeParse(value).success &&
+                      value.startsWith("https://")),
+                  {
+                    message: "Harita bağlantısı HTTPS olmalı.",
+                  },
+                ),
               message: z.string().trim().max(500).default(""),
               bride_family: z.string().trim().max(240).optional(),
               groom_family: z.string().trim().max(240).optional(),
-              timeline: z.array(z.object({
-                time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-                title: z.string().trim().min(1).max(100),
-                description: z.string().trim().max(200),
-              }).strict()).max(12).optional(),
-              menu: z.array(z.object({
-                course: z.string().trim().min(1).max(100),
-                items: z.array(z.string().trim().min(1).max(160)).max(12),
-              }).strict()).max(10).optional(),
+              timeline: z
+                .array(
+                  z
+                    .object({
+                      time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+                      title: z.string().trim().min(1).max(100),
+                      description: z.string().trim().max(200),
+                    })
+                    .strict(),
+                )
+                .max(12)
+                .optional(),
+              menu: z
+                .array(
+                  z
+                    .object({
+                      course: z.string().trim().min(1).max(100),
+                      items: z.array(z.string().trim().min(1).max(160)).max(12),
+                    })
+                    .strict(),
+                )
+                .max(10)
+                .optional(),
               dress_code_title: z.string().trim().max(100).optional(),
               dress_code_note: z.string().trim().max(300).optional(),
               special_note: z.string().trim().max(600).optional(),
-              whatsapp_number: z.string().trim().regex(/^$|^[0-9]{10,15}$/).optional(),
-              music_url: z.string().trim().refine((value) => !value || (z.string().url().safeParse(value).success && value.startsWith("https://")), { message: "Müzik bağlantısı HTTPS olmalı." }).optional(),
+              whatsapp_number: z
+                .string()
+                .trim()
+                .regex(/^$|^[0-9]{10,15}$/)
+                .optional(),
+              music_url: z
+                .string()
+                .trim()
+                .refine(
+                  (value) =>
+                    !value ||
+                    (z.string().url().safeParse(value).success &&
+                      value.startsWith("https://")),
+                  { message: "Müzik bağlantısı HTTPS olmalı." },
+                )
+                .optional(),
               ceremony_title: z.string().trim().max(80).optional(),
-              ceremony_date: z.union([z.literal(""), z.string().date()]).optional(),
-              ceremony_time: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).optional(),
+              ceremony_date: z
+                .union([z.literal(""), z.string().date()])
+                .optional(),
+              ceremony_time: z
+                .union([
+                  z.literal(""),
+                  z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+                ])
+                .optional(),
               ceremony_venue: z.string().trim().max(200).optional(),
               ceremony_address: z.string().trim().max(500).optional(),
-              ceremony_map_url: z.string().trim().refine((value) => !value || (z.string().url().safeParse(value).success && value.startsWith("https://")), { message: "Nikâh harita bağlantısı HTTPS olmalı." }).optional(),
+              ceremony_map_url: z
+                .string()
+                .trim()
+                .refine(
+                  (value) =>
+                    !value ||
+                    (z.string().url().safeParse(value).success &&
+                      value.startsWith("https://")),
+                  { message: "Nikâh harita bağlantısı HTTPS olmalı." },
+                )
+                .optional(),
               show_countdown: z.boolean().optional(),
               show_families: z.boolean().optional(),
               show_gallery: z.boolean().optional(),
               story_title: z.string().trim().max(120).optional(),
               story_text: z.string().trim().max(1200).optional(),
               show_story: z.boolean().optional(),
-              gallery_images: z.array(z.string().trim().min(1).max(1000)).max(20).optional(),
+              gallery_images: z
+                .array(z.string().trim().min(1).max(1000))
+                .max(20)
+                .optional(),
               loading_style: z.enum(["theme", "minimal", "none"]).optional(),
               loading_message: z.string().trim().max(120).optional(),
-              animation_intensity: z.enum(["reduced", "rich", "cinematic"]).optional(),
+              animation_intensity: z
+                .enum(["reduced", "rich", "cinematic"])
+                .optional(),
             })
             .strict()
             .parse(await req.json());
-          if (input.gallery_images && !invitationGalleryBelongsToWedding(input.gallery_images, event.cover_images || []))
+          if (
+            input.gallery_images &&
+            !invitationGalleryBelongsToWedding(
+              input.gallery_images,
+              event.cover_images || [],
+            )
+          )
             throw new HttpError(
               403,
               "Galeri yalnızca bu organizasyona ait görselleri kullanabilir.",
@@ -7204,19 +7792,29 @@ export async function handle(
           const now = new Date().toISOString();
           const content = {
             ...defaultDigitalInvitationContent,
-            bride_name: event.bride_name || defaultDigitalInvitationContent.bride_name,
-            groom_name: event.groom_name || defaultDigitalInvitationContent.groom_name,
-            event_type: event.event_type || defaultDigitalInvitationContent.event_type,
+            bride_name:
+              event.bride_name || defaultDigitalInvitationContent.bride_name,
+            groom_name:
+              event.groom_name || defaultDigitalInvitationContent.groom_name,
+            event_type:
+              event.event_type || defaultDigitalInvitationContent.event_type,
             ...event.digital_invitation?.content,
             ...input,
           };
           const legacyPublishedContent =
-            event.digital_invitation?.status === "published" && !event.digital_invitation.published_content
+            event.digital_invitation?.status === "published" &&
+            !event.digital_invitation.published_content
               ? event.digital_invitation.content || {
                   ...defaultDigitalInvitationContent,
-                  bride_name: event.bride_name || defaultDigitalInvitationContent.bride_name,
-                  groom_name: event.groom_name || defaultDigitalInvitationContent.groom_name,
-                  event_type: event.event_type || defaultDigitalInvitationContent.event_type,
+                  bride_name:
+                    event.bride_name ||
+                    defaultDigitalInvitationContent.bride_name,
+                  groom_name:
+                    event.groom_name ||
+                    defaultDigitalInvitationContent.groom_name,
+                  event_type:
+                    event.event_type ||
+                    defaultDigitalInvitationContent.event_type,
                   event_date: event.digital_invitation.event_date,
                   event_time: event.digital_invitation.event_time,
                   venue: event.digital_invitation.venue,
@@ -7224,7 +7822,10 @@ export async function handle(
                   message: event.digital_invitation.message,
                 }
               : null;
-          const publishedContent = event.digital_invitation?.published_content || legacyPublishedContent || null;
+          const publishedContent =
+            event.digital_invitation?.published_content ||
+            legacyPublishedContent ||
+            null;
           const invitation: NonNullable<Wedding["digital_invitation"]> = {
             template_version: 1,
             status: publishedContent ? "published" : "draft",
@@ -7270,11 +7871,18 @@ export async function handle(
             {
               $set: {
                 "digital_invitation.status": "published",
-                "digital_invitation.published_content": event.digital_invitation.content || {
+                "digital_invitation.published_content": event.digital_invitation
+                  .content || {
                   ...defaultDigitalInvitationContent,
-                  bride_name: event.bride_name || defaultDigitalInvitationContent.bride_name,
-                  groom_name: event.groom_name || defaultDigitalInvitationContent.groom_name,
-                  event_type: event.event_type || defaultDigitalInvitationContent.event_type,
+                  bride_name:
+                    event.bride_name ||
+                    defaultDigitalInvitationContent.bride_name,
+                  groom_name:
+                    event.groom_name ||
+                    defaultDigitalInvitationContent.groom_name,
+                  event_type:
+                    event.event_type ||
+                    defaultDigitalInvitationContent.event_type,
                   event_date: event.digital_invitation.event_date,
                   event_time: event.digital_invitation.event_time,
                   venue: event.digital_invitation.venue,
