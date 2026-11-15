@@ -32,6 +32,7 @@ import {
   passwordSchema,
   mediaIds,
   uploadInput,
+  uploadCompleteInput,
   agentNames,
   agentReportInput,
   agentReportReviewInput,
@@ -9682,9 +9683,9 @@ export async function handle(
       return json({ ok: true });
     }
     if (route === "uploads/complete" && method === "POST") {
-      const { ticket } = z
-        .object({ ticket: z.string().length(64) })
-        .parse(await req.json());
+      const { ticket, guest_name, guest_message } = uploadCompleteInput.parse(
+        await req.json(),
+      );
       const t = await database
         .collection("upload_tickets")
         .findOne({ token: hash(ticket), expiresAt: { $gt: new Date() } });
@@ -9787,8 +9788,8 @@ export async function handle(
                 source: t.source === "photographer" ? "photographer" : "guest",
                 uploader_account_id: t.uploader_account_id || null,
                 photographer_partner_id: t.photographer_partner_id || null,
-                guest_name: t.guest_name || "",
-                guest_message: t.guest_message || "",
+                guest_name: guest_name || t.guest_name || "",
+                guest_message: guest_message || t.guest_message || "",
                 uploaded_at: new Date().toISOString(),
                 deleted_at: null,
                 purge_at: null,

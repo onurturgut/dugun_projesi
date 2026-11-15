@@ -85,6 +85,42 @@ export interface UploadOneResult {
   error?: string;
 }
 
+export function buildUploadSignPayload(
+  weddingId: string,
+  item: Pick<SelectedItem, "file">,
+  mime: string,
+  durationSeconds: number | undefined,
+) {
+  return {
+    weddingId,
+    file_name: item.file.name.slice(0, 180),
+    mime_type: mime,
+    size_bytes: item.file.size,
+    duration_seconds: durationSeconds,
+    uploader_session_id: getSessionId(),
+  };
+}
+
+export function buildUploadCompletePayload(
+  ticket: string,
+  guest: { guest_name: string; guest_message: string },
+) {
+  return {
+    ticket,
+    guest_name: guest.guest_name.trim().slice(0, 100),
+    guest_message: guest.guest_message.trim().slice(0, 1000),
+  };
+}
+
+function uploadStageError(stage: string, error: unknown) {
+  const detail = error instanceof Error ? error.message : "Bilinmeyen ağ hatası.";
+  if (/failed to fetch|networkerror|load failed/i.test(detail))
+    return new Error(
+      `${stage} sırasında sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.`,
+    );
+  return new Error(`${stage}: ${detail}`);
+}
+
 async function directUpload(
   url: string,
   file: File,
@@ -183,18 +219,17 @@ export async function uploadItem(
     const durationSeconds = item.kind === "video" ? await videoDuration(item.file) : undefined;
     if (durationSeconds && durationSeconds > UPLOAD_CONFIG.maxVideoDurationSeconds)
       throw new Error("Videolar en fazla 15 dakika olabilir.");
-    const signed = await api<{ url: string; ticket: string }>("/uploads/sign", {
-      method: "POST",
-      body: JSON.stringify({
-        weddingId,
-        file_name: item.file.name.slice(0, 180),
-        mime_type: mime,
-        size_bytes: item.file.size,
-        duration_seconds: durationSeconds,
-        uploader_session_id: getSessionId(),
-        ...guest,
-      }),
-    });
+    let signed: { url: string; ticket: string };
+    try {
+      signed = await api<{ url: string; ticket: string }>("/uploads/sign", {
+        method: "POST",
+        body: JSON.stringify(
+          buildUploadSignPayload(weddingId, item, mime, durationSeconds),
+        ),
+      });
+    } catch (error) {
+      throw uploadStageError("Yükleme başlatma", error);
+    }
     try {
       await directUpload(signed.url, item.file, mime, onProgress);
     } catch (directError) {
@@ -213,10 +248,14 @@ export async function uploadItem(
         await sameOriginPhotoUpload(signed.ticket, item.file, mime);
       }
     }
-    await api("/uploads/complete", {
-      method: "POST",
-      body: JSON.stringify({ ticket: signed.ticket }),
-    });
+    try {
+      await api("/uploads/complete", {
+        method: "POST",
+        body: JSON.stringify(buildUploadCompletePayload(signed.ticket, guest)),
+      });
+    } catch (error) {
+      throw uploadStageError("Yüklemeyi tamamlama", error);
+    }
     onProgress(100);
     return { ok: true };
   } catch (error) {

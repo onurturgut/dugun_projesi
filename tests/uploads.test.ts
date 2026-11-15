@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateFiles } from "../src/lib/uploads";
+import {
+  buildUploadCompletePayload,
+  buildUploadSignPayload,
+  validateFiles,
+} from "../src/lib/uploads";
 import {
   canUseSameOriginPhotoFallback,
   SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES,
@@ -56,4 +60,30 @@ test("same-origin fallback is restricted to small photos", () => {
     false,
   );
   assert.equal(canUseSameOriginPhotoFallback({ kind: "photo", size: 0 }), false);
+});
+
+test("guest metadata is sent only after object upload completes", () => {
+  const file = new File([new Uint8Array(24)], "anı.jpg", {
+    type: "image/jpeg",
+    lastModified: 1,
+  });
+  const sign = buildUploadSignPayload(
+    "7d286fbe-d42a-455a-b81a-8f205f51b894",
+    { file },
+    "image/jpeg",
+    undefined,
+  );
+  assert.equal("guest_name" in sign, false);
+  assert.equal("guest_message" in sign, false);
+  assert.deepEqual(
+    buildUploadCompletePayload("a".repeat(64), {
+      guest_name: "  Ayşe  ",
+      guest_message: "  Mutluluklar! 🎉  ",
+    }),
+    {
+      ticket: "a".repeat(64),
+      guest_name: "Ayşe",
+      guest_message: "Mutluluklar! 🎉",
+    },
+  );
 });

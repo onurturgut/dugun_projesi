@@ -227,3 +227,9 @@ export const uploadInput = z
         message: "Video süresi doğrulanamadı.",
       });
   });
+
+export const uploadCompleteInput = z.object({
+  ticket: z.string().length(64),
+  guest_name: z.string().trim().max(100).default(""),
+  guest_message: z.string().trim().max(1000).default(""),
+});
