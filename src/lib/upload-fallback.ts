@@ -12,3 +12,12 @@ export function canUseSameOriginPhotoFallback(input: {
     input.size <= SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES
   );
 }
+
+export function uploadTransportOrder(input: {
+  kind: "photo" | "video";
+  size: number;
+}) {
+  return canUseSameOriginPhotoFallback(input)
+    ? (["same-origin", "direct"] as const)
+    : (["direct", "direct"] as const);
+}

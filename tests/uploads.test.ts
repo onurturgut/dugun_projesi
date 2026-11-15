@@ -10,6 +10,7 @@ import {
 import {
   canUseSameOriginPhotoFallback,
   SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES,
+  uploadTransportOrder,
 } from "../src/lib/upload-fallback";
 import {
   directUploadObjectInput,
@@ -70,6 +71,17 @@ test("same-origin fallback is restricted to small photos", () => {
     canUseSameOriginPhotoFallback({ kind: "photo", size: 0 }),
     false,
   );
+});
+
+test("small photos use the same-origin emergency transport first", () => {
+  assert.deepEqual(uploadTransportOrder({ kind: "photo", size: 985_348 }), [
+    "same-origin",
+    "direct",
+  ]);
+  assert.deepEqual(uploadTransportOrder({ kind: "video", size: 985_348 }), [
+    "direct",
+    "direct",
+  ]);
 });
 
 test("direct R2 upload signs content type without signing content length", () => {

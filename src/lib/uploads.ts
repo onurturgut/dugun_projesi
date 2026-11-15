@@ -1,6 +1,6 @@
 import { api } from "./api";
 import { UPLOAD_CONFIG, formatBytes } from "./config";
-import { canUseSameOriginPhotoFallback } from "./upload-fallback";
+import { uploadTransportOrder } from "./upload-fallback";
 
 export type MediaKind = "photo" | "video";
 
@@ -273,22 +273,29 @@ export async function uploadItem(
     } catch (error) {
       throw uploadStageError("Yükleme başlatma", "SIGN", error);
     }
+    const [primaryTransport] = uploadTransportOrder({
+      kind: item.kind,
+      size: item.file.size,
+    });
+    const useSameOriginFirst = primaryTransport === "same-origin";
     try {
-      await directUpload(signed.url, item.file, mime, onProgress);
-    } catch (directError) {
-      try {
-        onProgress(0);
-        await directUpload(signed.url, item.file, mime, onProgress);
-      } catch {
-        if (
-          !canUseSameOriginPhotoFallback({
-            kind: item.kind,
-            size: item.file.size,
-          })
-        )
-          throw directError;
+      if (useSameOriginFirst) {
         onProgress(96);
         await sameOriginPhotoUpload(signed.ticket, item.file, mime);
+      } else {
+        await directUpload(signed.url, item.file, mime, onProgress);
+      }
+    } catch (primaryError) {
+      if (useSameOriginFirst) {
+        onProgress(0);
+        await directUpload(signed.url, item.file, mime, onProgress);
+      } else {
+        try {
+          onProgress(0);
+          await directUpload(signed.url, item.file, mime, onProgress);
+        } catch {
+          throw primaryError;
+        }
       }
     }
     try {
