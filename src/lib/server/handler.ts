@@ -11028,12 +11028,13 @@ export async function handle(
       )
         throw new HttpError(410, "Yükleme kapalı.");
       const contentType = req.headers.get("content-type") || "";
-      const contentLength = Number(req.headers.get("content-length"));
+      const contentLength = req.headers.get("content-length");
       if (contentType !== t.mime_type)
         throw new HttpError(400, "Dosya türü yükleme biletiyle eşleşmiyor.");
       if (
-        !Number.isSafeInteger(contentLength) ||
-        contentLength !== t.size_bytes
+        contentLength !== null &&
+        (!Number.isSafeInteger(Number(contentLength)) ||
+          Number(contentLength) !== t.size_bytes)
       )
         throw new HttpError(400, "Dosya boyutu yükleme biletiyle eşleşmiyor.");
       const bytes = Buffer.from(await req.arrayBuffer());

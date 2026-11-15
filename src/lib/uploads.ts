@@ -287,8 +287,7 @@ export async function uploadItem(
       }
     } catch (primaryError) {
       if (useSameOriginFirst) {
-        onProgress(0);
-        await directUpload(signed.url, item.file, mime, onProgress);
+        throw primaryError;
       } else {
         try {
           onProgress(0);
