@@ -47,20 +47,43 @@ try {
       .collection("sales")
       .createIndex({ idempotency_key: 1 }, { unique: true }),
     db.collection("sales").createIndex({ wedding_id: 1 }, { unique: true }),
-    db.collection("sales").createIndex({ payment_reference: 1 }, { unique: true, partialFilterExpression: { payment_reference: { $type: "string" } } }),
+    db.collection("sales").createIndex(
+      { payment_reference: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { payment_reference: { $type: "string" } },
+      },
+    ),
     db.collection("payments").createIndex({ id: 1 }, { unique: true }),
-    db.collection("payments").createIndex({ idempotency_key: 1 }, { unique: true }),
+    db
+      .collection("payments")
+      .createIndex({ idempotency_key: 1 }, { unique: true }),
     db.collection("payments").createIndex({ reference: 1 }, { unique: true }),
-    db.collection("payments").createIndex({ sale_id: 1, status: 1, paid_at: -1 }),
-    db.collection("accounting_documents").createIndex({ id: 1 }, { unique: true }),
-    db.collection("accounting_documents").createIndex({ sale_id: 1, type: 1 }, { unique: true }),
+    db
+      .collection("payments")
+      .createIndex({ sale_id: 1, status: 1, paid_at: -1 }),
+    db
+      .collection("accounting_documents")
+      .createIndex({ id: 1 }, { unique: true }),
+    db
+      .collection("accounting_documents")
+      .createIndex({ sale_id: 1, type: 1 }, { unique: true }),
     db.collection("bank_transactions").createIndex({ id: 1 }, { unique: true }),
-    db.collection("bank_transactions").createIndex({ reference: 1, amount_cents: 1, occurred_at: 1 }, { unique: true }),
-    db.collection("bank_transactions").createIndex({ status: 1, occurred_at: -1 }),
+    db
+      .collection("bank_transactions")
+      .createIndex(
+        { reference: 1, amount_cents: 1, occurred_at: 1 },
+        { unique: true },
+      ),
+    db
+      .collection("bank_transactions")
+      .createIndex({ status: 1, occurred_at: -1 }),
     db
       .collection("sales")
       .createIndex({ partner_id: 1, period: 1, occurred_at: -1 }),
-    db.collection("photographer_sales").createIndex({ id: 1 }, { unique: true }),
+    db
+      .collection("photographer_sales")
+      .createIndex({ id: 1 }, { unique: true }),
     db
       .collection("photographer_sales")
       .createIndex({ idempotency_key: 1 }, { unique: true }),
@@ -83,7 +106,9 @@ try {
         partialFilterExpression: { status: "pending_customer_consent" },
       },
     ),
-    db.collection("service_payout_ledger").createIndex({ id: 1 }, { unique: true }),
+    db
+      .collection("service_payout_ledger")
+      .createIndex({ id: 1 }, { unique: true }),
     db
       .collection("service_payout_ledger")
       .createIndex(
@@ -108,8 +133,108 @@ try {
       .collection("commission_ledger")
       .createIndex({ partner_id: 1, period: 1, created_at: -1 }),
     db.collection("add_on_products").createIndex({ id: 1 }, { unique: true }),
-    db.collection("add_on_products").createIndex({ code: 1 }, { unique: true, sparse: true }),
+    db
+      .collection("add_on_products")
+      .createIndex({ code: 1 }, { unique: true, sparse: true }),
     db.collection("add_on_products").createIndex({ active: 1, name: 1 }),
+    db
+      .collection("business_leads")
+      .createIndex({ id: 1 }, { name: "business_leads_id_uq", unique: true }),
+    db
+      .collection("business_leads")
+      .createIndex(
+        { partner_id: 1, idempotency_key: 1 },
+        { name: "business_leads_partner_idempotency_uq", unique: true },
+      ),
+    db
+      .collection("business_leads")
+      .createIndex(
+        { partner_id: 1, status: 1, updated_at: -1 },
+        { name: "business_leads_partner_status_updated" },
+      ),
+    db
+      .collection("business_leads")
+      .createIndex(
+        { partner_id: 1, customer_phone: 1, created_at: -1 },
+        { name: "business_leads_partner_phone_created" },
+      ),
+    db
+      .collection("business_catalog_items")
+      .createIndex(
+        { partner_id: 1, active: 1, display_order: 1, updated_at: -1 },
+        { name: "business_catalog_partner_active_order" },
+      ),
+    db
+      .collection("crm_activities")
+      .createIndex({ id: 1 }, { name: "crm_activities_id_uq", unique: true }),
+    db
+      .collection("crm_activities")
+      .createIndex(
+        { partner_id: 1, lead_id: 1, occurred_at: -1, created_at: -1 },
+        { name: "crm_activities_partner_lead_timeline" },
+      ),
+    db
+      .collection("crm_tasks")
+      .createIndex({ id: 1 }, { name: "crm_tasks_id_uq", unique: true }),
+    db
+      .collection("crm_tasks")
+      .createIndex(
+        { partner_id: 1, lead_id: 1, status: 1, due_at: 1 },
+        { name: "crm_tasks_partner_lead_status_due" },
+      ),
+    db
+      .collection("crm_tasks")
+      .createIndex(
+        { partner_id: 1, assigned_to: 1, status: 1, due_at: 1 },
+        { name: "crm_tasks_partner_assignee_status_due" },
+      ),
+    db
+      .collection("crm_quotes")
+      .createIndex({ id: 1 }, { name: "crm_quotes_id_uq", unique: true }),
+    db
+      .collection("crm_quotes")
+      .createIndex(
+        { partner_id: 1, lead_id: 1, version: -1 },
+        { name: "crm_quotes_partner_lead_version_uq", unique: true },
+      ),
+    db
+      .collection("crm_quotes")
+      .createIndex(
+        { partner_id: 1, status: 1, valid_until: 1 },
+        { name: "crm_quotes_partner_status_validity" },
+      ),
+    db
+      .collection("customer_accounts")
+      .createIndex(
+        { id: 1 },
+        { name: "customer_accounts_id_uq", unique: true },
+      ),
+    db
+      .collection("customer_accounts")
+      .createIndex(
+        { partner_id: 1, identity_key: 1 },
+        { name: "customer_accounts_partner_identity_uq", unique: true },
+      ),
+    db
+      .collection("crm_quote_conversions")
+      .createIndex(
+        { quote_id: 1 },
+        { name: "crm_quote_conversions_quote_uq", unique: true },
+      ),
+    db
+      .collection("crm_quote_conversions")
+      .createIndex(
+        { partner_id: 1, lead_id: 1, created_at: -1 },
+        { name: "crm_quote_conversions_partner_lead_created" },
+      ),
+    db.collection("partners").createIndex(
+      { "storefront.slug": 1 },
+      {
+        name: "partners_storefront_slug_uq",
+        unique: true,
+        partialFilterExpression: { "storefront.slug": { $type: "string" } },
+      },
+    ),
     db.collection("agent_reports").createIndex({ id: 1 }, { unique: true }),
     db
       .collection("agent_reports")

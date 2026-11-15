@@ -10,6 +10,8 @@ export type { Permission, StaffRole } from "./models";
 const allPermissions: Permission[] = [
   "partner.manage",
   "partner.manage_staff",
+  "crm.view_own",
+  "crm.manage_own",
   "organization.create",
   "organization.update",
   "organization.submit",
@@ -64,6 +66,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
   ],
   partner_owner: [
     "partner.manage_staff",
+    "crm.view_own",
+    "crm.manage_own",
     "organization.create",
     "organization.update",
     "organization.submit",
@@ -75,6 +79,8 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     "commission.view_own",
   ],
   partner_sales: [
+    "crm.view_own",
+    "crm.manage_own",
     "organization.create",
     "organization.update",
     "organization.submit",
@@ -88,7 +94,12 @@ export const ROLE_PERMISSIONS: Record<StaffRole, readonly Permission[]> = {
     "design.request_revision",
     "design.approve_for_print",
   ],
-  photographer: ["media.upload_professional"],
+  photographer: [
+    "organization.create",
+    "organization.update",
+    "organization.submit",
+    "media.upload_professional",
+  ],
   print_vendor: ["print_job.view_assigned", "print_job.update_status"],
   organization_owner: [
     "organization.update",
@@ -116,11 +127,8 @@ export function defaultStaffRole(role: Role): StaffRole {
 }
 
 export function initialPartnerStaffRole(
-  businessTypes: readonly BusinessType[],
+  _businessTypes: readonly BusinessType[],
 ): Extract<StaffRole, "partner_owner" | "photographer" | "print_vendor"> {
-  if (businessTypes.length !== 1) return "partner_owner";
-  if (businessTypes[0] === "photography") return "photographer";
-  if (businessTypes[0] === "print_vendor") return "print_vendor";
   return "partner_owner";
 }
 

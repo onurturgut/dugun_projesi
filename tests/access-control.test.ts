@@ -15,11 +15,11 @@ test("legacy roles receive safe standard role presets", () => {
   assert.equal(defaultStaffRole("owner"), "organization_owner");
 });
 
-test("business type assigns the initial partner account role", () => {
+test("business category never replaces the initial business-owner role", () => {
   assert.equal(initialPartnerStaffRole(["venue"]), "partner_owner");
   assert.equal(initialPartnerStaffRole(["planner"]), "partner_owner");
-  assert.equal(initialPartnerStaffRole(["photography"]), "photographer");
-  assert.equal(initialPartnerStaffRole(["print_vendor"]), "print_vendor");
+  assert.equal(initialPartnerStaffRole(["photography"]), "partner_owner");
+  assert.equal(initialPartnerStaffRole(["print_vendor"]), "partner_owner");
   assert.equal(initialPartnerStaffRole(["other"]), "partner_owner");
 });
 
@@ -34,9 +34,10 @@ test("sales cannot approve organizations or view all finance", () => {
   assert.equal(hasPermission("partner_sales", "organization.submit"), true);
   assert.equal(hasPermission("partner_sales", "organization.approve"), false);
   assert.equal(hasPermission("partner_sales", "finance.view_all"), false);
+  assert.equal(hasPermission("partner_sales", "crm.manage_own"), true);
 });
 
-test("photographers can upload professional files but cannot access albums", () => {
+test("photographer partners can create organizations and upload files without album access", () => {
   assert.equal(
     hasPermission("photographer", "media.upload_professional"),
     true,
@@ -44,7 +45,10 @@ test("photographers can upload professional files but cannot access albums", () 
   assert.equal(hasPermission("photographer", "album.view"), false);
   assert.equal(hasPermission("photographer", "album.download"), false);
   assert.equal(hasPermission("photographer", "album.manage"), false);
-  assert.equal(hasPermission("photographer", "organization.update"), false);
+  assert.equal(hasPermission("photographer", "organization.create"), true);
+  assert.equal(hasPermission("photographer", "organization.update"), true);
+  assert.equal(hasPermission("photographer", "organization.submit"), true);
+  assert.equal(hasPermission("photographer", "organization.approve"), false);
   assert.equal(hasPermission("photographer", "finance.view_own"), false);
 });
 

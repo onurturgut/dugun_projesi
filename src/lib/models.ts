@@ -11,7 +11,185 @@ import type {
 } from "./commercial-policy";
 export type Role = "platform" | "partner" | "owner";
 export type BusinessType =
-  "venue" | "planner" | "photography" | "print_vendor" | "other";
+  | "venue"
+  | "planner"
+  | "photography"
+  | "print_vendor"
+  | "bridal"
+  | "florist"
+  | "invitation"
+  | "music_entertainment"
+  | "beauty"
+  | "transportation"
+  | "other";
+
+export interface BusinessStorefront {
+  slug: string;
+  status: "draft" | "published" | "suspended";
+  short_description: string;
+  about: string;
+  cover_images: string[];
+  service_cities: string[];
+  featured_services: string[];
+  whatsapp_phone: string;
+  show_phone: boolean;
+  show_address: boolean;
+  published_at?: string | null;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface BusinessCatalogItem {
+  id: string;
+  partner_id: string;
+  kind: "product" | "service" | "package";
+  name: string;
+  description: string;
+  category: string;
+  image_url: string;
+  price_display: "fixed" | "from" | "quote_only";
+  gross_price_cents: number | null;
+  currency: "TRY";
+  unit_label: string;
+  active: boolean;
+  display_order: number;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+}
+
+export type BusinessLeadStatus =
+  "new" | "contacted" | "quote_preparing" | "quote_sent" | "won" | "lost";
+
+export interface BusinessLead {
+  id: string;
+  idempotency_key: string;
+  partner_id: string;
+  catalog_item_id: string | null;
+  source: "storefront";
+  status: BusinessLeadStatus;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  event_type: string;
+  event_date: string | null;
+  city: string;
+  message: string;
+  contact_preference: "phone" | "email" | "whatsapp";
+  privacy_notice_accepted_at: string;
+  marketing_consent: boolean;
+  marketing_consent_at: string | null;
+  assigned_to: string | null;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
+}
+export type CrmActivityType = "note" | "call" | "email" | "meeting" | "system";
+export interface CrmActivity {
+  id: string;
+  partner_id: string;
+  lead_id: string;
+  type: CrmActivityType;
+  content: string;
+  occurred_at: string;
+  created_at: string;
+  created_by: string;
+}
+export type CrmTaskStatus = "todo" | "in_progress" | "done" | "cancelled";
+export interface CrmTask {
+  id: string;
+  partner_id: string;
+  lead_id: string;
+  title: string;
+  description: string;
+  status: CrmTaskStatus;
+  priority: "low" | "normal" | "high";
+  due_at: string | null;
+  assigned_to: string | null;
+  completed_at: string | null;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+}
+export type CrmQuoteStatus =
+  | "draft"
+  | "sent"
+  | "viewed"
+  | "accepted"
+  | "rejected"
+  | "expired"
+  | "superseded";
+export interface CrmQuoteLineSnapshot {
+  id: string;
+  source: "catalog" | "custom";
+  catalog_item_id: string | null;
+  catalog_item_updated_at: string | null;
+  name: string;
+  description: string;
+  quantity: number;
+  unit_gross_cents: number;
+  vat_rate_bps: number;
+  line_gross_cents: number;
+  line_net_cents: number;
+  line_vat_cents: number;
+}
+export interface CrmQuote {
+  id: string;
+  series_id: string;
+  partner_id: string;
+  lead_id: string;
+  version: number;
+  status: CrmQuoteStatus;
+  currency: "TRY";
+  lines: CrmQuoteLineSnapshot[];
+  gross_cents: number;
+  net_cents: number;
+  vat_cents: number;
+  note: string;
+  valid_until: string | null;
+  sent_at: string | null;
+  viewed_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  expired_at: string | null;
+  superseded_at: string | null;
+  decision_evidence: {
+    source: "manual_record";
+    note: string;
+    recorded_at: string;
+    recorded_by: string;
+  } | null;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+}
+export interface CustomerAccountRecord {
+  id: string;
+  partner_id: string;
+  identity_key: string;
+  name: string;
+  email: string;
+  phone: string;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+}
+export interface CrmQuoteConversion {
+  id: string;
+  quote_id: string;
+  quote_version: number;
+  partner_id: string;
+  lead_id: string;
+  customer_account_id: string;
+  wedding_id: string;
+  sale_id: string;
+  created_at: string;
+  created_by: string;
+}
 export type StaffRole =
   | "platform_admin"
   | "finance_manager"
@@ -28,6 +206,8 @@ export type StaffRole =
 export type Permission =
   | "partner.manage"
   | "partner.manage_staff"
+  | "crm.view_own"
+  | "crm.manage_own"
   | "organization.create"
   | "organization.update"
   | "organization.submit"
@@ -88,6 +268,7 @@ export interface Partner {
   active: boolean;
   created_at: string;
   business_types?: BusinessType[];
+  storefront?: BusinessStorefront;
   settings?: PartnerSettings;
 }
 export interface PartnerSettings {
@@ -197,14 +378,17 @@ export interface SaleRecord {
   idempotency_key: string;
   partner_id: string;
   wedding_id: string;
-  package_code: PackageCode;
+  package_code: PackageCode | "custom-quote";
+  source?: "organization" | "crm_quote";
+  quote_id?: string;
+  quote_version?: number;
   status: "draft" | "paid" | "cancelled" | "refunded";
   period: string;
   occurred_at: string;
   recorded_at: string;
   recorded_by: string;
   net_cents: number;
-  vat_rate_bps: number;
+  vat_rate_bps: number | null;
   vat_cents: number;
   gross_cents: number;
   qualifying_ordinal: number | null;
@@ -229,6 +413,19 @@ export interface SaleRecord {
   due_at?: string | null;
   paid_cents?: number;
   payment_status?: "unpaid" | "partial" | "paid" | "refunded";
+  tax_mode?: "single_rate" | "line_snapshot";
+  quote_snapshot?: CrmQuote;
+  quote_finance_snapshot?: {
+    version: 1;
+    eligible_line_ids: string[];
+    eligible_net_cents: number;
+    partner_rate_bps: number;
+    partner_commission_cents: number;
+    platform_net_cents: number;
+    variable_cost_cents: number;
+    approved_at: string;
+    approved_by: string;
+  };
 }
 export interface PaymentRecord {
   id: string;

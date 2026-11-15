@@ -91,7 +91,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             label: "Tasarım Merkezi",
             icon: Palette,
           },
-          { href: "/admin/design-plans", label: "Tasarım Planları", icon: ClipboardList },
+          {
+            href: "/admin/design-plans",
+            label: "Tasarım Planları",
+            icon: ClipboardList,
+          },
           { href: "/admin/partners", label: "İşletmeler", icon: Building2 },
           {
             href: "/admin/photographers",
@@ -115,8 +119,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             label: "Satış defteri ve hakediş",
             icon: WalletCards,
           },
-          { href: "/admin/current-accounts", label: "Cari hesaplar", icon: BookOpenText },
-          { href: "/admin/accounting", label: "Muhasebe işlemleri", icon: WalletCards },
+          {
+            href: "/admin/current-accounts",
+            label: "Cari hesaplar",
+            icon: BookOpenText,
+          },
+          {
+            href: "/admin/accounting",
+            label: "Muhasebe işlemleri",
+            icon: WalletCards,
+          },
           { href: "/admin/audit", label: "İşlem kayıtları", icon: FileClock },
           ...(!me.data?.staff_role || me.data.staff_role === "platform_admin"
             ? [
@@ -133,11 +145,31 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             { href: "/admin", label: "Etkinliğim", icon: Images },
             ...(ownerEventId
               ? [
-                  { href: `/admin/${ownerEventId}/design/qr`, label: "Tasarım", icon: Palette },
-                  { href: `/admin/${ownerEventId}/invitation`, label: "Dijital davetiye", icon: Share2 },
-                  { href: `/admin/${ownerEventId}?section=share`, label: "Paylaşım ve QR", icon: QrCode },
-                  { href: `/admin/${ownerEventId}?section=photographer`, label: "Fotoğrafçı talebi", icon: Camera },
-                  { href: `/admin/${ownerEventId}?section=settings`, label: "Organizasyon ayarları", icon: Settings },
+                  {
+                    href: `/admin/${ownerEventId}/design/qr`,
+                    label: "Tasarım",
+                    icon: Palette,
+                  },
+                  {
+                    href: `/admin/${ownerEventId}/invitation`,
+                    label: "Dijital davetiye",
+                    icon: Share2,
+                  },
+                  {
+                    href: `/admin/${ownerEventId}?section=share`,
+                    label: "Paylaşım ve QR",
+                    icon: QrCode,
+                  },
+                  {
+                    href: `/admin/${ownerEventId}?section=photographer`,
+                    label: "Fotoğrafçı talebi",
+                    icon: Camera,
+                  },
+                  {
+                    href: `/admin/${ownerEventId}?section=settings`,
+                    label: "Organizasyon ayarları",
+                    icon: Settings,
+                  },
                 ]
               : []),
             {
@@ -163,6 +195,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     : "Organizasyonlarım",
                 icon: LayoutDashboard,
               },
+              ...(!me.data?.staff_role ||
+              ["partner_owner", "partner_sales"].includes(me.data.staff_role)
+                ? [
+                    {
+                      href: "/admin/crm",
+                      label: "CRM ve iş takibi",
+                      icon: Workflow,
+                    },
+                  ]
+                : []),
               ...(!me.data?.staff_role || me.data.staff_role === "partner_owner"
                 ? [
                     {
@@ -175,7 +217,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       label: "Komisyon ve kazanç",
                       icon: WalletCards,
                     },
-                    { href: "/admin/current-accounts", label: "Müşteri carileri", icon: BookOpenText },
+                    {
+                      href: "/admin/current-accounts",
+                      label: "Müşteri carileri",
+                      icon: BookOpenText,
+                    },
                     {
                       href: "/admin/accounts",
                       label: "Yetkili hesaplar",
@@ -188,8 +234,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     const [hrefPath, hrefQuery] = item.href.split("?");
     const hrefSection = new URLSearchParams(hrefQuery || "").get("section");
     if (hrefPath === "/admin") return pathname === "/admin";
-    return pathname === hrefPath &&
-      (hrefSection ? searchParams.get("section") === hrefSection : !searchParams.get("section"));
+    return (
+      pathname === hrefPath &&
+      (hrefSection
+        ? searchParams.get("section") === hrefSection
+        : !searchParams.get("section"))
+    );
   });
   const roleLabel =
     me.data?.role === "platform"
@@ -229,14 +279,18 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <nav className="dashboard-sidebar-nav" aria-label="Panel menüsü">
         {navigation.map(({ href, label, icon: Icon }) => {
           const [hrefPath, hrefQuery] = href.split("?");
-          const hrefSection = new URLSearchParams(hrefQuery || "").get("section");
+          const hrefSection = new URLSearchParams(hrefQuery || "").get(
+            "section",
+          );
           const active =
             hrefPath === "/admin"
               ? pathname === "/admin" ||
                 (me.data?.role !== "owner" &&
                   /^\/admin\/[^/]+\/(design)(\/|$)/.test(pathname))
               : pathname === hrefPath &&
-                (hrefSection ? searchParams.get("section") === hrefSection : !searchParams.get("section"));
+                (hrefSection
+                  ? searchParams.get("section") === hrefSection
+                  : !searchParams.get("section"));
           return (
             <Link
               href={href}
@@ -261,13 +315,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="dashboard-tenant">
           <span className="admin-avatar">
             {avatarUrl ? (
-              <Image
-                src={avatarUrl}
-                alt=""
-                fill
-                unoptimized
-                sizes="36px"
-              />
+              <Image src={avatarUrl} alt="" fill unoptimized sizes="36px" />
             ) : (
               me.data?.display_name?.slice(0, 1) || "S"
             )}
@@ -282,7 +330,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className={`admin-app ${collapsed ? "dashboard-collapsed" : ""}`} data-role={me.data?.role || "loading"}>
+    <div
+      className={`admin-app ${collapsed ? "dashboard-collapsed" : ""}`}
+      data-role={me.data?.role || "loading"}
+    >
       <a href="#admin-content" className="admin-skip">
         İçeriğe geç
       </a>

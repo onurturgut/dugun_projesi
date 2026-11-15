@@ -3,6 +3,7 @@ import { cardPresets } from "@/lib/design";
 export const navigation = [
   { href: "/nasil-calisir", label: "Nasıl çalışır?" },
   { href: "/ozellikler", label: "Özellikler" },
+  { href: "/isletmeler", label: "İşletmeler" },
   { href: "/temalar", label: "Temalar" },
   { href: "/paketler", label: "Paketler" },
   { href: "/kullanim-alanlari", label: "Kullanım alanları" },

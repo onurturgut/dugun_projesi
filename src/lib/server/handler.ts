@@ -80,6 +80,13 @@ import type {
   PaymentRecord,
   AccountingDocument,
   BankTransaction,
+  BusinessCatalogItem,
+  BusinessLead,
+  CrmActivity,
+  CrmTask,
+  CrmQuote,
+  CrmQuoteConversion,
+  CustomerAccountRecord,
 } from "@/lib/models";
 import {
   organizationDepositCents,
@@ -149,11 +156,44 @@ import {
   resolvePartnerSettings,
 } from "@/lib/partner-settings";
 import {
+  BUSINESS_TYPES,
+  businessStorefrontInput,
+  defaultStorefront,
+  publicBusiness,
+  storefrontPublicationIssues,
+} from "@/lib/business-directory";
+import {
+  businessCatalogItemInput,
+  publicCatalogItem,
+} from "@/lib/business-catalog";
+import {
+  canTransitionCrmTask,
+  canTransitionLead,
+  crmActivityInput,
+  crmTaskInput,
+  crmTaskUpdateInput,
+  leadAssignmentInput,
+  leadStatusInput,
+  publicLeadInput,
+} from "@/lib/crm";
+import {
+  canTransitionCrmQuote,
+  crmQuoteInput,
+  crmQuoteConversionInput,
+  crmQuoteStatusInput,
+  quoteTotals,
+  quotePriceSnapshot,
+  quoteFinanceApprovalInput,
+  quoteFinanceSnapshot,
+  snapshotQuoteLine,
+} from "@/lib/crm-quotes";
+import {
   createTotpSecret,
   decryptTotpSecret,
   encryptTotpSecret,
   verifyTotp,
 } from "./totp";
+import { integrationReadiness } from "@/lib/integrations";
 const addOnEffectValues: Record<
   NonNullable<AddOnProduct["effect_type"]>,
   readonly number[]
@@ -1085,6 +1125,151 @@ export async function handle(
           .limit(24)
           .toArray(),
       );
+    if (route === "businesses" && method === "GET") {
+      const partners = await database
+        .collection<Partner>("partners")
+        .find(
+          { active: true },
+          {
+            projection: {
+              _id: 0,
+              id: 1,
+              name: 1,
+              phone: 1,
+              address: 1,
+              logo_url: 1,
+              active: 1,
+              created_at: 1,
+              business_types: 1,
+              storefront: 1,
+              settings: 1,
+            },
+          },
+        )
+        .sort({ name: 1 })
+        .limit(120)
+        .toArray();
+      return json(partners.map(publicBusiness).filter(Boolean));
+    }
+    if (
+      path.length === 3 &&
+      path[0] === "businesses" &&
+      path[2] === "catalog" &&
+      method === "GET"
+    ) {
+      const partner = await database.collection<Partner>("partners").findOne({
+        active: true,
+        $or: [{ "storefront.slug": path[1] }, { id: path[1] }],
+      });
+      const business = partner ? publicBusiness(partner) : null;
+      if (!business || business.slug !== path[1])
+        throw new HttpError(404, "İşletme mağazası bulunamadı.");
+      const items = await database
+        .collection<BusinessCatalogItem>("business_catalog_items")
+        .find(
+          { partner_id: partner!.id, active: true },
+          { projection: { _id: 0 } },
+        )
+        .sort({ display_order: 1, updated_at: -1 })
+        .limit(200)
+        .toArray();
+      return json(items.map(publicCatalogItem).filter(Boolean));
+    }
+    if (
+      path.length === 3 &&
+      path[0] === "businesses" &&
+      path[2] === "leads" &&
+      method === "POST"
+    ) {
+      const input = publicLeadInput.parse(await req.json());
+      const partner = await database.collection<Partner>("partners").findOne({
+        active: true,
+        "storefront.status": "published",
+        "storefront.slug": path[1],
+      });
+      if (!partner) throw new HttpError(404, "İşletme mağazası bulunamadı.");
+      if (input.catalog_item_id) {
+        const catalogItem = await database
+          .collection<BusinessCatalogItem>("business_catalog_items")
+          .findOne({
+            id: input.catalog_item_id,
+            partner_id: partner.id,
+            active: true,
+          });
+        if (!catalogItem)
+          throw new HttpError(
+            400,
+            "Seçilen ürün veya hizmet artık yayında değil.",
+          );
+      }
+      const leads = database.collection<BusinessLead>("business_leads");
+      const existing = await leads.findOne({
+        partner_id: partner.id,
+        idempotency_key: input.idempotency_key,
+      });
+      if (existing) return json({ id: existing.id, accepted: true });
+      const recentThreshold = new Date(Date.now() - 10 * 60_000).toISOString();
+      const recentCount = await leads.countDocuments({
+        partner_id: partner.id,
+        customer_phone: input.customer_phone,
+        created_at: { $gte: recentThreshold },
+      });
+      if (recentCount >= 3)
+        throw new HttpError(
+          429,
+          "Çok fazla talep gönderildi. Lütfen daha sonra tekrar deneyin.",
+        );
+      const now = new Date().toISOString();
+      const lead: BusinessLead = {
+        id: randomUUID(),
+        idempotency_key: input.idempotency_key,
+        partner_id: partner.id,
+        catalog_item_id: input.catalog_item_id,
+        source: "storefront",
+        status: "new",
+        customer_name: input.customer_name,
+        customer_email: input.customer_email,
+        customer_phone: input.customer_phone,
+        event_type: input.event_type,
+        event_date: input.event_date || null,
+        city: input.city,
+        message: input.message,
+        contact_preference: input.contact_preference,
+        privacy_notice_accepted_at: now,
+        marketing_consent: input.marketing_consent,
+        marketing_consent_at: input.marketing_consent ? now : null,
+        assigned_to: null,
+        created_at: now,
+        updated_at: now,
+        updated_by: null,
+      };
+      try {
+        await leads.insertOne(lead);
+        return json({ id: lead.id, accepted: true }, 201);
+      } catch (reason) {
+        if (!(reason instanceof MongoServerError) || reason.code !== 11000)
+          throw reason;
+        const concurrent = await leads.findOne({
+          partner_id: partner.id,
+          idempotency_key: input.idempotency_key,
+        });
+        if (!concurrent) throw reason;
+        return json({ id: concurrent.id, accepted: true });
+      }
+    }
+    if (path.length === 2 && path[0] === "businesses" && method === "GET") {
+      const partner = await database.collection<Partner>("partners").findOne(
+        {
+          active: true,
+          $or: [{ "storefront.slug": path[1] }, { id: path[1] }],
+        },
+        { projection: { _id: 0 } },
+      );
+      const business = partner ? publicBusiness(partner) : null;
+      if (!business || business.slug !== path[1])
+        throw new HttpError(404, "İşletme mağazası bulunamadı.");
+      return json(business);
+    }
     if (
       path.length === 3 &&
       path[0] === "weddings" &&
@@ -1129,17 +1314,9 @@ export async function handle(
             id: z.string().uuid().optional(),
             logo_url: z.string().max(2048).default(""),
             business_types: z
-              .array(
-                z.enum([
-                  "venue",
-                  "planner",
-                  "photography",
-                  "print_vendor",
-                  "other",
-                ]),
-              )
+              .array(z.enum(BUSINESS_TYPES))
               .min(1)
-              .max(5)
+              .max(BUSINESS_TYPES.length)
               .default(["other"]),
           })
           .parse(await req.json());
@@ -1164,16 +1341,20 @@ export async function handle(
               },
               { session: transaction },
             );
+            const partner = {
+              id,
+              name: data.name,
+              phone: data.phone,
+              address: data.address,
+              logo_url: data.logo_url,
+              business_types: data.business_types,
+              active: true,
+              created_at: new Date().toISOString(),
+            };
             await database.collection("partners").insertOne(
               {
-                id,
-                name: data.name,
-                phone: data.phone,
-                address: data.address,
-                logo_url: data.logo_url,
-                business_types: data.business_types,
-                active: true,
-                created_at: new Date().toISOString(),
+                ...partner,
+                storefront: defaultStorefront(partner),
               },
               { session: transaction },
             );
@@ -1529,6 +1710,75 @@ export async function handle(
     if (
       path.length === 4 &&
       path[0] === "admin" &&
+      path[1] === "sales" &&
+      path[3] === "quote-finance-approval" &&
+      method === "POST" &&
+      user
+    ) {
+      requirePermission(user, "commission.manage");
+      const input = quoteFinanceApprovalInput.parse(await req.json());
+      const sales = database.collection<SaleRecord>("sales");
+      const sale = await sales.findOne({
+        id: path[2],
+        status: "draft",
+        source: "crm_quote",
+        package_code: "custom-quote",
+      });
+      if (!sale?.quote_snapshot)
+        throw new HttpError(404, "Teklif kaynaklı satış taslağı bulunamadı.");
+      if (sale.quote_finance_snapshot)
+        throw new HttpError(
+          409,
+          "Onaylanmış finans snapshot'ı değiştirilemez; revizyon için yeni teklif sürümü gerekir.",
+        );
+      const now = new Date().toISOString();
+      let snapshot;
+      try {
+        snapshot = quoteFinanceSnapshot(
+          sale.quote_snapshot,
+          input,
+          user.id,
+          now,
+        );
+      } catch (reason) {
+        throw new HttpError(
+          400,
+          reason instanceof Error
+            ? reason.message
+            : "Finans eşleştirmesi geçersiz.",
+        );
+      }
+      const updated = await sales.findOneAndUpdate(
+        {
+          id: sale.id,
+          status: "draft",
+          quote_finance_snapshot: { $exists: false },
+        },
+        {
+          $set: {
+            quote_finance_snapshot: snapshot,
+            commission_rate_bps: snapshot.partner_rate_bps,
+            commission_cents: snapshot.partner_commission_cents,
+            platform_cents: snapshot.platform_net_cents,
+            variable_cost_cents: snapshot.variable_cost_cents,
+          },
+        },
+        { returnDocument: "after", projection: { _id: 0 } },
+      );
+      if (!updated)
+        throw new HttpError(409, "Satış başka bir oturumda güncellendi.");
+      await audit(req, "sale.quote_finance_approved", user, {
+        sale_id: sale.id,
+        quote_id: sale.quote_id,
+        eligible_net_cents: snapshot.eligible_net_cents,
+        partner_rate_bps: snapshot.partner_rate_bps,
+        variable_cost_cents: snapshot.variable_cost_cents,
+      });
+      return json(updated);
+    }
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
       path[1] === "agent-reports" &&
       path[3] === "review" &&
       method === "POST" &&
@@ -1672,6 +1922,1086 @@ export async function handle(
         });
         return json(settings);
       }
+    }
+    if (route === "admin/integrations/readiness" && method === "GET" && user) {
+      if (
+        user.role !== "platform" &&
+        !accountHasPermission(user, "partner.manage_staff")
+      )
+        throw new HttpError(
+          403,
+          "Entegrasyon hazırlık durumunu yalnızca yetkili yönetici görebilir.",
+        );
+      return json({
+        generated_at: new Date().toISOString(),
+        items: integrationReadiness(),
+        external_actions_enabled: false,
+      });
+    }
+    if (route === "admin/storefront" && user) {
+      if (!canManagePartnerSettings(user))
+        throw new HttpError(
+          403,
+          "Dijital mağazayı yalnızca işletme sahibi yönetebilir.",
+        );
+      const partnerId = user.partner_id!;
+      const partners = database.collection<Partner>("partners");
+      const partner = await partners.findOne(
+        { id: partnerId, active: { $ne: false } },
+        { projection: { _id: 0 } },
+      );
+      if (!partner) throw new HttpError(404, "İşletme bulunamadı.");
+      if (method === "GET") {
+        return json({
+          storefront: partner.storefront || defaultStorefront(partner),
+          business_types: partner.business_types || ["other"],
+          preview_url: `/isletmeler/${partner.storefront?.slug || partner.id}`,
+        });
+      }
+      if (method === "PATCH") {
+        const input = businessStorefrontInput.parse(await req.json());
+        const duplicate = await partners.findOne({
+          id: { $ne: partnerId },
+          "storefront.slug": input.slug,
+        });
+        if (duplicate)
+          throw new HttpError(
+            409,
+            "Bu mağaza adresi başka bir işletmede kullanılıyor.",
+          );
+        const now = new Date().toISOString();
+        const storefront = {
+          ...input,
+          ...(input.status === "published"
+            ? { published_at: partner.storefront?.published_at || now }
+            : { published_at: partner.storefront?.published_at || null }),
+          updated_at: now,
+          updated_by: user.id,
+        };
+        const issues = storefrontPublicationIssues(partner, storefront);
+        if (input.status === "published" && issues.length)
+          throw new HttpError(400, issues[0]);
+        await partners.updateOne(
+          { id: partnerId, active: { $ne: false } },
+          { $set: { storefront } },
+        );
+        await audit(req, "partner.storefront_updated", user, {
+          partner_id: partnerId,
+          status: storefront.status,
+          slug: storefront.slug,
+        });
+        return json({
+          storefront,
+          business_types: partner.business_types || ["other"],
+          preview_url: `/isletmeler/${storefront.slug}`,
+        });
+      }
+    }
+    if (route === "admin/storefront-catalog" && user) {
+      if (!canManagePartnerSettings(user))
+        throw new HttpError(
+          403,
+          "Dijital mağaza kataloğunu yalnızca işletme sahibi yönetebilir.",
+        );
+      const partnerId = user.partner_id!;
+      const catalog = database.collection<BusinessCatalogItem>(
+        "business_catalog_items",
+      );
+      if (method === "GET")
+        return json(
+          await catalog
+            .find({ partner_id: partnerId }, { projection: { _id: 0 } })
+            .sort({ display_order: 1, updated_at: -1 })
+            .limit(500)
+            .toArray(),
+        );
+      if (method === "POST") {
+        const input = businessCatalogItemInput.parse(await req.json());
+        if (input.image_url.startsWith("/api/covers/"))
+          await validateCovers([input.image_url], partnerId);
+        const now = new Date().toISOString();
+        const item: BusinessCatalogItem = {
+          id: randomUUID(),
+          partner_id: partnerId,
+          ...input,
+          currency: "TRY",
+          created_at: now,
+          created_by: user.id,
+          updated_at: now,
+          updated_by: user.id,
+        };
+        await catalog.insertOne(item);
+        await audit(req, "partner.catalog_item_created", user, {
+          partner_id: partnerId,
+          catalog_item_id: item.id,
+          kind: item.kind,
+        });
+        return json(item, 201);
+      }
+    }
+    if (
+      path.length === 3 &&
+      path[0] === "admin" &&
+      path[1] === "storefront-catalog" &&
+      method === "PATCH" &&
+      user
+    ) {
+      if (!canManagePartnerSettings(user))
+        throw new HttpError(
+          403,
+          "Dijital mağaza kataloğunu yalnızca işletme sahibi yönetebilir.",
+        );
+      const input = businessCatalogItemInput.parse(await req.json());
+      const partnerId = user.partner_id!;
+      if (input.image_url.startsWith("/api/covers/"))
+        await validateCovers([input.image_url], partnerId);
+      const catalog = database.collection<BusinessCatalogItem>(
+        "business_catalog_items",
+      );
+      const updated = await catalog.findOneAndUpdate(
+        { id: path[2], partner_id: partnerId },
+        {
+          $set: {
+            ...input,
+            updated_at: new Date().toISOString(),
+            updated_by: user.id,
+          },
+        },
+        { returnDocument: "after", projection: { _id: 0 } },
+      );
+      if (!updated) throw new HttpError(404, "Katalog kaydı bulunamadı.");
+      await audit(req, "partner.catalog_item_updated", user, {
+        partner_id: partnerId,
+        catalog_item_id: updated.id,
+        active: updated.active,
+      });
+      return json(updated);
+    }
+    if (route === "admin/crm/leads" && method === "GET" && user) {
+      requirePermission(user, "crm.view_own");
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      const leads = await database
+        .collection<BusinessLead>("business_leads")
+        .find(
+          { partner_id: user.partner_id },
+          { projection: { _id: 0, idempotency_key: 0 } },
+        )
+        .sort({ updated_at: -1 })
+        .limit(1000)
+        .toArray();
+      const catalogIds = [
+        ...new Set(leads.map((lead) => lead.catalog_item_id).filter(Boolean)),
+      ] as string[];
+      const catalogItems = catalogIds.length
+        ? await database
+            .collection<BusinessCatalogItem>("business_catalog_items")
+            .find(
+              { partner_id: user.partner_id, id: { $in: catalogIds } },
+              { projection: { _id: 0, id: 1, name: 1 } },
+            )
+            .toArray()
+        : [];
+      const names = new Map(catalogItems.map((item) => [item.id, item.name]));
+      const assigneeIds = [
+        ...new Set(leads.map((lead) => lead.assigned_to).filter(Boolean)),
+      ] as string[];
+      const [assignees, taskCounts] = await Promise.all([
+        assigneeIds.length
+          ? database
+              .collection<Account>("users")
+              .find(
+                {
+                  id: { $in: assigneeIds },
+                  partner_id: user.partner_id,
+                  role: "partner",
+                  disabled: { $ne: true },
+                },
+                { projection: { _id: 0, id: 1, display_name: 1 } },
+              )
+              .toArray()
+          : [],
+        database
+          .collection<CrmTask>("crm_tasks")
+          .aggregate<{ _id: string; count: number }>([
+            {
+              $match: {
+                partner_id: user.partner_id,
+                status: { $in: ["todo", "in_progress"] },
+              },
+            },
+            { $group: { _id: "$lead_id", count: { $sum: 1 } } },
+          ])
+          .toArray(),
+      ]);
+      const assigneeNames = new Map(
+        assignees.map((item) => [item.id, item.display_name]),
+      );
+      const openTaskCounts = new Map(
+        taskCounts.map((item) => [item._id, item.count]),
+      );
+      return json(
+        leads.map((lead) => ({
+          ...lead,
+          catalog_item_name: lead.catalog_item_id
+            ? names.get(lead.catalog_item_id) || "Katalog kaydı"
+            : null,
+          assigned_to_name: lead.assigned_to
+            ? assigneeNames.get(lead.assigned_to) || "Eski ekip üyesi"
+            : null,
+          open_task_count: openTaskCounts.get(lead.id) || 0,
+        })),
+      );
+    }
+    if (route === "admin/crm/team" && method === "GET" && user) {
+      requirePermission(user, "crm.view_own");
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      return json(
+        await database
+          .collection<Account>("users")
+          .find(
+            {
+              partner_id: user.partner_id,
+              role: "partner",
+              disabled: { $ne: true },
+            },
+            {
+              projection: {
+                _id: 0,
+                id: 1,
+                display_name: 1,
+                staff_role: 1,
+              },
+            },
+          )
+          .sort({ display_name: 1 })
+          .toArray(),
+      );
+    }
+    if (
+      path.length === 5 &&
+      path[0] === "admin" &&
+      path[1] === "crm" &&
+      path[2] === "leads" &&
+      path[4] === "assignment" &&
+      method === "PATCH" &&
+      user
+    ) {
+      requirePermission(user, "crm.manage_own");
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      const input = leadAssignmentInput.parse(await req.json());
+      if (input.assigned_to) {
+        const assignee = await database.collection<Account>("users").findOne({
+          id: input.assigned_to,
+          partner_id: user.partner_id,
+          role: "partner",
+          disabled: { $ne: true },
+        });
+        if (!assignee)
+          throw new HttpError(
+            400,
+            "Sorumlu ekip üyesi bu işletmeye ait değil.",
+          );
+      }
+      const now = new Date().toISOString();
+      const lead = await database
+        .collection<BusinessLead>("business_leads")
+        .findOneAndUpdate(
+          { id: path[3], partner_id: user.partner_id },
+          {
+            $set: {
+              assigned_to: input.assigned_to,
+              updated_at: now,
+              updated_by: user.id,
+            },
+          },
+          {
+            returnDocument: "after",
+            projection: { _id: 0, idempotency_key: 0 },
+          },
+        );
+      if (!lead) throw new HttpError(404, "CRM talebi bulunamadı.");
+      await database.collection<CrmActivity>("crm_activities").insertOne({
+        id: randomUUID(),
+        partner_id: user.partner_id,
+        lead_id: lead.id,
+        type: "system",
+        content: input.assigned_to
+          ? "Talebe sorumlu ekip üyesi atandı."
+          : "Talep sorumlu ataması kaldırıldı.",
+        occurred_at: now,
+        created_at: now,
+        created_by: user.id,
+      });
+      await audit(req, "crm.lead_assignment_changed", user, {
+        partner_id: user.partner_id,
+        lead_id: lead.id,
+        assigned_to: input.assigned_to,
+      });
+      return json(lead);
+    }
+    if (
+      path.length === 5 &&
+      path[0] === "admin" &&
+      path[1] === "crm" &&
+      path[2] === "leads" &&
+      path[4] === "activities" &&
+      user
+    ) {
+      requirePermission(
+        user,
+        method === "GET" ? "crm.view_own" : "crm.manage_own",
+      );
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      const lead = await database
+        .collection<BusinessLead>("business_leads")
+        .findOne({
+          id: path[3],
+          partner_id: user.partner_id,
+        });
+      if (!lead) throw new HttpError(404, "CRM talebi bulunamadı.");
+      const activities = database.collection<CrmActivity>("crm_activities");
+      if (method === "GET")
+        return json(
+          await activities
+            .find(
+              { partner_id: user.partner_id, lead_id: lead.id },
+              { projection: { _id: 0 } },
+            )
+            .sort({ occurred_at: -1, created_at: -1 })
+            .limit(500)
+            .toArray(),
+        );
+      if (method === "POST") {
+        const input = crmActivityInput.parse(await req.json());
+        const now = new Date().toISOString();
+        const activity: CrmActivity = {
+          id: randomUUID(),
+          partner_id: user.partner_id,
+          lead_id: lead.id,
+          type: input.type,
+          content: input.content,
+          occurred_at: input.occurred_at || now,
+          created_at: now,
+          created_by: user.id,
+        };
+        await activities.insertOne(activity);
+        await audit(req, "crm.activity_created", user, {
+          partner_id: user.partner_id,
+          lead_id: lead.id,
+          activity_id: activity.id,
+          type: activity.type,
+        });
+        return json(activity, 201);
+      }
+    }
+    if (route === "admin/crm/tasks" && user) {
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      const tasks = database.collection<CrmTask>("crm_tasks");
+      if (method === "GET") {
+        requirePermission(user, "crm.view_own");
+        const leadId = req.nextUrl.searchParams.get("lead_id");
+        return json(
+          await tasks
+            .find(
+              {
+                partner_id: user.partner_id,
+                ...(leadId ? { lead_id: leadId } : {}),
+              },
+              { projection: { _id: 0 } },
+            )
+            .sort({ due_at: 1, created_at: -1 })
+            .limit(1000)
+            .toArray(),
+        );
+      }
+      if (method === "POST") {
+        requirePermission(user, "crm.manage_own");
+        const input = crmTaskInput.parse(await req.json());
+        const lead = await database
+          .collection<BusinessLead>("business_leads")
+          .findOne({
+            id: input.lead_id,
+            partner_id: user.partner_id,
+          });
+        if (!lead) throw new HttpError(404, "CRM talebi bulunamadı.");
+        if (input.assigned_to) {
+          const assignee = await database.collection<Account>("users").findOne({
+            id: input.assigned_to,
+            partner_id: user.partner_id,
+            role: "partner",
+            disabled: { $ne: true },
+          });
+          if (!assignee)
+            throw new HttpError(400, "Görev sorumlusu bu işletmeye ait değil.");
+        }
+        const now = new Date().toISOString();
+        const task: CrmTask = {
+          id: randomUUID(),
+          partner_id: user.partner_id,
+          ...input,
+          status: "todo",
+          completed_at: null,
+          created_at: now,
+          created_by: user.id,
+          updated_at: now,
+          updated_by: user.id,
+        };
+        await tasks.insertOne(task);
+        await audit(req, "crm.task_created", user, {
+          partner_id: user.partner_id,
+          lead_id: lead.id,
+          task_id: task.id,
+        });
+        return json(task, 201);
+      }
+    }
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "crm" &&
+      path[2] === "tasks" &&
+      method === "PATCH" &&
+      user
+    ) {
+      requirePermission(user, "crm.manage_own");
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      const input = crmTaskUpdateInput.parse(await req.json());
+      const tasks = database.collection<CrmTask>("crm_tasks");
+      const current = await tasks.findOne({
+        id: path[3],
+        partner_id: user.partner_id,
+      });
+      if (!current) throw new HttpError(404, "CRM görevi bulunamadı.");
+      if (!canTransitionCrmTask(current.status, input.status))
+        throw new HttpError(409, "Bu görev durum geçişine izin verilmiyor.");
+      const now = new Date().toISOString();
+      const updated = await tasks.findOneAndUpdate(
+        { id: current.id, partner_id: user.partner_id, status: current.status },
+        {
+          $set: {
+            status: input.status,
+            completed_at: input.status === "done" ? now : null,
+            updated_at: now,
+            updated_by: user.id,
+          },
+        },
+        { returnDocument: "after", projection: { _id: 0 } },
+      );
+      if (!updated)
+        throw new HttpError(409, "CRM görevi başka bir oturumda güncellendi.");
+      await audit(req, "crm.task_status_changed", user, {
+        partner_id: user.partner_id,
+        lead_id: current.lead_id,
+        task_id: current.id,
+        from: current.status,
+        to: input.status,
+      });
+      return json(updated);
+    }
+    if (route === "admin/crm/catalog" && method === "GET" && user) {
+      requirePermission(user, "crm.view_own");
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      return json(
+        await database
+          .collection<BusinessCatalogItem>("business_catalog_items")
+          .find(
+            { partner_id: user.partner_id, active: true },
+            {
+              projection: {
+                _id: 0,
+                id: 1,
+                name: 1,
+                description: 1,
+                price_display: 1,
+                gross_price_cents: 1,
+                updated_at: 1,
+              },
+            },
+          )
+          .sort({ display_order: 1, name: 1 })
+          .limit(500)
+          .toArray(),
+      );
+    }
+    if (route === "admin/crm/quotes" && user) {
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      const quotes = database.collection<CrmQuote>("crm_quotes");
+      if (method === "GET") {
+        requirePermission(user, "crm.view_own");
+        const leadId = req.nextUrl.searchParams.get("lead_id");
+        if (!leadId)
+          throw new HttpError(400, "Teklif için talep kimliği gerekli.");
+        const lead = await database
+          .collection<BusinessLead>("business_leads")
+          .findOne({ id: leadId, partner_id: user.partner_id });
+        if (!lead) throw new HttpError(404, "CRM talebi bulunamadı.");
+        return json(
+          await quotes
+            .find(
+              { partner_id: user.partner_id, lead_id: leadId },
+              { projection: { _id: 0 } },
+            )
+            .sort({ version: -1 })
+            .limit(100)
+            .toArray(),
+        );
+      }
+      if (method === "POST") {
+        requirePermission(user, "crm.manage_own");
+        const input = crmQuoteInput.parse(await req.json());
+        const lead = await database
+          .collection<BusinessLead>("business_leads")
+          .findOne({ id: input.lead_id, partner_id: user.partner_id });
+        if (!lead) throw new HttpError(404, "CRM talebi bulunamadı.");
+        const catalogIds = [
+          ...new Set(
+            input.lines
+              .map((line) => line.catalog_item_id)
+              .filter(Boolean) as string[],
+          ),
+        ];
+        const catalogItems = catalogIds.length
+          ? await database
+              .collection<BusinessCatalogItem>("business_catalog_items")
+              .find({
+                id: { $in: catalogIds },
+                partner_id: user.partner_id,
+                active: true,
+              })
+              .toArray()
+          : [];
+        if (catalogItems.length !== catalogIds.length)
+          throw new HttpError(
+            400,
+            "Teklifteki katalog kayıtlarından biri bulunamadı veya yayında değil.",
+          );
+        const catalogById = new Map(
+          catalogItems.map((item) => [item.id, item]),
+        );
+        const lines = input.lines.map((line) =>
+          snapshotQuoteLine(
+            line,
+            line.catalog_item_id ? catalogById.get(line.catalog_item_id) : null,
+          ),
+        );
+        const totals = quoteTotals(lines);
+        const transaction = (await mongoClient()).startSession();
+        let created: CrmQuote | null = null;
+        try {
+          await transaction.withTransaction(async () => {
+            const previous = await quotes.findOne(
+              { partner_id: user.partner_id!, lead_id: lead.id },
+              { sort: { version: -1 }, session: transaction },
+            );
+            if (previous?.status === "accepted")
+              throw new HttpError(
+                409,
+                "Kabul edilmiş teklif değiştirilemez veya yeni sürümle değiştirilemez.",
+              );
+            const now = new Date().toISOString();
+            const quote: CrmQuote = {
+              id: randomUUID(),
+              series_id: lead.id,
+              partner_id: user.partner_id!,
+              lead_id: lead.id,
+              version: (previous?.version || 0) + 1,
+              status: "draft",
+              currency: "TRY",
+              lines,
+              ...totals,
+              note: input.note,
+              valid_until: input.valid_until,
+              sent_at: null,
+              viewed_at: null,
+              accepted_at: null,
+              rejected_at: null,
+              expired_at: null,
+              superseded_at: null,
+              decision_evidence: null,
+              created_at: now,
+              created_by: user.id,
+              updated_at: now,
+              updated_by: user.id,
+            };
+            if (previous) {
+              const superseded = await quotes.updateOne(
+                {
+                  id: previous.id,
+                  partner_id: user.partner_id!,
+                  status: previous.status,
+                },
+                {
+                  $set: {
+                    status: "superseded",
+                    superseded_at: now,
+                    updated_at: now,
+                    updated_by: user.id,
+                  },
+                },
+                { session: transaction },
+              );
+              if (!superseded.modifiedCount)
+                throw new HttpError(
+                  409,
+                  "Teklif başka bir oturumda güncellendi.",
+                );
+            }
+            await quotes.insertOne(quote, { session: transaction });
+            await database.collection<CrmActivity>("crm_activities").insertOne(
+              {
+                id: randomUUID(),
+                partner_id: user.partner_id!,
+                lead_id: lead.id,
+                type: "system",
+                content: `Teklif v${quote.version} taslağı oluşturuldu.`,
+                occurred_at: now,
+                created_at: now,
+                created_by: user.id,
+              },
+              { session: transaction },
+            );
+            created = quote;
+          });
+        } catch (reason) {
+          if (reason instanceof MongoServerError && reason.code === 11000)
+            throw new HttpError(
+              409,
+              "Aynı teklif için eşzamanlı yeni sürüm oluşturuldu. Sayfayı yenileyin.",
+            );
+          throw reason;
+        } finally {
+          await transaction.endSession();
+        }
+        const finalized = created as CrmQuote | null;
+        if (!finalized) throw new HttpError(500, "Teklif oluşturulamadı.");
+        await audit(req, "crm.quote_created", user, {
+          partner_id: user.partner_id,
+          lead_id: lead.id,
+          quote_id: finalized.id,
+          version: finalized.version,
+          gross_cents: finalized.gross_cents,
+        });
+        return json(finalized, 201);
+      }
+    }
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "crm" &&
+      path[2] === "quotes" &&
+      method === "PATCH" &&
+      user
+    ) {
+      requirePermission(user, "crm.manage_own");
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      const input = crmQuoteStatusInput.parse(await req.json());
+      const quotes = database.collection<CrmQuote>("crm_quotes");
+      const current = await quotes.findOne({
+        id: path[3],
+        partner_id: user.partner_id,
+      });
+      if (!current) throw new HttpError(404, "Teklif bulunamadı.");
+      if (!canTransitionCrmQuote(current.status, input.status))
+        throw new HttpError(409, "Bu teklif durum geçişine izin verilmiyor.");
+      const now = new Date().toISOString();
+      const timestampField = {
+        sent: "sent_at",
+        viewed: "viewed_at",
+        accepted: "accepted_at",
+        rejected: "rejected_at",
+        expired: "expired_at",
+      }[input.status];
+      const updated = await quotes.findOneAndUpdate(
+        {
+          id: current.id,
+          partner_id: user.partner_id,
+          status: current.status,
+        },
+        {
+          $set: {
+            status: input.status,
+            [timestampField]: now,
+            ...(input.status === "accepted" || input.status === "rejected"
+              ? {
+                  decision_evidence: {
+                    source: "manual_record" as const,
+                    note: input.evidence_note,
+                    recorded_at: now,
+                    recorded_by: user.id,
+                  },
+                }
+              : {}),
+            updated_at: now,
+            updated_by: user.id,
+          },
+        },
+        { returnDocument: "after", projection: { _id: 0 } },
+      );
+      if (!updated)
+        throw new HttpError(409, "Teklif başka bir oturumda güncellendi.");
+      await Promise.all([
+        database.collection<CrmActivity>("crm_activities").insertOne({
+          id: randomUUID(),
+          partner_id: user.partner_id,
+          lead_id: current.lead_id,
+          type: "system",
+          content: `Teklif v${current.version} durumu ${input.status} olarak güncellendi.`,
+          occurred_at: now,
+          created_at: now,
+          created_by: user.id,
+        }),
+        audit(req, "crm.quote_status_changed", user, {
+          partner_id: user.partner_id,
+          lead_id: current.lead_id,
+          quote_id: current.id,
+          version: current.version,
+          from: current.status,
+          to: input.status,
+        }),
+      ]);
+      return json(updated);
+    }
+    if (
+      path.length === 5 &&
+      path[0] === "admin" &&
+      path[1] === "crm" &&
+      path[2] === "quotes" &&
+      path[4] === "convert" &&
+      method === "POST" &&
+      user
+    ) {
+      requirePermission(user, "crm.manage_own");
+      requirePermission(user, "organization.create");
+      if (!user.partner_id)
+        throw new HttpError(403, "Dönüşüm için işletme bağlantısı gerekli.");
+      const input = crmQuoteConversionInput.parse(await req.json());
+      const quote = await database.collection<CrmQuote>("crm_quotes").findOne({
+        id: path[3],
+        partner_id: user.partner_id,
+      });
+      if (!quote) throw new HttpError(404, "Teklif bulunamadı.");
+      if (quote.status !== "accepted")
+        throw new HttpError(
+          409,
+          "Yalnızca kabul edilmiş teklif dönüştürülebilir.",
+        );
+      const conversions = database.collection<CrmQuoteConversion>(
+        "crm_quote_conversions",
+      );
+      const existing = await conversions.findOne({
+        quote_id: quote.id,
+        partner_id: user.partner_id,
+      });
+      if (existing) return json(existing);
+      const lead = await database
+        .collection<BusinessLead>("business_leads")
+        .findOne({ id: quote.lead_id, partner_id: user.partner_id });
+      if (!lead)
+        throw new HttpError(404, "Teklife bağlı CRM talebi bulunamadı.");
+      const partner = await database.collection<Partner>("partners").findOne({
+        id: user.partner_id,
+        active: true,
+      });
+      if (!partner) throw new HttpError(404, "İşletme bulunamadı.");
+      const transaction = (await mongoClient()).startSession();
+      let converted: CrmQuoteConversion | null = null;
+      try {
+        await transaction.withTransaction(async () => {
+          const concurrent = await conversions.findOne(
+            { quote_id: quote.id, partner_id: user.partner_id! },
+            { session: transaction },
+          );
+          if (concurrent) {
+            converted = concurrent;
+            return;
+          }
+          const now = new Date().toISOString();
+          const identityKey = `email:${lead.customer_email.trim().toLowerCase()}`;
+          const customer = await database
+            .collection<CustomerAccountRecord>("customer_accounts")
+            .findOneAndUpdate(
+              { partner_id: user.partner_id!, identity_key: identityKey },
+              {
+                $setOnInsert: {
+                  id: randomUUID(),
+                  partner_id: user.partner_id!,
+                  identity_key: identityKey,
+                  created_at: now,
+                  created_by: user.id,
+                },
+                $set: {
+                  name: lead.customer_name,
+                  email: lead.customer_email.trim().toLowerCase(),
+                  phone: lead.customer_phone,
+                  updated_at: now,
+                  updated_by: user.id,
+                },
+              },
+              { upsert: true, returnDocument: "after", session: transaction },
+            );
+          if (!customer)
+            throw new HttpError(500, "Müşteri cari kimliği oluşturulamadı.");
+          const weddingId = randomUUID();
+          const saleId = randomUUID();
+          const title =
+            [input.bride_name, input.groom_name].filter(Boolean).join(" & ") ||
+            `${lead.customer_name} — ${lead.event_type}`;
+          const frozenQuotePrice = quotePriceSnapshot(quote);
+          const depositExpectedCents =
+            input.payment_plan === "deferred"
+              ? organizationDepositCents(quote.gross_cents)
+              : null;
+          const wedding: Wedding = {
+            id: weddingId,
+            slug: `crm-${quote.id}`,
+            partner_id: user.partner_id!,
+            lead_partner_id: user.partner_id!,
+            seller_partner_id: user.partner_id!,
+            venue_partner_id: null,
+            planner_partner_id: null,
+            participant_partner_ids: [user.partner_id!],
+            owner_id: null,
+            customer_account_id: customer.id,
+            title,
+            event_type: lead.event_type,
+            venue: input.venue,
+            description: lead.message,
+            bride_name: input.bride_name,
+            groom_name: input.groom_name,
+            wedding_date: input.wedding_date || lead.event_date,
+            cover_images: [],
+            logo_url: partner.logo_url || "",
+            hero_message: "",
+            thank_you_message: "",
+            customer_name: lead.customer_name,
+            customer_email: lead.customer_email,
+            customer_phone: lead.customer_phone,
+            payment_plan: input.payment_plan,
+            preferred_payment_method: input.preferred_payment_method,
+            payment_due_at: input.payment_due_at,
+            photographer_package_requested: false,
+            lifecycle_status: "draft",
+            wizard_step: 2,
+            created_at: now,
+            published_at: null,
+            archived_at: null,
+            add_on_selections: [],
+            qr_quantity_selections: [],
+            price_snapshot: frozenQuotePrice,
+            deposit_rate_bps: 2000,
+            deposit_expected_cents: depositExpectedCents,
+            upload_days: 7,
+            trash_days: 7,
+            uploads_open_at: now,
+            uploads_close_at: null,
+            expires_at: null,
+            upload_enabled: false,
+            approval_status: "draft",
+            submitted_at: null,
+            approved_at: null,
+            approved_by: null,
+            purged_at: null,
+            photo_count: 0,
+            video_count: 0,
+            media_bytes: 0,
+            reserved_upload_bytes: 0,
+            trashed_photo_count: 0,
+            trashed_video_count: 0,
+            trashed_count: 0,
+            trashed_bytes: 0,
+          };
+          const sale: SaleRecord = {
+            id: saleId,
+            idempotency_key: `crm-quote:${quote.id}`,
+            partner_id: user.partner_id!,
+            wedding_id: weddingId,
+            package_code: "custom-quote",
+            source: "crm_quote",
+            quote_id: quote.id,
+            quote_version: quote.version,
+            status: "draft",
+            period: istanbulCalendarMonth(now),
+            occurred_at: now,
+            recorded_at: now,
+            recorded_by: user.id,
+            net_cents: quote.net_cents,
+            vat_rate_bps: null,
+            vat_cents: quote.vat_cents,
+            gross_cents: quote.gross_cents,
+            qualifying_ordinal: null,
+            commission_rate_bps: 0,
+            commission_cents: 0,
+            platform_cents: 0,
+            variable_cost_cents: 0,
+            customer_account_id: customer.id,
+            due_at: input.payment_due_at,
+            paid_cents: 0,
+            payment_status: "unpaid",
+            payment_reference: null,
+            paid_at: null,
+            paid_by: null,
+            refunded_at: null,
+            refunded_by: null,
+            tax_mode: "line_snapshot",
+            price_snapshot: frozenQuotePrice,
+            quote_snapshot: structuredClone(quote),
+          };
+          const conversion: CrmQuoteConversion = {
+            id: randomUUID(),
+            quote_id: quote.id,
+            quote_version: quote.version,
+            partner_id: user.partner_id!,
+            lead_id: lead.id,
+            customer_account_id: customer.id,
+            wedding_id: weddingId,
+            sale_id: saleId,
+            created_at: now,
+            created_by: user.id,
+          };
+          await weddings.insertOne(wedding, { session: transaction });
+          await database
+            .collection<SaleRecord>("sales")
+            .insertOne(sale, { session: transaction });
+          await conversions.insertOne(conversion, { session: transaction });
+          if (canTransitionLead(lead.status, "won"))
+            await database.collection<BusinessLead>("business_leads").updateOne(
+              {
+                id: lead.id,
+                partner_id: user.partner_id!,
+                status: lead.status,
+              },
+              {
+                $set: {
+                  status: "won",
+                  updated_at: now,
+                  updated_by: user.id,
+                },
+              },
+              { session: transaction },
+            );
+          if (
+            user.role === "partner" &&
+            effectiveStaffRole(user) !== "partner_owner"
+          ) {
+            await database
+              .collection<Account>("users")
+              .updateOne(
+                { id: user.id, partner_id: user.partner_id! },
+                { $addToSet: { assigned_event_ids: weddingId } },
+                { session: transaction },
+              );
+            await database.collection("organization_participants").insertOne(
+              {
+                id: randomUUID(),
+                wedding_id: weddingId,
+                account_id: user.id,
+                partner_id: user.partner_id!,
+                participant_role: effectiveStaffRole(user),
+                active: true,
+                assigned_at: now,
+                assigned_by: user.id,
+              },
+              { session: transaction },
+            );
+          }
+          await database.collection<CrmActivity>("crm_activities").insertOne(
+            {
+              id: randomUUID(),
+              partner_id: user.partner_id!,
+              lead_id: lead.id,
+              type: "system",
+              content: `Kabul edilen teklif v${quote.version}, organizasyon ve satış taslağına dönüştürüldü.`,
+              occurred_at: now,
+              created_at: now,
+              created_by: user.id,
+            },
+            { session: transaction },
+          );
+          converted = conversion;
+        });
+      } catch (reason) {
+        if (reason instanceof MongoServerError && reason.code === 11000) {
+          const concurrent = await conversions.findOne({
+            quote_id: quote.id,
+            partner_id: user.partner_id,
+          });
+          if (concurrent) return json(concurrent);
+          throw new HttpError(409, "Dönüşüm başka bir oturumda tamamlandı.");
+        }
+        throw reason;
+      } finally {
+        await transaction.endSession();
+      }
+      const finalized = converted as CrmQuoteConversion | null;
+      if (!finalized) throw new HttpError(500, "Teklif dönüştürülemedi.");
+      if (
+        user.role === "partner" &&
+        effectiveStaffRole(user) !== "partner_owner"
+      )
+        invalidateSessionCache();
+      await audit(req, "crm.quote_converted", user, {
+        partner_id: user.partner_id,
+        quote_id: quote.id,
+        lead_id: lead.id,
+        wedding_id: finalized.wedding_id,
+        sale_id: finalized.sale_id,
+        customer_account_id: finalized.customer_account_id,
+      });
+      return json(finalized, 201);
+    }
+    if (
+      path.length === 4 &&
+      path[0] === "admin" &&
+      path[1] === "crm" &&
+      path[2] === "leads" &&
+      method === "PATCH" &&
+      user
+    ) {
+      requirePermission(user, "crm.manage_own");
+      if (!user.partner_id)
+        throw new HttpError(403, "CRM için işletme bağlantısı gerekli.");
+      const input = leadStatusInput.parse(await req.json());
+      const leads = database.collection<BusinessLead>("business_leads");
+      const current = await leads.findOne({
+        id: path[3],
+        partner_id: user.partner_id,
+      });
+      if (!current) throw new HttpError(404, "CRM talebi bulunamadı.");
+      if (!canTransitionLead(current.status, input.status))
+        throw new HttpError(409, "Bu CRM durum geçişine izin verilmiyor.");
+      const updated = await leads.findOneAndUpdate(
+        {
+          id: current.id,
+          partner_id: user.partner_id,
+          status: current.status,
+        },
+        {
+          $set: {
+            status: input.status,
+            updated_at: new Date().toISOString(),
+            updated_by: user.id,
+          },
+        },
+        { returnDocument: "after", projection: { _id: 0, idempotency_key: 0 } },
+      );
+      if (!updated)
+        throw new HttpError(409, "CRM talebi başka bir oturumda güncellendi.");
+      await audit(req, "crm.lead_status_changed", user, {
+        partner_id: user.partner_id,
+        lead_id: current.id,
+        from: current.status,
+        to: input.status,
+      });
+      return json(updated);
     }
     if (route === "admin/current-accounts" && method === "GET" && user) {
       const canViewAll = accountHasPermission(user, "finance.view_all");
@@ -4656,6 +5986,17 @@ export async function handle(
           "SatÄ±ÅŸ taslaÄŸÄ± bulunamadÄ± veya Ã¶deme onayÄ±na uygun deÄŸil.",
         );
       }
+      const quoteFinance =
+        draft.package_code === "custom-quote"
+          ? draft.quote_finance_snapshot
+          : null;
+      if (draft.package_code === "custom-quote" && !quoteFinance)
+        throw new HttpError(
+          409,
+          "Teklif kaynaklı satışta tahsilattan önce finans ve komisyon eşleştirmesi onaylanmalıdır.",
+        );
+      const paymentPackageCode =
+        draft.package_code === "custom-quote" ? null : draft.package_code;
       const paymentEvent = await weddings.findOne({
         id: draft.wedding_id,
         lifecycle_status: "draft",
@@ -4680,6 +6021,21 @@ export async function handle(
         throw new HttpError(409, "Satış tutarı zaten tamamen tahsil edilmiş.");
       if (amount > remaining)
         throw new HttpError(409, "Tahsilat kalan bakiyeyi aşamaz.");
+      if (paymentEvent.payment_plan === "deferred" && paidBefore === 0) {
+        if (payment.kind !== "deposit")
+          throw new HttpError(
+            409,
+            "İleri tarihli satışın ilk tahsilatı kapora olarak kaydedilmelidir.",
+          );
+        if (
+          !paymentEvent.deposit_expected_cents ||
+          amount !== paymentEvent.deposit_expected_cents
+        )
+          throw new HttpError(
+            409,
+            `İlk kapora tutarı ${paymentEvent.deposit_expected_cents || 0} kuruş olmalıdır.`,
+          );
+      }
       const customerAccountId =
         paymentEvent.customer_account_id || randomUUID();
       if (!paymentEvent.customer_account_id)
@@ -4759,17 +6115,20 @@ export async function handle(
       let paid: SaleRecord | null = null;
       try {
         await transaction.withTransaction(async () => {
-          const commissionPolicy = await currentCommissionPolicy(
-            database,
-            draft.partner_id,
-            payment.paid_at,
-            transaction,
-          );
+          const commissionPolicy = paymentPackageCode
+            ? await currentCommissionPolicy(
+                database,
+                draft.partner_id,
+                payment.paid_at,
+                transaction,
+              )
+            : null;
           let ordinal: number | null = null;
           if (
-            commissionPolicy.tiered &&
+            commissionPolicy?.tiered &&
+            paymentPackageCode &&
             commissionPolicy.qualifying_package_codes.includes(
-              draft.package_code,
+              paymentPackageCode,
             )
           ) {
             const counter = await database
@@ -4789,22 +6148,24 @@ export async function handle(
               );
             ordinal = Number(counter?.net_count || 1);
           }
-          const eligibleNetCents =
-            draft.price_snapshot?.commissionable_net_cents ??
-            netFromVatIncluded(
-              draft.price_snapshot?.commissionable_gross_cents ||
-                draft.gross_cents,
-              draft.vat_rate_bps,
-            );
-          const commissionRateBps = commissionRateForOrdinal(
-            commissionPolicy,
-            draft.package_code,
-            ordinal,
-          );
-          const commissionCents = calculateCommissionCents(
-            eligibleNetCents,
-            commissionRateBps,
-          );
+          const eligibleNetCents = quoteFinance
+            ? quoteFinance.eligible_net_cents
+            : (draft.price_snapshot?.commissionable_net_cents ??
+              netFromVatIncluded(
+                draft.price_snapshot?.commissionable_gross_cents ||
+                  draft.gross_cents,
+                draft.vat_rate_bps ?? 0,
+              ));
+          const commissionRateBps = quoteFinance
+            ? quoteFinance.partner_rate_bps
+            : commissionRateForOrdinal(
+                commissionPolicy!,
+                paymentPackageCode!,
+                ordinal,
+              );
+          const commissionCents = quoteFinance
+            ? quoteFinance.partner_commission_cents
+            : calculateCommissionCents(eligibleNetCents, commissionRateBps);
           paid = await sales.findOneAndUpdate(
             { id: draft.id, status: "draft" },
             {
@@ -4823,7 +6184,9 @@ export async function handle(
                 qualifying_ordinal: ordinal,
                 commission_rate_bps: commissionRateBps,
                 commission_cents: commissionCents,
-                commission_policy_snapshot: commissionPolicy,
+                ...(commissionPolicy
+                  ? { commission_policy_snapshot: commissionPolicy }
+                  : {}),
                 platform_cents: draft.net_cents - commissionCents,
               },
             },

@@ -1,0 +1,380 @@
+SHINEQR GENEL PROJE DURUMU VE DONUSUM YOL HARITASI
+===================================================
+
+Guncelleme tarihi : 14 Kasim 2026
+Belge durumu      : Aktif donusum takip kaydi
+Genel ilerleme    : Yaklasik %70
+Yayina hazirlik   : Yaklasik %50-55
+
+V4 FAZ GUNCELLEMESI
+-------------------
+A0 kaynak denetimi tamamlandi ve `docs/shineqr-v4/00-audit.md` dosyasina
+kaydedildi. V4 gorsel donusumunde siradaki faz A1 UI Kit'tir. Veri guvenligi
+is sirasinda ise business_leads indeks/migration/rollback paketi P0 onceliklidir.
+A1 UI Kit'in ikinci paketiyle Navbar, mobil menu, Footer, form alani, FilterBar
+ve KpiCard ortak bilesenleri eklendi. Mevcut route'lara toplu gecis yapilmadi.
+P0 business-crm-v1 migration paketi kodlandi: lead unique/query indeksleri,
+magaza slug ve katalog indeksleri, guvenli eski sahip rolu dry-run/apply/rollback
+akisi ve eszamanli duplicate insert kurtarma davranisi eklendi. Gercek veritabanina
+apply veya rollback calistirilmadi.
+
+NOT
+---
+Bu oranlar yalnizca yazilan kod miktarini degil; is kurallari, tenant ve rol
+guvenligi, veri migration'lari, testler, gercek servis entegrasyonlari,
+staging ve canli yayin hazirligini birlikte degerlendirir.
+
+
+MEVCUT ASAMA
+============
+
+Su anda yeni tasarim ve is platformu donusumunun 4. ana asamasindayiz:
+
+  DIJITAL ISLETME MAGAZASI + CRM TALEP YONETIMI
+
+Isletme dizini, isletme detay vitrini, urun/hizmet katalogu, magaza ayarlari,
+vitrinden CRM talebi olusturma ve CRM Kanban'in ilk surumu gelistirildi.
+
+Bir sonraki kritik uygulama asamasi:
+
+  CRM AKTIVITE + GOREV + SORUMLU ATAMA ALTYAPISI
+
+CRM migration ve indeks paketi kodlanmis ve test edilmistir; gercek veritabaninda
+dry-run/apply icin insan onayi beklemektedir. Teklif ve satis donusumunden once
+CRM operasyon kayitlari tenant ve audit kurallariyla tamamlanacaktir.
+
+
+DONUSUM AKISI
+=============
+
+Temel platform
+    |
+    v
+Organizasyon + misafir medyasi
+    |
+    v
+Finans + cari hesap altyapisi
+    |
+    v
+Dijital isletme + dijital magaza
+    |
+    v
+CRM talep toplama + Kanban
+    |
+    v
+Migration + veritabani indeksleri <-- KODLANDI, DB UYGULAMASI ONAY BEKLIYOR
+    |
+    v
+CRM aktivite/gorev + sorumlu atama <-- SIRADAKI KOD ASAMASI
+    |
+    v
+Versiyonlu teklif yonetimi
+    |
+    v
+Musteri/cari + organizasyon + satis donusumu
+    |
+    v
+Hakedis + odeme entegrasyonlari
+    |
+    v
+Staging + QA + kontrollu yayin
+
+
+GENEL ASAMA TABLOSU
+===================
+
+Durum isaretleri:
+  [TAMAM]   Tamamlandi veya ana is kurallari uygulanmis durumda
+  [KISMI]   Ilk surum mevcut, genisletme ya da kabul testi gerekiyor
+  [SIRADA]  Siradaki uygulama paketi
+  [PLAN]    Planlandi, uygulama tamamlanmadi
+  [BEKLIYOR] Harici karar, servis veya insan onayi bekliyor
+
+No  Asama                              Durum       Ilerleme  Aciklama
+--  ---------------------------------  ----------  --------  ------------------------------
+01  Temel platform altyapisi           [TAMAM]       %95     Next.js, MongoDB, R2 temeli,
+                                                              kimlik, roller ve tenant ayrimi.
+
+02  Organizasyon yonetimi              [TAMAM]       %90     Organizasyon, musteri hesabi,
+                                                              QR, paket ve ek urun akislari.
+
+03  Misafir ve medya sistemi           [KISMI]       %85     Yukleme, ozel album, indirme,
+                                                              ZIP, cop kutusu ve saklama.
+                                                              Gercek R2/telefon testi kaldi.
+
+04  Isletme kategori modeli            [TAMAM]      %100     Fotografci, salon, organizasyon,
+                                                              baskici, gelinlik, cicekci vb.
+
+05  Dijital isletme dizini             [TAMAM]       %90     /isletmeler, kategori filtreleri
+                                                              ve isletme kartlari.
+
+06  Isletme detay vitrini              [TAMAM]       %90     Kapak, galeri, isletme bilgisi,
+                                                              hizmetler ve iletisim talebi.
+
+07  Dijital magaza yonetimi            [KISMI]       %85     Magaza gorunurlugu, profil ve
+                                                              vitrin ayarlari.
+
+08  Urun ve hizmet katalogu            [KISMI]       %85     Urun/hizmet karti, fiyat ve
+                                                              gorunurluk. Varyant/stok kaldi.
+
+09  CRM talep toplama                  [TAMAM]       %90     Lead formu, izinler, tenant
+                                                              baglantisi ve mukerrer kontrolu.
+
+10  CRM satis hunisi                   [KISMI]       %70     Durum bazli Kanban mevcut.
+                                                              Sorumlu, gorev ve aktivite kaldi.
+
+11  CRM ve isletme migration'i         [KISMI]       %85     Kod, test ve rollback tamam;
+                                                              gercek DB uygulamasi onay bekliyor.
+
+12  Teklif yonetimi                    [PLAN]        %15     Versiyonlu teklif, kalemler,
+                                                              KDV, indirim ve musteri onayi.
+
+13  Lead -> musteri/cari donusumu       [PLAN]        %10     Kazanilan talebin kalici musteri
+                                                              ve cari hesaba donusmesi.
+
+14  Lead -> organizasyon/satis          [PLAN]        %10     Tek transaction, tarihsel fiyat
+                                                              kopyasi ve yaris kosulu testi.
+
+15  Muhasebe ve cari hesaplar          [KISMI]       %80     Tahsilat, kapora, vade, gecikme,
+                                                              cari hareket ve satis defteri.
+
+16  Banka mutabakati                   [KISMI]       %70     CSV ice aktarma ve odeme
+                                                              eslestirmenin ilk surumu.
+
+17  Isletme/partner hakedisleri        [KISMI]       %75     KDV haric uygun matrah, komisyon,
+                                                              onay ve odeme belgesi altyapisi.
+
+18  Baski ve fiziksel urun operasyonu  [KISMI]       %40     Stok, uretim, kargo ve teslimat
+                                                              yasam dongusu genisletilecek.
+
+19  Merkezi odeme sistemi              [PLAN]        %35     Kart, havale/EFT, nakit, kapora,
+                                                              webhook ve iade entegrasyonu.
+
+20  Isletme hesap ayarlari             [KISMI]       %55     Profil, marka, takvim, ekip,
+                                                              finans, guvenlik ve entegrasyon.
+
+21  Rol bazli panel tasarimlari        [KISMI]       %60     Super admin, isletme, fotografci,
+                                                              baskici, salon ve misafir panelleri.
+
+22  Responsive ve erisilebilirlik      [KISMI]       %65     Mobil duzen, odak, kontrast ve
+                                                              tum durum ekranlari.
+
+23  Harici entegrasyonlar              [PLAN]        %10     SMS, WhatsApp, e-posta, takvim
+                                                              ve muhasebe saglayicilari.
+
+24  QA ve guvenlik                     [KISMI]       %75     Yetki, tenant, is kurali, yaris
+                                                              kosulu ve regresyon testleri.
+
+25  Staging ve yayin hazirligi         [BEKLIYOR]    %25     CI/CD, staging, rollback, gercek
+                                                              R2, HTTPS ve gozlemleme.
+
+26  Canli yayin                        [BEKLIYOR]     %0     Insan onayi ve staging kabulu
+                                                              olmadan baslatilmayacak.
+
+
+TAMAMLANAN SON DONUSUM PAKETI
+=============================
+
+1. Sistemdeki isletmeler icin ortak kategori modeli olusturuldu.
+2. Her yeni isletmenin ilk hesabi kategoriye bakilmadan partner_owner oluyor.
+3. Fotografci ve baskici rolleri isletme sahipligi yerine operasyon rolleri
+   olarak ayrildi.
+4. Dijital isletme listeleme ve detay sayfalari eklendi.
+5. Isletmeler icin dijital magaza ve katalog yonetimi eklendi.
+6. Isletme vitrininden urun/hizmet baglantili CRM talebi olusturuluyor.
+7. Acik riza ile pazarlama izni birbirinden ayrildi.
+8. Talep kayitlari tenant bazli korunuyor.
+9. CRM durum gecis kurallari ve audit kaydi eklendi.
+10. partner_owner ve partner_sales rollerine CRM yetkileri verildi.
+11. CRM icin durum bazli Kanban ekraninin ilk surumu eklendi.
+12. Talep olusturulunca otomatik satis, tahsilat veya muhasebe kaydi acilmiyor;
+    finans kaydi ancak onayli teklif ve donusum akisiyla olusturulacak.
+
+
+SIRADAKI UYGULAMA PAKETI
+=======================
+
+Oncelik  Is                                     Tamamlanma olcutu
+-------  -------------------------------------  ---------------------------------
+P0       business_leads idempotency index'i     Ayni talep eszamanli gonderimde
+                                                yalnizca tek kayit olusturmali.
+
+P0       CRM tenant ve sorgu indeksleri         Isletme baska isletmenin talebine
+                                                erisememeli; sorgular indeksli olmali.
+
+P0       Eski isletme sahibi rol migration'i    Gercek sahip hesaplari partner_owner
+                                                rolune guvenle donusturulmeli.
+
+P0       Migration rollback betigi              Degisiklik kontrollu ve denetlenebilir
+                                                bicimde geri alinabilmeli.
+
+P1       CRM sorumlu atama                      Talep yetkili ekip uyesine atanabilmeli.
+
+P1       Aktivite, not ve gorev sistemi         Arama, gorusme, not, gorev ve hatirlatma
+                                                kronolojik olarak saklanmali.
+
+P1       Versiyonlu teklif yonetimi             Fiyat degisikligi eski teklif ve onay
+                                                kayitlarini degistirmemeli.
+
+P1       Teklif durum akisi                     Taslak, gonderildi, goruntulendi, kabul
+                                                ve red gecisleri sunucuda korunmali.
+
+P2       Kazanilan talebi donusturme            Lead tek ve guvenli islemle musteri/cari,
+                                                organizasyon ve satisa donusmeli.
+
+P2       Finans ve hakedis baglantisi           Tarihsel fiyat kopyasi korunmali; paylar
+                                                satis anindaki dondurulmus kuralla
+                                                hesaplanmali.
+
+
+KALAN KRITIK RISKLER
+====================
+
+- business_leads icin veritabani unique index'i olusturulmadan eszamanli
+  mukerrer isteklerde uygulama seviyesi kontrol tek basina yeterli degildir.
+- Eski fotografci ve baskici isletme sahibi hesaplari icin rol migration'i
+  gerekir; yeni hesaplar duzeltilmis kuralla acilir.
+- SMS, WhatsApp ve e-posta gonderimi henuz bagli degildir; iletisim tercihi
+  yalnizca veri olarak saklanir.
+- Teklif modeli ve CRM'den satis/organizasyona kontrollu donusum tamamlanmadi.
+- Merkezi odeme saglayicisi ve imzali webhook akisi onaylanmadi.
+- Gercek R2, alan adi, HTTPS, staging, zamanlayici ve gercek telefon kabul
+  testleri tamamlanmadi.
+- Yeni tasarim butun rol panellerine tek tasarim sistemiyle uygulanmadi.
+- Hukuki metinler, pazarlama izinleri ve finansal kurallar yetkili insanlar
+  tarafindan son kez onaylanmalidir.
+
+
+DEGISMEYECEK TEMEL URUN KURALLARI
+================================
+
+- Musteri fiyatlari KDV dahildir.
+- Komisyon, KDV haric uygun matrah ve tam sayi kurus uzerinden hesaplanir.
+- Paket ve fiyat snapshot'lari tarihsel kayittir; mevcut satislar guncel
+  katalog fiyatlariyla sessizce yeniden hesaplanmaz.
+- Tenant sinirlari, rol yetkileri, audit kayitlari ve organizasyon sahipligi
+  sunucu tarafinda uygulanir.
+- Musteri tahsilati ile isletme hakedis odemesi farkli yasam donguleridir.
+- Harici odeme linkine tiklanmasi odeme kaniti sayilmaz.
+- Canliya alma, production veri degisikligi, odeme veya hukuki/mali islem
+  acik insan onayi olmadan yapilmaz.
+
+
+SONUC
+=====
+
+ShineQR'in cekirdek organizasyon, medya ve finans altyapisi ileri seviyededir.
+Yeni dijital isletme, dijital magaza ve CRM talep akisinin ilk kullanilabilir
+surumu tamamlanmistir. Proje su anda CRM verilerinin migration ve indekslerle
+kalici olarak guvenceye alinmasi asamasindadir. Bundan sonra CRM operasyonlari,
+versiyonlu teklif, musteri/cari donusumu, organizasyon/satis baglantisi ve
+hakedis/odeme entegrasyonlari sirayla tamamlanacaktir.
+
+
+15 KASIM 2026 - CRM OPERASYON GUNCELLEMESI
+==========================================
+
+Tamamlananlar:
+- CRM talebi icin ayni isletmedeki aktif ekip uyesine sorumlu atama.
+- Degistirilemez not, telefon, e-posta, toplanti ve sistem aktivite gecmisi.
+- Talebe bagli gorev, oncelik, vade ve gorev sorumlusu.
+- Sunucu kontrollu gorev durum gecisleri ve eszamanli guncelleme korumasi.
+- Tenant siniri, rol yetkisi ve yazma islemlerinde audit kaydi.
+- CRM kartlarinda acik gorev sayisi ve mobil uyumlu operasyon paneli.
+- crm_activities ve crm_tasks icin kurulum/migration indeksleri.
+
+Mevcut asama:
+P1 CRM sorumlu atama ile aktivite/not/gorev sistemi uygulama kodu seviyesinde
+tamamlandi. Migration gercek veritabanina uygulanmadi.
+
+Siradaki asama:
+P1 versiyonlu teklif yonetimi ve teklif durum akisi. Taslak, gonderildi,
+goruntulendi, kabul ve red durumlari; tarihsel urun/fiyat snapshot'i ve sunucu
+tarafli gecis kurallariyla kurulacak.
+
+
+15 KASIM 2026 - VERSIYONLU TEKLIF GUNCELLEMESI
+==============================================
+
+Tamamlananlar:
+- Teklif serisi ve artan surum modeli.
+- KDV dahil tam sayi kurus fiyat, KDV/net/brut satir snapshot'lari.
+- Sabit katalog fiyatini sunucudan dondurma; istemci fiyatina guvenmeme.
+- Taslak, gonderildi, goruntulendi, kabul, red, sure dolumu ve superseded akisi.
+- Kabul edilen teklifi degistirmeme ve yeni surumle ezmeme.
+- Tenant yetkisi, audit, aktivite gecmisi ve iyimser eszamanlilik korumasi.
+- Teklif kimligi, tenant/lead/surum ve durum/gecerlilik indeksleri.
+- CRM kartinda teklif olusturma, surum gecmisi ve durum yonetimi arayuzu.
+
+Mevcut asama:
+P1 versiyonlu teklif ve durum akisi uygulama kodu seviyesinde tamamlandi.
+Gercek veritabanina migration uygulanmadi. SMS/e-posta/WhatsApp teslimat
+entegrasyonu bulunmadigi icin gonderim ve goruntulenme durumlari elle ilerletilir.
+
+Siradaki asama:
+P2 kabul edilen CRM teklifini tek ve idempotent transaction ile musteri/cari,
+organizasyon ve satis taslagina donusturme. Bu adimda teklif snapshot'i kaynak
+olacak; guncel katalog fiyatlariyla yeniden hesaplama yapilmayacak.
+
+
+15 KASIM 2026 - KABUL EDILEN TEKLIF DONUSUMU
+============================================
+
+Tamamlananlar:
+- Kabul edilen teklif icin idempotent donusum endpoint'i ve arayuzu.
+- Isletme bazli kalici musteri cari kimligi.
+- Tek transaction icinde organizasyon taslagi, satis taslagi ve CRM aktivitesi.
+- Satis yapan isletmenin oturumdaki tenant'tan otomatik atanmasi.
+- Teklif satiri, KDV, net ve brut snapshot'inin satis taslagina aynen kopyalanmasi.
+- Ayni tekliften ikinci organizasyon/satis uretilmesini engelleyen unique indeks.
+- Tahsilat, komisyon ve hakedisin donusum sirasinda olusturulmamasi.
+- Finans/komisyon eslestirmesi olmayan teklif satisinda odeme onayinin engellenmesi.
+
+Mevcut asama:
+P2 musteri/cari, organizasyon ve satis taslagi donusumu uygulama kodu seviyesinde
+tamamlandi. Migration gercek veritabanina uygulanmadi.
+
+Siradaki asama:
+Teklif satirlarini onayli komisyon/hakedis politikasina esleme; sonrasinda satis
+taslaginda kapora, nakit, havale/EFT ve kart tahsilat akislarini guvenle acma.
+
+
+15 KASIM 2026 - P2.1, P2.2 VE P3 BASLANGICI
+===========================================
+
+Tamamlananlar:
+- Teklif satirlarinin finans yoneticisi tarafindan komisyon uygunluguna eslenmesi.
+- KDV haric uygun matrah, partner orani, komisyon ve maliyet snapshot'i.
+- Onayli finans snapshot'inin sonradan sessizce degistirilememesi.
+- Ileri tarihli satislarda ilk tahsilatin tam yuzde 20 kapora olmasi.
+- Odeme plani, tercih edilen yontem ve son odeme tarihinin teklif donusumune eklenmesi.
+- P3 icin POS, banka, SMS, WhatsApp, e-posta, takvim ve muhasebe readiness modeli.
+- Gizli degerleri aciklamayan entegrasyon durum endpoint'i.
+- HMAC-SHA256 webhook imza dogrulama cekirdegi.
+
+Mevcut asama:
+P2 finans eslestirme ve kapora korumalari kodlandi. P3 entegrasyon hazirlik katmani
+baslatildi; dis islemler guvenli varsayilanla kapali.
+
+Siradaki asama:
+Insan tarafindan onaylanan somut saglayicilar belirlendikten sonra payment intent,
+webhook event, outbox/retry ve sandbox sozlesme testleri uygulanacak.
+
+
+15 KASIM 2026 - P0 MIGRATION UYGULANDI
+======================================
+
+Hedef veritabani: wedding_fethiye
+Migration: business-crm-v1
+
+Sonuc:
+- Apply oncesi dry-run engel bulmadi.
+- Mukerrer lead, slug, teklif, cari veya donusum kaydi bulunmadi.
+- 18 indeks olusturuldu veya dogrulandi.
+- 3 eski tekil isletme hesabi backup alinarak partner_owner rolune tasindi.
+- Belirsiz tenant bulunmadi.
+- Apply sonrasi kontrolde 18 indeksin tamami mevcut.
+- Bekleyen rol adayi kalmadi.
+- Rollback calistirilmadi; backup kayitlari ve rollback betigi korunuyor.
+
+P0 durumu: TAMAMLANDI VE VERITABANINA UYGULANDI.

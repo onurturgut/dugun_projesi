@@ -14,8 +14,13 @@ export default function Password() {
     [busy, setBusy] = useState(false);
   const router = useRouter(),
     qc = useQueryClient();
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api<Account>("/auth/me") });
-  const partnerOwner = me.data?.role === "partner" && effectiveStaffRole(me.data) === "partner_owner";
+  const me = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api<Account>("/auth/me"),
+  });
+  const partnerOwner =
+    me.data?.role === "partner" &&
+    effectiveStaffRole(me.data) === "partner_owner";
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -48,58 +53,75 @@ export default function Password() {
         <div>
           <p className="admin-kicker">HESAP</p>
           <h1>Hesap ayarları</h1>
-          <p className="admin-subtitle">Profil, görünüm ve güvenlik tercihlerinizi tek yerden yönetin.</p>
+          <p className="admin-subtitle">
+            Profil, görünüm ve güvenlik tercihlerinizi tek yerden yönetin.
+          </p>
         </div>
       </div>
-      <nav className="account-settings-nav" aria-label="Hesap ayarları bölümleri">
+      <nav
+        className="account-settings-nav"
+        aria-label="Hesap ayarları bölümleri"
+      >
         <a href="#profile-security">Profil ve güvenlik</a>
         <a href="#password-settings">Parola</a>
-        {partnerOwner ? <a href="#business-settings">İşletme ayarları</a> : null}
+        {partnerOwner ? (
+          <a href="#business-settings">İşletme ayarları</a>
+        ) : null}
+        {partnerOwner ? (
+          <>
+            <a href="#storefront-settings">Dijital mağaza</a>
+            <a href="#catalog-settings">Ürün ve hizmetler</a>
+          </>
+        ) : null}
       </nav>
       <div id="profile-security" />
       <div className="account-settings-grid">
-      <form
-        id="password-settings"
-        onSubmit={submit}
-        className="admin-panel account-password-card"
-      >
-        <div className="admin-section-heading">
-          <div>
-            <span>GÜVENLİK</span>
-            <h2>Parola değiştir</h2>
+        <form
+          id="password-settings"
+          onSubmit={submit}
+          className="admin-panel account-password-card"
+        >
+          <div className="admin-section-heading">
+            <div>
+              <span>GÜVENLİK</span>
+              <h2>Parola değiştir</h2>
+            </div>
           </div>
-        </div>
-        <p className="admin-hint">
-          Hesabınız için başka bir yerde kullanmadığınız, en az 12 karakterli bir parola belirleyin.
-        </p>
-        <PasswordField
-          label="Mevcut / geçici şifre"
-          name="current_password"
-          autoComplete="current-password"
-          required
-        />
-        <PasswordField
-          label="Yeni şifre"
-          name="password"
-          autoComplete="new-password"
-          minLength={12}
-          maxLength={256}
-          required
-        />
-        <PasswordField
-          label="Yeni şifre tekrar"
-          name="confirm"
-          autoComplete="new-password"
-          minLength={12}
-          maxLength={256}
-          required
-        />
-        {error && <Notice>{error}</Notice>}
-        <button disabled={busy} className="admin-button primary account-save-button">
-          {busy ? "Kaydediliyor…" : "Şifreyi değiştir"}
-        </button>
-      </form>
-      <SecurityPanel />
+          <p className="admin-hint">
+            Hesabınız için başka bir yerde kullanmadığınız, en az 12 karakterli
+            bir parola belirleyin.
+          </p>
+          <PasswordField
+            label="Mevcut / geçici şifre"
+            name="current_password"
+            autoComplete="current-password"
+            required
+          />
+          <PasswordField
+            label="Yeni şifre"
+            name="password"
+            autoComplete="new-password"
+            minLength={12}
+            maxLength={256}
+            required
+          />
+          <PasswordField
+            label="Yeni şifre tekrar"
+            name="confirm"
+            autoComplete="new-password"
+            minLength={12}
+            maxLength={256}
+            required
+          />
+          {error && <Notice>{error}</Notice>}
+          <button
+            disabled={busy}
+            className="admin-button primary account-save-button"
+          >
+            {busy ? "Kaydediliyor…" : "Şifreyi değiştir"}
+          </button>
+        </form>
+        <SecurityPanel />
       </div>
       {me.data ? <AccountRoleCenter account={me.data} /> : null}
       {partnerOwner ? <PartnerSettingsPanel /> : null}

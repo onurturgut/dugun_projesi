@@ -324,6 +324,12 @@ export default function Partners() {
                   <option value="planner">Organizasyon firması</option>
                   <option value="photography">Fotoğraf işletmesi</option>
                   <option value="print_vendor">Baskıcı</option>
+                  <option value="bridal">Gelinlik firması</option>
+                  <option value="florist">Çiçek ve dekorasyon</option>
+                  <option value="invitation">Davetiye firması</option>
+                  <option value="music_entertainment">Müzik ve eğlence</option>
+                  <option value="beauty">Kuaför ve güzellik</option>
+                  <option value="transportation">Ulaşım hizmeti</option>
                   <option value="other">Diğer</option>
                 </SelectField>
                 <small className="admin-hint">
