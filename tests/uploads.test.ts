@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { validateFiles } from "../src/lib/uploads";
+import {
+  canUseSameOriginPhotoFallback,
+  SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES,
+} from "../src/lib/upload-fallback";
 
 test("professional folder validation avoids creating memory-heavy previews", () => {
   const files = [
@@ -33,4 +37,23 @@ test("professional folder validation rejects unsupported files", () => {
 
   assert.equal(result.accepted.length, 0);
   assert.match(result.errors[0], /desteklenmiyor/);
+});
+
+test("same-origin fallback is restricted to small photos", () => {
+  assert.equal(
+    canUseSameOriginPhotoFallback({ kind: "photo", size: 985_348 }),
+    true,
+  );
+  assert.equal(
+    canUseSameOriginPhotoFallback({
+      kind: "photo",
+      size: SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES + 1,
+    }),
+    false,
+  );
+  assert.equal(
+    canUseSameOriginPhotoFallback({ kind: "video", size: 985_348 }),
+    false,
+  );
+  assert.equal(canUseSameOriginPhotoFallback({ kind: "photo", size: 0 }), false);
 });

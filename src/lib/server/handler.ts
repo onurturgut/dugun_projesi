@@ -482,7 +482,9 @@ export async function handle(
               route === "auth/preferences" ||
               route === "auth/preview-stop",
           )
-        : route === "uploads/sign" || route === "uploads/complete"
+        : route === "uploads/sign" ||
+            route === "uploads/proxy" ||
+            route === "uploads/complete"
           ? await session()
           : null;
     if (
@@ -9625,6 +9627,59 @@ export async function handle(
         await transaction.endSession();
       }
       return json({ url, ticket });
+    }
+    if (route === "uploads/proxy" && method === "PUT") {
+      const ticket = req.headers.get("x-upload-ticket") || "";
+      if (!/^[a-f0-9]{64}$/.test(ticket))
+        throw new HttpError(400, "Yükleme bileti geçersiz.");
+      const t = await database.collection("upload_tickets").findOne({
+        token: hash(ticket),
+        expiresAt: { $gt: new Date() },
+        completed: false,
+      });
+      if (!t) throw new HttpError(400, "Yükleme süresi dolmuş.");
+      if (
+        !t.mime_type?.startsWith("image/") ||
+        !Number.isSafeInteger(t.size_bytes) ||
+        t.size_bytes <= 0 ||
+        t.size_bytes > 4 * 1024 * 1024
+      )
+        throw new HttpError(
+          413,
+          "Yedek yükleme yalnızca 4 MB ve altındaki fotoğraflar içindir.",
+        );
+      const event = await weddings.findOne({ id: t.weddingId });
+      if (!event || !uploadsOpenForRuntime(event))
+        throw new HttpError(410, "Yükleme kapalı.");
+      if (
+        !(await database
+          .collection("partners")
+          .findOne({ id: event.partner_id, active: true }))
+      )
+        throw new HttpError(410, "Yükleme kapalı.");
+      const contentType = req.headers.get("content-type") || "";
+      const contentLength = Number(req.headers.get("content-length"));
+      if (contentType !== t.mime_type)
+        throw new HttpError(400, "Dosya türü yükleme biletiyle eşleşmiyor.");
+      if (
+        !Number.isSafeInteger(contentLength) ||
+        contentLength !== t.size_bytes
+      )
+        throw new HttpError(400, "Dosya boyutu yükleme biletiyle eşleşmiyor.");
+      const bytes = Buffer.from(await req.arrayBuffer());
+      if (bytes.length !== t.size_bytes)
+        throw new HttpError(400, "Dosya boyutu yükleme biletiyle eşleşmiyor.");
+      const { client, bucket } = storage();
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: t.storage_path,
+          ContentType: t.mime_type,
+          ContentLength: t.size_bytes,
+          Body: bytes,
+        }),
+      );
+      return json({ ok: true });
     }
     if (route === "uploads/complete" && method === "POST") {
       const { ticket } = z

@@ -2,7 +2,7 @@ import "../scripts/configure-dns.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { randomUUID, randomBytes, scryptSync } from "node:crypto";
+import { createHash, randomUUID, randomBytes, scryptSync } from "node:crypto";
 import { MongoClient } from "mongodb";
 import { PDFDocument } from "pdf-lib";
 import { once } from "node:events";
@@ -1829,6 +1829,27 @@ try {
   await db
     .collection("weddings")
     .updateOne({ id: eventA2.id }, { $set: { media_bytes: 0 } });
+  const proxyTicket = (await call("/uploads/sign", "POST", upload)).data;
+  const proxyResponse = await fetch(base + "/api/uploads/proxy", {
+    method: "PUT",
+    headers: {
+      "content-type": "image/png",
+      "content-length": String(payload.length),
+      "x-upload-ticket": proxyTicket.ticket,
+    },
+    body: payload,
+  });
+  assert.equal(proxyResponse.status, 200);
+  const proxyRecord = await db.collection("upload_tickets").findOne({
+    token: createHash("sha256").update(proxyTicket.ticket).digest("hex"),
+  });
+  assert.ok(objects.has("/test-media/" + proxyRecord.storage_path));
+  objects.delete("/test-media/" + proxyRecord.storage_path);
+  await db.collection("upload_tickets").deleteOne({ _id: proxyRecord._id });
+  await db.collection("weddings").updateOne(
+    { id: eventA.id },
+    { $inc: { reserved_upload_bytes: -payload.length } },
+  );
   const ticket = (await call("/uploads/sign", "POST", upload)).data;
   assert.equal(
     (await db.collection("weddings").findOne({ id: eventA.id }))

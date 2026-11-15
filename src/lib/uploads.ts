@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { UPLOAD_CONFIG, formatBytes } from "./config";
+import { canUseSameOriginPhotoFallback } from "./upload-fallback";
 
 export type MediaKind = "photo" | "video";
 
@@ -84,6 +85,54 @@ export interface UploadOneResult {
   error?: string;
 }
 
+async function directUpload(
+  url: string,
+  file: File,
+  mime: string,
+  onProgress: (pct: number) => void,
+) {
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", mime);
+    xhr.timeout = 30 * 60 * 1000;
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable)
+        onProgress(Math.round((event.loaded / event.total) * 95));
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error("Doğrudan depolama yüklemesi başarısız."));
+    xhr.onerror = () => reject(new Error("Doğrudan depolama ağ hatası."));
+    xhr.ontimeout = () =>
+      reject(new Error("Doğrudan depolama zaman aşımı."));
+    xhr.send(file);
+  });
+}
+
+async function sameOriginPhotoUpload(
+  ticket: string,
+  file: File,
+  mime: string,
+) {
+  const response = await fetch("/api/uploads/proxy", {
+    method: "PUT",
+    headers: {
+      "Content-Type": mime,
+      "X-Upload-Ticket": ticket,
+    },
+    body: file,
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new Error(
+      typeof result.error === "string"
+        ? result.error
+        : "Yedek fotoğraf yüklemesi başarısız.",
+    );
+}
+
 async function videoDuration(file: File) {
   return await new Promise<number>((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -146,24 +195,24 @@ export async function uploadItem(
         ...guest,
       }),
     });
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", signed.url);
-      xhr.setRequestHeader("Content-Type", mime);
-      xhr.timeout = 30 * 60 * 1000;
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable)
-          onProgress(Math.round((e.loaded / e.total) * 95));
-      };
-      xhr.onload = () =>
-        xhr.status >= 200 && xhr.status < 300
-          ? resolve()
-          : reject(new Error("R2 yüklemesi başarısız."));
-      xhr.onerror = () =>
-        reject(new Error("Ağ hatası. Lütfen tekrar deneyin."));
-      xhr.ontimeout = () => reject(new Error("Yükleme zaman aşımına uğradı."));
-      xhr.send(item.file);
-    });
+    try {
+      await directUpload(signed.url, item.file, mime, onProgress);
+    } catch (directError) {
+      try {
+        onProgress(0);
+        await directUpload(signed.url, item.file, mime, onProgress);
+      } catch {
+        if (
+          !canUseSameOriginPhotoFallback({
+            kind: item.kind,
+            size: item.file.size,
+          })
+        )
+          throw directError;
+        onProgress(96);
+        await sameOriginPhotoUpload(signed.ticket, item.file, mime);
+      }
+    }
     await api("/uploads/complete", {
       method: "POST",
       body: JSON.stringify({ ticket: signed.ticket }),
