@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   buildUploadCompletePayload,
   buildUploadSignPayload,
+  createFallbackSessionId,
+  resolveUploadMime,
   validateFiles,
 } from "../src/lib/uploads";
 import {
@@ -35,9 +37,10 @@ test("professional folder validation avoids creating memory-heavy previews", () 
 });
 
 test("professional folder validation rejects unsupported files", () => {
-  const result = validateFiles([
-    new File(["not media"], "notes.txt", { type: "text/plain" }),
-  ], { createPreviews: false });
+  const result = validateFiles(
+    [new File(["not media"], "notes.txt", { type: "text/plain" })],
+    { createPreviews: false },
+  );
 
   assert.equal(result.accepted.length, 0);
   assert.match(result.errors[0], /desteklenmiyor/);
@@ -59,7 +62,33 @@ test("same-origin fallback is restricted to small photos", () => {
     canUseSameOriginPhotoFallback({ kind: "video", size: 985_348 }),
     false,
   );
-  assert.equal(canUseSameOriginPhotoFallback({ kind: "photo", size: 0 }), false);
+  assert.equal(
+    canUseSameOriginPhotoFallback({ kind: "photo", size: 0 }),
+    false,
+  );
+});
+
+test("Android-compatible session id fallback creates an RFC 4122 UUID", () => {
+  const id = createFallbackSessionId(new Uint8Array(16));
+  assert.match(
+    id,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
+});
+
+test("Android media MIME types are normalized from extension and aliases", () => {
+  assert.equal(
+    resolveUploadMime({ name: "kamera.JPG", type: "application/octet-stream" }),
+    "image/jpeg",
+  );
+  assert.equal(
+    resolveUploadMime({ name: "paylasim", type: "image/jpg" }),
+    "image/jpeg",
+  );
+  assert.equal(
+    resolveUploadMime({ name: "video.MOV", type: "" }),
+    "video/quicktime",
+  );
 });
 
 test("guest metadata is sent only after object upload completes", () => {

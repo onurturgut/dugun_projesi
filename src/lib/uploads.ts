@@ -16,6 +16,49 @@ export interface ValidationResult {
   errors: string[];
 }
 
+const MIME_BY_EXTENSION: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  avif: "image/avif",
+  gif: "image/gif",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  m4v: "video/mp4",
+  webm: "video/webm",
+};
+
+export function resolveUploadMime(file: Pick<File, "name" | "type">) {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const normalizedType = file.type.trim().toLowerCase();
+  return (
+    MIME_BY_EXTENSION[extension] ||
+    (normalizedType === "image/jpg" ? "image/jpeg" : normalizedType) ||
+    "application/octet-stream"
+  );
+}
+
+export function createFallbackSessionId(bytes?: Uint8Array) {
+  const random = bytes ?? new Uint8Array(16);
+  if (!bytes) {
+    if (globalThis.crypto?.getRandomValues) {
+      globalThis.crypto.getRandomValues(random);
+    } else {
+      for (let index = 0; index < random.length; index += 1)
+        random[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  random[6] = (random[6] & 0x0f) | 0x40;
+  random[8] = (random[8] & 0x3f) | 0x80;
+  const hex = Array.from(random, (value) =>
+    value.toString(16).padStart(2, "0"),
+  );
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+}
+
 export function detectKind(file: File): MediaKind | null {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (file.type.startsWith("video/")) return "video";
@@ -72,11 +115,12 @@ export function getSessionId(): string {
   try {
     const existing = localStorage.getItem(key);
     if (existing) return existing;
-    const created = crypto.randomUUID();
+    const created =
+      globalThis.crypto?.randomUUID?.() ?? createFallbackSessionId();
     localStorage.setItem(key, created);
     return created;
   } catch {
-    return crypto.randomUUID();
+    return globalThis.crypto?.randomUUID?.() ?? createFallbackSessionId();
   }
 }
 
@@ -113,7 +157,8 @@ export function buildUploadCompletePayload(
 }
 
 function uploadStageError(stage: string, error: unknown) {
-  const detail = error instanceof Error ? error.message : "Bilinmeyen ağ hatası.";
+  const detail =
+    error instanceof Error ? error.message : "Bilinmeyen ağ hatası.";
   if (/failed to fetch|networkerror|load failed/i.test(detail))
     return new Error(
       `${stage} sırasında sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.`,
@@ -139,19 +184,23 @@ async function directUpload(
     xhr.onload = () =>
       xhr.status >= 200 && xhr.status < 300
         ? resolve()
-        : reject(new Error("Doğrudan depolama yüklemesi başarısız."));
-    xhr.onerror = () => reject(new Error("Doğrudan depolama ağ hatası."));
-    xhr.ontimeout = () =>
-      reject(new Error("Doğrudan depolama zaman aşımı."));
+        : reject(
+            new Error(
+              `Doğrudan depolama yüklemesi reddedildi (HTTP ${xhr.status}).`,
+            ),
+          );
+    xhr.onerror = () =>
+      reject(
+        new Error(
+          "Doğrudan depolama bağlantısı kurulamadı (durum 0). Android'de Chrome'u güncelleyip VPN, Özel DNS ve veri tasarrufunu kapatarak tekrar deneyin.",
+        ),
+      );
+    xhr.ontimeout = () => reject(new Error("Doğrudan depolama zaman aşımı."));
     xhr.send(file);
   });
 }
 
-async function sameOriginPhotoUpload(
-  ticket: string,
-  file: File,
-  mime: string,
-) {
+async function sameOriginPhotoUpload(ticket: string, file: File, mime: string) {
   const response = await fetch("/api/uploads/proxy", {
     method: "PUT",
     headers: {
@@ -199,25 +248,13 @@ export async function uploadItem(
   },
 ): Promise<UploadOneResult> {
   try {
-    const types: Record<string, string> = {
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      webp: "image/webp",
-      heic: "image/heic",
-      heif: "image/heif",
-      avif: "image/avif",
-      gif: "image/gif",
-      mp4: "video/mp4",
-      mov: "video/quicktime",
-      m4v: "video/mp4",
-      webm: "video/webm",
-    };
-    const mime =
-      types[item.file.name.split(".").pop()?.toLowerCase() || ""] ||
-      item.file.type;
-    const durationSeconds = item.kind === "video" ? await videoDuration(item.file) : undefined;
-    if (durationSeconds && durationSeconds > UPLOAD_CONFIG.maxVideoDurationSeconds)
+    const mime = resolveUploadMime(item.file);
+    const durationSeconds =
+      item.kind === "video" ? await videoDuration(item.file) : undefined;
+    if (
+      durationSeconds &&
+      durationSeconds > UPLOAD_CONFIG.maxVideoDurationSeconds
+    )
       throw new Error("Videolar en fazla 15 dakika olabilir.");
     let signed: { url: string; ticket: string };
     try {
