@@ -31,6 +31,17 @@
   visibility: hidden;
 }
 
+.romanticIntro.leaving {
+  opacity: 1;
+  visibility: visible;
+}
+
+.romanticIntro .ambient,
+.romanticIntro .frame,
+.romanticIntro .brand {
+  display: none;
+}
+
 .intro[data-intro="campus"] .ambient,
 .intro[data-intro="campus"] .frame,
 .intro[data-intro="campus"] .brand {

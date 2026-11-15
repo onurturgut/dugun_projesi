@@ -347,6 +347,144 @@
   }
 }
 
+.ciraganScene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background: #f7eadc;
+}
+
+.ciraganPanel {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  width: 100%;
+  height: 50%;
+  overflow: hidden;
+  background: #f7eadc;
+  transition: transform 1s cubic-bezier(.76, 0, .24, 1);
+  will-change: transform;
+}
+
+.ciraganTop {
+  top: 0;
+}
+
+.ciraganBottom {
+  bottom: 0;
+}
+
+.ciraganArtwork {
+  position: absolute;
+  left: 50%;
+  width: min(100%, calc(100dvh * .7503));
+  height: 200%;
+  background: url("/intro/ciragan-romantic-loading.png") center / 100% 100% no-repeat;
+  transform: translateX(-50%);
+}
+
+.ciraganTop .ciraganArtwork {
+  top: 0;
+}
+
+.ciraganBottom .ciraganArtwork {
+  bottom: 0;
+}
+
+.ciraganProgress {
+  position: absolute;
+  z-index: 3;
+  top: 59.7%;
+  left: 50%;
+  width: min(64vw, calc(48dvh), 700px);
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.ciraganProgress > span {
+  display: block;
+  height: clamp(28px, 4.2vw, 54px);
+  padding: clamp(5px, .7vw, 8px);
+  overflow: hidden;
+  border: clamp(2px, .35vw, 4px) solid #c78a2a;
+  border-radius: 999px;
+  background: #fff4e6;
+  box-shadow: 0 7px 18px rgb(93 45 16 / 24%), inset 0 1px 4px rgb(81 42 20 / 18%);
+}
+
+.ciraganProgress > span i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #881329;
+  transform: scaleX(.02);
+  transform-origin: left;
+  animation: ciraganLoad var(--scene-duration) linear both;
+}
+
+.ciraganStill .ciraganProgress > span i {
+  animation: none;
+  transform: scaleX(1);
+}
+
+.ciraganLeaving .ciraganTop {
+  transform: translateY(-101%);
+}
+
+.ciraganLeaving .ciraganBottom {
+  transform: translateY(101%);
+}
+
+.ciraganLeaving .ciraganProgress {
+  opacity: 0;
+}
+
+@keyframes ciraganLoad {
+  from { transform: scaleX(.02); }
+  to { transform: scaleX(1); }
+}
+
+@media (max-width: 479px) {
+  .ciraganProgress {
+    top: 60%;
+    width: 64%;
+  }
+
+  .ciraganProgress > span {
+    height: 30px;
+    padding: 5px;
+  }
+}
+
+@media (min-width: 480px) and (max-width: 1023px) {
+  .ciraganProgress {
+    width: min(62%, 520px);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 700px) {
+  .ciraganArtwork {
+    width: min(100%, calc(100dvh * .7503));
+  }
+
+  .ciraganProgress {
+    width: min(45dvh, 420px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ciraganPanel {
+    transition-duration: 1ms;
+  }
+  .ciraganProgress > span i {
+    animation: none;
+    transform: scaleX(1);
+  }
+}
+
 .campusScene {
   position: absolute;
   inset: 0;

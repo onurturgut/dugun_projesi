@@ -22,17 +22,16 @@ export function RomanticCeremonyWedding({
     <section className={styles.romanticCeremonyStage}>
       <div className={styles.romanticCeremonyCopy}>
         <Image
-          src="/wedding-designs/mugla-university-logo-transparent.png"
-          alt="Muğla Sıtkı Koçman Üniversitesi"
-          width={1080}
-          height={1456}
+          src="/wedding-designs/romantic-ceremony-monogram.png"
+          alt="E ve H düğün monogramı"
+          width={1536}
+          height={864}
           className={styles.romanticCeremonyLogo}
-          priority
+          preload
         />
         <h1>{title}</h1>
         {formattedDate ? <time dateTime={date || undefined}>{formattedDate}</time> : null}
         <p>{message}</p>
-        <strong>Anılarımızı birlikte biriktirelim</strong>
         <span className={styles.romanticCeremonyDivider} aria-hidden="true">
           <i /><Heart size={17} fill="currentColor" /><i />
         </span>

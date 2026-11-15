@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Play,
   RefreshCw,
+  Share,
   Trash2,
   UserRound,
 } from "lucide-react";
@@ -19,12 +20,14 @@ interface ShareMemoriesProps {
   weddingId: string;
   title?: string;
   prompt?: string;
+  showIdleSubmit?: boolean;
 }
 
 export function ShareMemories({
   weddingId,
   title = "Fotoğraf / Video Yükle",
   prompt = "Fotoğraf veya video seçin",
+  showIdleSubmit = false,
 }: ShareMemoriesProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [items, setItems] = useState<SelectedItem[]>([]);
@@ -161,6 +164,16 @@ export function ShareMemories({
                 rows={3}
               />
             </label>
+            {showIdleSubmit ? (
+              <button
+                type="button"
+                onClick={() => galleryRef.current?.click()}
+                className="memory-idle-submit"
+              >
+                <Share aria-hidden="true" />
+                Yükle ve Paylaş
+              </button>
+            ) : null}
           </div>
         )}
 

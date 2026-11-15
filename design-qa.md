@@ -292,6 +292,63 @@ final result: passed
 
 final result: blocked
 
+## Esra–Hüseyin responsive pass — 2026-11-15
+
+- Target: `/wedding/esrahuseyin`, loading and wedding idle-upload states.
+- Breakpoints implemented: phone (≤479 px), small tablet (480–719 px), tablet (720–1023 px), desktop (≥1024 px), plus short landscape loading screens.
+- Loading fix: the paired ShineQR/Çırağan artwork now fits inside an aspect-constrained centered stage instead of using a cropping `cover` treatment; progress width tracks the artwork at each viewport.
+- Wedding fix: responsive stage heights, non-cropping background sizing, content padding, typography, dividers, upload card, controls, CTA, and privacy copy.
+- Automated evidence: ESLint passed; 47 design/upload/PWA tests passed; production compilation and Next.js TypeScript phase passed.
+- Browser evidence: blocked because Computer Use reports no browser surfaces and `browser access host is unavailable`.
+- Remaining P1: visual inspection at representative 390×844, 768×1024, and 1440×900 viewports is still required.
+
+final result: blocked
+
+## Esra–Hüseyin runtime binding — 2026-11-15
+
+- Target: `http://localhost:3000/wedding/esrahuseyin`.
+- Root cause: the public API returns the historical `velvet-flow` template snapshot, so the new `romantic-ceremony` loading and wedding branches were not selected.
+- Fix: apply the explicitly requested presentation override only while rendering the `esrahuseyin` guest page; do not mutate the stored design snapshot.
+- Automated evidence: production build, ESLint, and post-build TypeScript check passed; target returned HTTP 200.
+- Browser-rendered screenshot and transition comparison remain unavailable because the browser access host is unavailable.
+
+final result: blocked
+
+## Romantic Ceremony loading split — 2026-11-15
+
+- Source visual truth: `C:/Users/onurt/Downloads/Lüks Çırağan Düğün Yükleniyor.png` (1088 × 1450 px) with transition behavior specified by the user.
+- Implementation target: `/wedding/oguz-hilal`, `romantic-ceremony` loading state.
+- Intended comparison viewport: 1088 × 1450 CSS px at device scale factor 1, loading and split-exit states.
+- Implementation screenshot: unavailable; Computer Use reported no browser surfaces and `browser access host is unavailable`.
+- Full-view and focused-region evidence: blocked because no browser-rendered capture could be produced.
+- Primary interaction intended: six-second horizontal progress fill, then center split with the top half moving upward and the bottom half moving downward over one second.
+- Console errors checked: blocked because no browser surface was available.
+- Required fidelity surfaces: artwork uses a dedicated raster matching the supplied burgundy/ivory/gold Çırağan composition; live progress geometry and transition are scoped to `romantic-ceremony`; browser typography is embedded in the artwork; responsive crop remains visually unverified.
+- Findings: [P1] Required browser-rendered source/implementation comparison and transition capture are unavailable in this session.
+- Comparison history: implementation and automated verification completed; no valid visual QA iteration was possible.
+
+final result: blocked
+
+## Romantic Ceremony wedding page — 2026-11-15
+
+- Source visual truth: `C:/Users/onurt/Downloads/Zarif Düğün Fotoğraf Paylaşım Sayfası.png` (944 × 1688 px, 1× source density).
+- Implementation target: `/wedding/oguz-hilal`, `romantic-ceremony` template.
+- Intended comparison viewport: 944 × 1688 CSS px at device scale factor 1, idle upload state.
+- Implementation screenshot: unavailable. The in-app browser host returned `browser access host is unavailable` while the existing Next.js development server was ready at port 3000.
+- Full-view comparison evidence: blocked because browser-rendered implementation capture is unavailable.
+- Focused-region comparison evidence: blocked for the same reason; header/monogram, upload card, fields, CTA, and privacy copy require a rendered comparison.
+- Primary interactions tested: component-level upload behavior is covered by `tests/uploads.test.ts`; direct browser file-picker, hover/focus, and responsive checks remain unverified.
+- Console errors checked: blocked because no browser surface was available.
+- Fonts and typography: source-matched hierarchy was implemented with the existing display and sans font tokens; browser wrapping remains unverified.
+- Spacing and layout rhythm: implemented against the 944 × 1688 source composition; browser geometry remains unverified.
+- Colors and visual tokens: burgundy, ivory, and metallic-gold values were scoped to `romantic-ceremony`.
+- Image quality and asset fidelity: dedicated generated 944 × 1688 background and transparent E/H monogram assets replace the unrelated ceremony-hall and university-logo assets.
+- Copy and content: live organization title/date/message and the existing private-upload disclosure remain dynamic.
+- Findings: [P1] Required browser-rendered source-versus-implementation comparison cannot be completed in this session.
+- Comparison history: initial implementation completed; no valid visual QA iteration was possible without a browser capture.
+
+final result: blocked
+
 ## Digital invitation catalog and studio — 2026-11-09
 
 - Added a product-style theme catalog, theme detail preview, studio transition, organization-owned gallery picker, story controls and loading/animation settings.

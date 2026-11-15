@@ -36,7 +36,8 @@ export function WeddingIntro({
   title = "",
 }: WeddingIntroProps) {
   const design = resolveDesign(savedDesign);
-  const videoAsset = isVideoIntro(design.intro)
+  const isRomanticCeremony = design.pageTemplate === "romantic-ceremony";
+  const videoAsset = !isRomanticCeremony && isVideoIntro(design.intro)
     ? videoIntroAssets[design.intro]
     : undefined;
   const palette = themes[
@@ -99,8 +100,13 @@ export function WeddingIntro({
 
   useEffect(() => {
     if (phase !== "playing" || finished) return;
-    if (!isVideoIntro(design.intro)) {
-      const duration = design.intro === "fade" ? 1800 : 6000;
+    if (isRomanticCeremony || !isVideoIntro(design.intro)) {
+      const duration =
+        design.pageTemplate === "romantic-ceremony"
+          ? 6000
+          : design.intro === "fade"
+            ? 1800
+            : 6000;
       const timer = window.setTimeout(
         () => setFinished(true),
         duration / design.speed,
@@ -115,7 +121,7 @@ export function WeddingIntro({
     // Covers a failed download, buffering or a browser that never fires ended.
     const timer = window.setTimeout(() => setFinished(true), 15000);
     return () => clearTimeout(timer);
-  }, [phase, finished, design.intro, design.speed]);
+  }, [phase, finished, design.intro, design.pageTemplate, design.speed, isRomanticCeremony]);
 
   useEffect(() => {
     if (finished) videoRef.current?.pause();
@@ -126,9 +132,12 @@ export function WeddingIntro({
 
   useEffect(() => {
     if (phase !== "leaving") return;
-    const timer = window.setTimeout(() => setPhase("done"), 400);
+    const timer = window.setTimeout(
+      () => setPhase("done"),
+      design.pageTemplate === "romantic-ceremony" ? 1100 : 400,
+    );
     return () => clearTimeout(timer);
-  }, [phase]);
+  }, [phase, design.pageTemplate]);
 
   return (
     <>
@@ -156,7 +165,7 @@ export function WeddingIntro({
                 : undefined,
             } as CSSProperties
           }
-          className={`${styles.intro} ${phase === "leaving" ? styles.leaving : ""}`}
+          className={`${styles.intro} ${design.pageTemplate === "romantic-ceremony" ? styles.romanticIntro : ""} ${phase === "leaving" ? styles.leaving : ""}`}
           data-intro={design.intro}
           aria-label="Davetinize hoş geldiniz"
           onKeyDown={(event) => {
@@ -185,7 +194,12 @@ export function WeddingIntro({
               <div className={styles.poster} />
             ) : (
               phase !== "checking" && (
-                <OpeningScene design={design} title={title} still={finished} />
+                <OpeningScene
+                  design={design}
+                  title={title}
+                  still={finished}
+                  leaving={phase === "leaving"}
+                />
               )
             )}
             {videoAsset && phase !== "checking" && !finished && (

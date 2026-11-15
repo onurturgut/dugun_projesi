@@ -40,15 +40,29 @@ function WeddingExperience({ slug }: { slug: string }) {
   if (isError || !data)
     return <WeddingContent data={data} isError={isError} />;
 
+  // This public event has an explicitly approved bespoke presentation. Keep
+  // the stored design snapshot untouched and apply the override only while
+  // rendering its guest-facing page.
+  const presentationData =
+    slug === "esrahuseyin"
+      ? {
+          ...data,
+          design: {
+            ...resolveDesign(data.design),
+            pageTemplate: "romantic-ceremony" as const,
+          },
+        }
+      : data;
+
   return (
     <WeddingIntro
-      design={data.design}
-      title={data.title}
+      design={presentationData.design}
+      title={presentationData.title}
       ready
       failed={false}
-      coverSrc={data.cover_images?.[0] || "/covers/couple-1.jpg"}
+      coverSrc={presentationData.cover_images?.[0] || "/covers/couple-1.jpg"}
     >
-      <WeddingContent data={data} isError={false} />
+      <WeddingContent data={presentationData} isError={false} />
     </WeddingIntro>
   );
 }
@@ -98,6 +112,7 @@ function WeddingContent({
           weddingId={data.id}
           title={design.uploadTitle}
           prompt={design.uploadPrompt}
+          showIdleSubmit={design.pageTemplate === "romantic-ceremony"}
         />
       ) : (
         <div className="mx-auto mb-16 max-w-xl rounded-2xl border border-white/40 p-6 text-center text-white/75">

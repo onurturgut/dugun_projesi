@@ -8,12 +8,33 @@ export function OpeningScene({
   design,
   title,
   still = false,
+  leaving = false,
 }: {
   design: WeddingDesign;
   title: string;
   still?: boolean;
+  leaving?: boolean;
 }) {
   const palette = themes[design.theme];
+  if (design.pageTemplate === "romantic-ceremony") {
+    return (
+      <div
+        className={`${styles.ciraganScene} ${still ? styles.ciraganStill : ""} ${leaving ? styles.ciraganLeaving : ""}`}
+        style={{ "--scene-duration": `${6 / design.speed}s` } as CSSProperties}
+        aria-hidden="true"
+      >
+        <div className={`${styles.ciraganPanel} ${styles.ciraganTop}`}>
+          <div className={styles.ciraganArtwork} />
+        </div>
+        <div className={`${styles.ciraganPanel} ${styles.ciraganBottom}`}>
+          <div className={styles.ciraganArtwork} />
+        </div>
+        <div className={styles.ciraganProgress}>
+          <span><i /></span>
+        </div>
+      </div>
+    );
+  }
   if (design.intro === "campus") {
     return (
       <div

@@ -1530,7 +1530,7 @@
 }
 
 .templatePage[data-wedding-template="romantic-ceremony"] .shell {
-  width: min(100%, 560px);
+  width: min(100%, 944px);
   max-width: 100%;
   background: #f4eadf;
 }
@@ -1545,27 +1545,26 @@
   isolation: isolate;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100svh;
-  padding: clamp(74px, 10svh, 106px) 20px max(24px, env(safe-area-inset-bottom));
+  min-height: max(100svh, 1688px);
+  padding: clamp(76px, 7.7vw, 112px) clamp(34px, 12vw, 112px) 220px;
   overflow: hidden;
-  background: #f4eadf url("/wedding-designs/romantic-ceremony-background.webp") center / cover no-repeat;
+  background: #f4eadf url("/wedding-designs/romantic-ceremony-luxury-background.png") top center / 100% auto no-repeat;
   color: #4b1a18;
 }
 
 .romanticCeremonyCopy {
   position: relative;
   z-index: 1;
-  width: min(88%, 460px);
+  width: min(100%, 700px);
   margin-inline: auto;
   text-align: center;
   text-shadow: 0 1px 7px rgb(255 250 240 / 90%);
 }
 
 .romanticCeremonyLogo {
-  width: clamp(118px, 29vw, 160px);
+  width: clamp(170px, 27vw, 250px);
   height: auto;
-  margin: 0 auto clamp(24px, 4svh, 42px);
+  margin: 0 auto clamp(20px, 2.2vw, 30px);
   object-fit: contain;
 }
 
@@ -1573,38 +1572,28 @@
   margin: 0;
   color: #7c1023;
   font-family: var(--font-display), Georgia, serif;
-  font-size: clamp(2.35rem, 10vw, 3.8rem);
+  font-size: clamp(2.65rem, 7.2vw, 4.65rem);
   font-style: italic;
   font-weight: 500;
-  line-height: .92;
+  line-height: .98;
 }
 
 .romanticCeremonyCopy time {
   display: block;
-  margin-top: 13px;
-  font-size: .7rem;
+  margin-top: 22px;
+  font-size: clamp(.72rem, 1.7vw, 1.08rem);
   font-weight: 700;
-  letter-spacing: .14em;
+  letter-spacing: .28em;
   text-transform: uppercase;
 }
 
 .romanticCeremonyCopy p {
   max-width: 25rem;
-  margin: 12px auto 0;
+  margin: 27px auto 0;
   font-family: var(--font-display), Georgia, serif;
-  font-size: clamp(1.05rem, 4vw, 1.35rem);
-  line-height: 1.22;
-  text-transform: uppercase;
-}
-
-.romanticCeremonyCopy > strong {
-  display: block;
-  margin-top: 16px;
-  font-family: var(--font-display), Georgia, serif;
-  font-size: .74rem;
-  font-weight: 500;
-  letter-spacing: .32em;
-  text-transform: uppercase;
+  font-size: clamp(1.18rem, 3.2vw, 1.82rem);
+  font-style: italic;
+  line-height: 1.2;
 }
 
 .romanticCeremonyDivider {
@@ -1612,12 +1601,12 @@
   align-items: center;
   justify-content: center;
   gap: 18px;
-  margin-top: 16px;
-  color: #92132b;
+  margin-top: 24px;
+  color: #b37a26;
 }
 
 .romanticCeremonyDivider i {
-  width: 72px;
+  width: clamp(72px, 14vw, 122px);
   height: 1px;
   background: currentColor;
 }
@@ -1626,12 +1615,12 @@
   position: relative;
   z-index: 2;
   width: 100%;
-  margin-top: clamp(28px, 4.5svh, 48px);
+  margin-top: clamp(30px, 4vw, 44px);
 }
 
 .romanticCeremonyUpload > :global(section) {
   box-sizing: border-box;
-  width: min(100%, 35rem);
+  width: min(100%, 45rem);
   max-width: 100%;
   margin-inline: auto;
   padding: 0;
@@ -1639,9 +1628,11 @@
 
 .romanticCeremonyUpload :global(.memory-upload-card) {
   overflow: hidden;
-  border: 1px solid rgb(139 16 40 / 24%);
-  background: rgb(255 249 242 / 90%);
-  box-shadow: 0 22px 52px rgb(74 38 28 / 18%), inset 0 1px 0 rgb(255 255 255 / 84%);
+  border: 2px solid #d6a959;
+  border-radius: 48px;
+  padding: clamp(24px, 4vw, 38px);
+  background: rgb(255 247 240 / 82%);
+  box-shadow: 0 22px 52px rgb(74 38 28 / 22%), inset 0 1px 0 rgb(255 255 255 / 94%);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -1649,8 +1640,8 @@
 .romanticCeremonyUpload :global(.memory-dropzone) {
   min-height: 240px;
   padding: 28px 16px;
-  border: 1px dashed rgb(76 60 52 / 48%);
-  border-radius: 18px;
+  border: 1px dashed #6b302d;
+  border-radius: 24px;
   outline: 0;
   background: rgb(255 251 245 / 54%);
   box-shadow: none;
@@ -1661,7 +1652,7 @@
   height: 68px;
   color: #8b1028;
   border: 0;
-  background: rgb(139 16 40 / 7%);
+  background: transparent;
 }
 
 .romanticCeremonyUpload :global(.memory-upload-icon svg) {
@@ -1670,55 +1661,222 @@
 }
 
 .romanticCeremonyUpload :global(.memory-dropzone > span.font-display) {
-  color: #251914;
+  color: #5c1719;
+  font-family: var(--font-sans);
+  font-size: clamp(1.15rem, 3vw, 1.62rem);
+  font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
 }
 
 .romanticCeremonyUpload :global(.memory-dropzone > span.font-display:last-child) {
-  color: rgb(37 25 20 / 48%);
+  color: #765a4d;
+  font-size: clamp(.9rem, 2.2vw, 1.15rem);
+  font-weight: 400;
 }
 
 .romanticCeremonyUpload :global(.memory-field input),
 .romanticCeremonyUpload :global(.memory-field textarea) {
-  border-color: rgb(139 16 40 / 20%);
-  border-radius: 14px;
+  min-height: 68px;
+  border: 2px solid #dbc5b8;
+  border-radius: 17px;
   background: rgb(255 251 246 / 84%);
   color: #49171d;
-  box-shadow: none;
+  padding-left: 66px;
+  font-size: 1rem;
+  box-shadow: inset 0 1px 4px rgb(92 23 25 / 5%);
+}
+
+.romanticCeremonyUpload :global(.memory-field textarea) {
+  min-height: 120px;
+  padding-top: 23px;
+}
+
+.romanticCeremonyUpload :global(.memory-field) {
+  position: relative;
 }
 
 .romanticCeremonyUpload :global(.memory-field > svg) {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  z-index: 1;
+  width: 27px;
+  height: 27px;
   color: #8b1028;
+}
+
+.romanticCeremonyUpload :global(.memory-idle-submit) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 72px;
+  width: 100%;
+  margin-top: 26px;
+  border-radius: 18px;
+  background: linear-gradient(100deg, #641019, #8d1821 52%, #681018);
+  color: #fff8f2;
+  font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+  font-weight: 600;
+  box-shadow: 0 10px 20px rgb(91 15 23 / 18%);
+}
+
+.romanticCeremonyUpload :global(.memory-idle-submit svg) {
+  width: 28px;
+  height: 28px;
 }
 
 .romanticCeremonyUpload :global(.memory-upload-card > p:last-child) {
   display: flex;
-  color: rgb(73 23 29 / 66%);
+  max-width: 520px;
+  margin-inline: auto;
+  color: #4b2723;
+  font-size: .8rem;
+  line-height: 1.35;
 }
 
 @media (max-width: 479px) {
   .romanticCeremonyStage {
-    padding: clamp(54px, 8svh, 76px) 12px 18px;
+    min-height: max(100svh, 940px);
+    padding: 46px 16px 108px 42px;
+    background-size: 100% 100%;
   }
 
   .romanticCeremonyLogo {
-    width: clamp(104px, 27vw, 132px);
-    margin-bottom: 20px;
+    width: clamp(128px, 40vw, 150px);
+    margin-bottom: 12px;
   }
 
-  .romanticCeremonyCopy > strong {
-    font-size: .64rem;
-    letter-spacing: .25em;
+  .romanticCeremonyCopy h1 {
+    font-size: clamp(1.9rem, 9.4vw, 2.65rem);
+    line-height: 1;
+  }
+
+  .romanticCeremonyCopy time {
+    margin-top: 14px;
+    font-size: .68rem;
+    letter-spacing: .18em;
+  }
+
+  .romanticCeremonyCopy p {
+    margin-top: 18px;
+    font-size: clamp(1rem, 5vw, 1.28rem);
+  }
+
+  .romanticCeremonyDivider {
+    gap: 11px;
+    margin-top: 18px;
+  }
+
+  .romanticCeremonyDivider i {
+    width: min(22vw, 72px);
+  }
+
+  .romanticCeremonyUpload {
+    margin-top: 24px;
   }
 
   .romanticCeremonyUpload :global(.memory-dropzone) {
-    min-height: 210px;
+    min-height: 174px;
+    padding: 20px 12px;
   }
 
+  .romanticCeremonyUpload :global(.memory-upload-icon) {
+    width: 52px;
+    height: 52px;
+  }
+
+  .romanticCeremonyUpload :global(.memory-upload-icon svg) {
+    width: 32px;
+    height: 32px;
+  }
+
+  .romanticCeremonyUpload :global(.memory-upload-card) {
+    border-radius: 26px;
+    padding: 14px;
+  }
+
+  .romanticCeremonyUpload :global(.memory-field input),
+  .romanticCeremonyUpload :global(.memory-field textarea) {
+    padding-left: 54px;
+    font-size: .88rem;
+  }
+
+  .romanticCeremonyUpload :global(.memory-field > svg) {
+    left: 17px;
+    width: 23px;
+    height: 23px;
+  }
+
+  .romanticCeremonyUpload :global(.memory-idle-submit) {
+    min-height: 58px;
+    gap: 12px;
+    margin-top: 18px;
+    border-radius: 14px;
+  }
+
+  .romanticCeremonyUpload :global(.memory-upload-card > p:last-child) {
+    align-items: flex-start;
+    font-size: .68rem;
+    text-align: left;
+  }
 }
 
-@media (min-width: 720px) {
+@media (min-width: 480px) and (max-width: 719px) {
+  .romanticCeremonyStage {
+    min-height: 1180px;
+    padding: 62px 46px 150px 76px;
+    background-size: 100% 100%;
+  }
+
+  .romanticCeremonyLogo {
+    width: 185px;
+  }
+
+  .romanticCeremonyCopy h1 {
+    font-size: clamp(2.7rem, 8vw, 3.4rem);
+  }
+
+  .romanticCeremonyUpload :global(.memory-upload-card) {
+    border-radius: 38px;
+    padding: 26px;
+  }
+}
+
+@media (min-width: 720px) and (max-width: 1023px) {
+  .templatePage[data-wedding-template="romantic-ceremony"] {
+    padding: 20px;
+  }
+
+  .templatePage[data-wedding-template="romantic-ceremony"] .shell {
+    border: 1px solid rgb(255 255 255 / 45%);
+    border-radius: 30px;
+    overflow: hidden;
+    box-shadow: 0 34px 90px rgb(66 11 23 / 38%);
+  }
+
+  .romanticCeremonyStage {
+    min-height: 1380px;
+    padding: 84px 74px 180px 104px;
+    background-size: 100% 100%;
+  }
+
+  .romanticCeremonyLogo {
+    width: 220px;
+  }
+
+  .romanticCeremonyCopy h1 {
+    font-size: clamp(3.2rem, 7vw, 4rem);
+  }
+
+  .romanticCeremonyUpload :global(.memory-upload-card) {
+    border-radius: 44px;
+    padding: 34px;
+  }
+}
+
+@media (min-width: 1024px) {
   .templatePage[data-wedding-template="romantic-ceremony"] {
     padding-block: 24px;
   }
@@ -1731,7 +1889,7 @@
   }
 
   .romanticCeremonyStage {
-    min-height: calc(100dvh - 48px);
+    min-height: 1688px;
   }
 }
 
