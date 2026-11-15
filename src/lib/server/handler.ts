@@ -194,6 +194,11 @@ import {
   verifyTotp,
 } from "./totp";
 import { integrationReadiness } from "@/lib/integrations";
+import {
+  directUploadObjectInput,
+  directUploadPresignOptions,
+} from "@/lib/upload-signing";
+import { SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES } from "@/lib/upload-fallback";
 const addOnEffectValues: Record<
   NonNullable<AddOnProduct["effect_type"]>,
   readonly number[]
@@ -10916,13 +10921,14 @@ export async function handle(
       );
       const url = await getSignedUrl(
         client,
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          ContentType: data.mime_type,
-          ContentLength: data.size_bytes,
-        }),
-        { expiresIn: seconds },
+        new PutObjectCommand(
+          directUploadObjectInput({
+            bucket,
+            key,
+            contentType: data.mime_type,
+          }),
+        ),
+        directUploadPresignOptions(seconds),
       );
       const knownCode: PackageCode =
         event.package_code === "plan-2" || event.package_code === "plan-3"
@@ -11006,11 +11012,11 @@ export async function handle(
         !t.mime_type?.startsWith("image/") ||
         !Number.isSafeInteger(t.size_bytes) ||
         t.size_bytes <= 0 ||
-        t.size_bytes > 4 * 1024 * 1024
+        t.size_bytes > SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES
       )
         throw new HttpError(
           413,
-          "Yedek yükleme yalnızca 4 MB ve altındaki fotoğraflar içindir.",
+          "Yedek yükleme yalnızca 4,3 MB ve altındaki fotoğraflar içindir.",
         );
       const event = await weddings.findOne({ id: t.weddingId });
       if (!event || !uploadsOpenForRuntime(event))

@@ -156,14 +156,14 @@ export function buildUploadCompletePayload(
   };
 }
 
-function uploadStageError(stage: string, error: unknown) {
+function uploadStageError(stage: string, code: string, error: unknown) {
   const detail =
     error instanceof Error ? error.message : "Bilinmeyen ağ hatası.";
   if (/failed to fetch|networkerror|load failed/i.test(detail))
     return new Error(
-      `${stage} sırasında sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.`,
+      `[${code}_NETWORK] ${stage} sırasında sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.`,
     );
-  return new Error(`${stage}: ${detail}`);
+  return new Error(`[${code}] ${stage}: ${detail}`);
 }
 
 async function directUpload(
@@ -186,35 +186,41 @@ async function directUpload(
         ? resolve()
         : reject(
             new Error(
-              `Doğrudan depolama yüklemesi reddedildi (HTTP ${xhr.status}).`,
+              `[R2_HTTP_${xhr.status}] Doğrudan depolama yüklemesi reddedildi (HTTP ${xhr.status}).`,
             ),
           );
     xhr.onerror = () =>
       reject(
         new Error(
-          "Doğrudan depolama bağlantısı kurulamadı (durum 0). Android'de Chrome'u güncelleyip VPN, Özel DNS ve veri tasarrufunu kapatarak tekrar deneyin.",
+          "[R2_NETWORK] Doğrudan depolama bağlantısı kurulamadı (durum 0). Android'de Chrome'u güncelleyip VPN, Özel DNS ve veri tasarrufunu kapatarak tekrar deneyin.",
         ),
       );
-    xhr.ontimeout = () => reject(new Error("Doğrudan depolama zaman aşımı."));
+    xhr.ontimeout = () =>
+      reject(new Error("[R2_TIMEOUT] Doğrudan depolama zaman aşımı."));
     xhr.send(file);
   });
 }
 
 async function sameOriginPhotoUpload(ticket: string, file: File, mime: string) {
-  const response = await fetch("/api/uploads/proxy", {
-    method: "PUT",
-    headers: {
-      "Content-Type": mime,
-      "X-Upload-Ticket": ticket,
-    },
-    body: file,
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/uploads/proxy", {
+      method: "PUT",
+      headers: {
+        "Content-Type": mime,
+        "X-Upload-Ticket": ticket,
+      },
+      body: file,
+    });
+  } catch (error) {
+    throw uploadStageError("Yedek fotoğraf yükleme", "PROXY", error);
+  }
   const result = await response.json().catch(() => ({}));
   if (!response.ok)
     throw new Error(
       typeof result.error === "string"
-        ? result.error
-        : "Yedek fotoğraf yüklemesi başarısız.",
+        ? `[PROXY_HTTP_${response.status}] ${result.error}`
+        : `[PROXY_HTTP_${response.status}] Yedek fotoğraf yüklemesi başarısız.`,
     );
 }
 
@@ -265,7 +271,7 @@ export async function uploadItem(
         ),
       });
     } catch (error) {
-      throw uploadStageError("Yükleme başlatma", error);
+      throw uploadStageError("Yükleme başlatma", "SIGN", error);
     }
     try {
       await directUpload(signed.url, item.file, mime, onProgress);
@@ -291,7 +297,7 @@ export async function uploadItem(
         body: JSON.stringify(buildUploadCompletePayload(signed.ticket, guest)),
       });
     } catch (error) {
-      throw uploadStageError("Yüklemeyi tamamlama", error);
+      throw uploadStageError("Yüklemeyi tamamlama", "COMPLETE", error);
     }
     onProgress(100);
     return { ok: true };

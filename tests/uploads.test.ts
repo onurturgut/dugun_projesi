@@ -11,6 +11,10 @@ import {
   canUseSameOriginPhotoFallback,
   SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES,
 } from "../src/lib/upload-fallback";
+import {
+  directUploadObjectInput,
+  directUploadPresignOptions,
+} from "../src/lib/upload-signing";
 
 test("professional folder validation avoids creating memory-heavy previews", () => {
   const files = [
@@ -66,6 +70,24 @@ test("same-origin fallback is restricted to small photos", () => {
     canUseSameOriginPhotoFallback({ kind: "photo", size: 0 }),
     false,
   );
+});
+
+test("direct R2 upload signs content type without signing content length", () => {
+  const input = directUploadObjectInput({
+    bucket: "wedding-media",
+    key: "weddings/event/file",
+    contentType: "image/jpeg",
+  });
+  const options = directUploadPresignOptions(900);
+
+  assert.deepEqual(input, {
+    Bucket: "wedding-media",
+    Key: "weddings/event/file",
+    ContentType: "image/jpeg",
+  });
+  assert.equal("ContentLength" in input, false);
+  assert.deepEqual([...options.signableHeaders], ["content-type"]);
+  assert.equal(options.expiresIn, 900);
 });
 
 test("Android-compatible session id fallback creates an RFC 4122 UUID", () => {
