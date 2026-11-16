@@ -13,7 +13,7 @@
 }
 .hero h1,
 .detail h1 {
-  font-family: Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(2.8rem, 5vw, 5.6rem);
   line-height: 0.98;
   letter-spacing: -0.055em;
@@ -99,7 +99,7 @@
   margin: 8px 0;
 }
 .sectionHeading > span {
-  color: #777d8d;
+  color: #626978;
 }
 .grid {
   display: grid;
@@ -146,7 +146,7 @@
 .cardTitle p,
 .cardBody > p {
   margin: 3px 0 0;
-  color: #73798a;
+  color: #626978;
   line-height: 1.5;
 }
 .logoBox,

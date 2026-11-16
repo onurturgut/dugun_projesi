@@ -67,12 +67,6 @@ export default function Password() {
         {partnerOwner ? (
           <a href="#business-settings">İşletme ayarları</a>
         ) : null}
-        {partnerOwner ? (
-          <>
-            <a href="#storefront-settings">Dijital mağaza</a>
-            <a href="#catalog-settings">Ürün ve hizmetler</a>
-          </>
-        ) : null}
       </nav>
       <div id="profile-security" />
       <div className="account-settings-grid">

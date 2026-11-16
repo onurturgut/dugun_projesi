@@ -12,7 +12,10 @@ node_modules/
 .codex-build/
 .env*
 !.env.example
+!.env.integrations.example
 *.tsbuildinfo
+test-results/
+playwright-report/
 
 # Generated design exports and local work files
 output/

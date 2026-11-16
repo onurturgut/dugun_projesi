@@ -30,6 +30,7 @@ import {
   QrCode,
   Share2,
   BookOpenText,
+  Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Account } from "@/lib/api";
@@ -208,6 +209,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               ...(!me.data?.staff_role || me.data.staff_role === "partner_owner"
                 ? [
                     {
+                      href: "/admin/storefront",
+                      label: "Dijital mağaza",
+                      icon: Store,
+                    },
+                    {
                       href: "/admin/photographers",
                       label: "Fotoğrafçılar",
                       icon: Camera,
@@ -245,7 +251,19 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     me.data?.role === "platform"
       ? "Platform yönetimi"
       : me.data?.role === "partner"
-        ? "Partner paneli"
+        ? me.data.business_types?.includes("photography")
+          ? "Fotoğrafçı paneli"
+          : me.data.business_types?.includes("venue")
+            ? "Düğün salonu paneli"
+            : me.data.business_types?.includes("planner")
+              ? "Organizasyon paneli"
+              : me.data.business_types?.includes("print_vendor")
+                ? "Baskı paneli"
+                : me.data.business_types?.includes("bridal")
+                  ? "Gelinlik paneli"
+                  : me.data.business_types?.includes("florist")
+                    ? "Çiçekçi paneli"
+                    : "İşletme paneli"
         : "Müşteri paneli";
 
   const SidebarContent = () => (
@@ -462,7 +480,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </details>
           </div>
         </header>
-        <main id="admin-content" className="admin-main">
+        <main id="admin-content" className="admin-main" tabIndex={-1}>
           {children}
         </main>
       </div>

@@ -107,6 +107,7 @@ export async function session() {
     ...user,
     partner_name: partner?.name || "ShineQR Platform",
     partner_logo_url: partner?.logo_url || "",
+    business_types: partner?.business_types || [],
     theme: user.theme || "light",
     ...(preview
       ? {

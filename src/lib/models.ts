@@ -245,6 +245,7 @@ export interface Account {
   mfa_enabled?: boolean;
   partner_name?: string;
   partner_logo_url?: string;
+  business_types?: BusinessType[];
   theme?: "light" | "dark" | "system";
   media_permissions?: MediaPermissions;
   staff_role?: StaffRole;
@@ -443,6 +444,72 @@ export interface PaymentRecord {
   paid_at: string;
   recorded_at: string;
   recorded_by: string;
+}
+export interface PaymentIntentRecord {
+  id: string;
+  idempotency_key: string;
+  partner_id: string;
+  wedding_id: string;
+  sale_id: string;
+  customer_account_id: string;
+  provider: string;
+  provider_intent_id?: string | null;
+  status:
+    | "created"
+    | "requires_action"
+    | "processing"
+    | "succeeded"
+    | "failed"
+    | "cancelled";
+  amount_cents: number;
+  currency: "TRY";
+  return_url: string;
+  failure_code?: string | null;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+}
+export interface IntegrationOutboxEvent {
+  id: string;
+  idempotency_key: string;
+  capability: "payment" | "banking" | "sms" | "whatsapp" | "email" | "calendar" | "accounting";
+  provider: string;
+  event_type: string;
+  tenant_id: string | null;
+  aggregate_id: string;
+  payload: Record<string, unknown>;
+  status: "pending" | "processing" | "delivered" | "retry_scheduled" | "dead_letter";
+  attempt_count: number;
+  max_attempts: number;
+  available_at: string;
+  expires_at?: string | null;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  delivered_at?: string | null;
+  last_error_code?: string | null;
+  provider_reference?: string | null;
+  provider_accepted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface ProviderWebhookEvent {
+  id: string;
+  provider: string;
+  provider_event_id: string;
+  capability: "payment" | "banking" | "sms" | "whatsapp" | "email" | "calendar" | "accounting";
+  event_type: string;
+  signature_verified: boolean;
+  status: "received" | "processing" | "processed" | "ignored" | "retry_scheduled" | "dead_letter";
+  payload_sha256: string;
+  normalized_payload: Record<string, unknown>;
+  attempt_count: number;
+  max_attempts: number;
+  available_at: string;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  received_at: string;
+  processed_at?: string | null;
+  error_code?: string | null;
 }
 export interface AccountingDocument {
   id: string;

@@ -71,6 +71,25 @@ select {
 :root {
   --radius: 0.75rem;
 
+  /* ShineQR V4 brand contract: public site and every role panel consume these tokens. */
+  --brand-canvas: #faf8f4;
+  --brand-surface: #ffffff;
+  --brand-raised: #f3eee7;
+  --brand-border: #e8e2da;
+  --brand-ink: #211c1b;
+  --brand-muted: #756e69;
+  --brand-accent: #b88a48;
+  --brand-accent-text: #79561f;
+  --brand-strong: #650d1c;
+  --brand-canvas-dark: #111315;
+  --brand-surface-dark: #191c1f;
+  --brand-raised-dark: #23272b;
+  --brand-border-dark: #ffffff1a;
+  --brand-ink-dark: #f2efe9;
+  --brand-muted-dark: #a7adb2;
+  --brand-accent-dark: #c3a46b;
+  --brand-accent-text-dark: #c3a46b;
+
   --background: oklch(0.169 0.004 67);
   --surface: oklch(0.216 0.006 67);
   --foreground: oklch(0.968 0.008 88);
@@ -537,7 +556,7 @@ select {
 .consent-panel { position:fixed; z-index:1000; right:20px; bottom:20px; left:20px; display:flex; align-items:center; justify-content:space-between; gap:24px; max-width:1100px; margin:auto; padding:20px 22px; border:1px solid color-mix(in srgb, #b98a3d 45%, transparent); border-radius:18px; background:#171510f2; color:#f8f1e4; box-shadow:0 24px 70px #0008; backdrop-filter:blur(18px); }
 .consent-panel strong { display:block; margin-bottom:5px; font-size:1rem; }
 .consent-panel p { max-width:720px; margin:0; color:#d7cbb8; font-size:.82rem; line-height:1.55; }
-.consent-panel a { color:#eac37d; }
+.consent-panel a { color:#f2cc8b; text-decoration:underline; text-underline-offset:3px; }
 .consent-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .consent-actions button,.consent-reopen { min-height:40px; border:1px solid #8b7049; border-radius:10px; background:#221e18; padding:8px 13px; color:#f8f1e4; cursor:pointer; }
 .consent-actions .primary { background:#c99a4b; color:#17120b; }

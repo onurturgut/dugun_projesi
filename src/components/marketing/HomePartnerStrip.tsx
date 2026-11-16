@@ -11,17 +11,28 @@ export function HomePartnerStrip() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      if (active) setPartners([]);
+      controller.abort();
+    }, 8_000);
     fetch("/api/partners", { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Partnerler yüklenemedi.");
         return (await response.json()) as PublicPartner[];
       })
-      .then(setPartners)
-      .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError"))
-          setPartners([]);
-      });
-    return () => controller.abort();
+      .then((items) => {
+        if (active) setPartners(items);
+      })
+      .catch(() => {
+        if (active) setPartners([]);
+      })
+      .finally(() => window.clearTimeout(timeout));
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, []);
 
   return (

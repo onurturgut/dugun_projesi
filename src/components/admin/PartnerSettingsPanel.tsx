@@ -20,8 +20,6 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { PartnerSettings } from "@/lib/models";
 import { Notice } from "./Fields";
-import { StorefrontSettingsPanel } from "./StorefrontSettingsPanel";
-import { StorefrontCatalogPanel } from "./StorefrontCatalogPanel";
 
 const notices: Record<keyof PartnerSettings["notifications"], string> = {
   approval_updates: "Organizasyon onay ve düzeltme güncellemeleri",
@@ -49,9 +47,23 @@ export function PartnerSettingsPanel() {
         items: Array<{
           capability: string;
           provider: string | null;
-          status: "ready" | "incomplete" | "not_configured";
+          status: "ready" | "incomplete" | "adapter_unavailable" | "not_configured";
         }>;
       }>("/admin/integrations/readiness"),
+  });
+  const outbox = useQuery({
+    queryKey: ["integration-outbox-summary"],
+    queryFn: () =>
+      api<{
+        counts: Record<
+          | "pending"
+          | "processing"
+          | "delivered"
+          | "retry_scheduled"
+          | "dead_letter",
+          number
+        >;
+      }>("/admin/integrations/outbox"),
   });
   useEffect(() => {
     if (settings.data) setForm(settings.data);
@@ -124,8 +136,6 @@ export function PartnerSettingsPanel() {
           bildirimlerini yönetin.
         </p>
       </div>
-      <StorefrontSettingsPanel />
-      <StorefrontCatalogPanel />
       <section className="admin-panel partner-settings-section">
         <header>
           <Building2 size={21} />
@@ -599,14 +609,18 @@ export function PartnerSettingsPanel() {
             <strong>Entegrasyonlar</strong>
             <small>
               {integrations.data
-                ? `${integrations.data.items.filter((item) => item.status === "ready").length}/${integrations.data.items.length} sağlayıcı kullanıma hazır. Dış işlemler insan onayı olmadan açılmaz.`
+                ? `${integrations.data.items.filter((item) => item.status === "ready").length}/${integrations.data.items.length} sağlayıcı hazır, ${integrations.data.items.filter((item) => item.status === "adapter_unavailable").length} adapter bekliyor. Kuyruk: ${outbox.data?.counts.pending || 0}, tekrar: ${outbox.data?.counts.retry_scheduled || 0}, dead-letter: ${outbox.data?.counts.dead_letter || 0}.`
                 : "Sağlayıcı hazırlık durumu kontrol ediliyor."}
             </small>
           </span>
           <em>
-            {integrations.data?.items.some((item) => item.status === "ready")
-              ? "Hazırlanıyor"
-              : "Bağlı değil"}
+            {integrations.data?.external_actions_enabled
+              ? "Bağlı"
+              : integrations.data?.items.some(
+                    (item) => item.status === "adapter_unavailable",
+                  )
+                ? "Adapter bekliyor"
+                : "Bağlı değil"}
           </em>
         </article>
       </section>

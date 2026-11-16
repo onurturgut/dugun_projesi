@@ -153,10 +153,10 @@ No  Asama                              Durum       Ilerleme  Aciklama
 20  Isletme hesap ayarlari             [KISMI]       %55     Profil, marka, takvim, ekip,
                                                               finans, guvenlik ve entegrasyon.
 
-21  Rol bazli panel tasarimlari        [KISMI]       %60     Super admin, isletme, fotografci,
+21  Rol bazli panel tasarimlari        [TAMAM]      %100     Super admin, isletme, fotografci,
                                                               baskici, salon ve misafir panelleri.
 
-22  Responsive ve erisilebilirlik      [KISMI]       %65     Mobil duzen, odak, kontrast ve
+22  Responsive ve erisilebilirlik      [TAMAM]      %100     Mobil duzen, odak, kontrast ve
                                                               tum durum ekranlari.
 
 23  Harici entegrasyonlar              [PLAN]        %10     SMS, WhatsApp, e-posta, takvim
@@ -378,3 +378,149 @@ Sonuc:
 - Rollback calistirilmadi; backup kayitlari ve rollback betigi korunuyor.
 
 P0 durumu: TAMAMLANDI VE VERITABANINA UYGULANDI.
+
+
+15 KASIM 2026 - V4 ROL PANELI, ENTEGRASYON RUNTIME VE QA
+========================================================
+
+Tamamlananlar:
+- Fotografci, dugun salonu, organizasyon, baskici, gelinlik, cicekci,
+  superadmin ve organizasyon sahibi icin rol/isletme turune duyarlı V4 ana panel.
+- Isletme turunun oturuma sunucudan tasinmasi; yetki matrisinin degistirilmemesi.
+- Dijital magaza, CRM, operasyon ve finans/hakedis kisayollarinin rol bazli sunumu.
+- Genel site ve panel icin ortak renk/font token sozlesmesi.
+- Payment intent durum makinesi; idempotent outbox, exponential retry ve dead-letter kurali.
+- Payment intent, webhook ve outbox indeksleri icin apply/rollback migration betigi.
+- WCAG kontrast, klavye odagi, 44 px dokunma alani, reduced-motion ve responsive testleri.
+- 142/142 test, typecheck, lint ve production build basarili.
+
+Harici bagimlilik bekleyenler:
+- Gercek POS, banka, SMS, WhatsApp Business, e-posta, takvim ve muhasebe
+  adapterlari icin onayli saglayici, sandbox hesabi ve secret bulunmuyor.
+- Bu nedenle gercek webhook/sandbox ve staging kabul testleri tamamlanmis sayilamaz.
+- Telefon/tablet/masaustu otomatik ekran goruntusu baseline'lari staging ve test
+  hesaplariyla alinacak; kod seviyesindeki responsive sozlesme testleri gecmistir.
+
+Detayli kanit: docs/shineqr-v4/09-v4-role-integration-qa.md
+
+
+15 KASIM 2026 - GORSEL REGRESYON VE WCAG KABUL GUNCELLEMESI
+===========================================================
+
+Tamamlananlar:
+- Playwright Chromium telefon, tablet ve masaustu test matrisi kuruldu.
+- Anasayfa, isletme dizini, dijital davetiye galerisi, fotografci paketi ve
+  isletme onboarding icin 15 piksel baseline olusturuldu.
+- Baseline degistirilmeden yapilan regresyon kosusu 18/18 basarili.
+- Ayni ekranlar axe-core WCAG 2.2 serious/critical taramasindan gecti.
+- Testte bulunan kucuk metin, link ayrimi ve koyu zemin kontrastlari duzeltildi.
+- Outbox icin atomik claim/teslim/retry/dead-letter islemcisi ve tenant bazli
+  kuyruk gozlem endpoint'i eklendi.
+- Kart payment intent tutari satis snapshot'i ve dogrulanmis tahsilatlardan
+  sunucuda hesaplanir; intent ve outbox ayni transaction icinde olusturulur.
+- Ileri tarihli satisin ilk kart intent'i dondurulmus yuzde 20 kaporadir.
+
+Kalan:
+- Kimligi dogrulanmis rol paneli baseline'lari icin secretsiz olmayan test
+  hesaplari VISUAL_QA_ACCOUNTS_JSON uzerinden staging ortaminda saglanmali.
+- Gercek saglayici adapter ve sandbox testleri onayli servis bilgisi bekliyor.
+
+
+15 KASIM 2026 - ROL PANELI GORSEL SOZLESME GUNCELLEMESI
+=======================================================
+
+Tamamlananlar:
+- Super admin, organizasyon sahibi, fotografci, dugun salonu, organizasyon
+  firmasi, baskici, gelinlik ve cicekci icin secretsiz ve deterministik panel
+  render senaryolari eklendi.
+- Sekiz rol x telefon/tablet/masaustu olmak uzere 24 baseline olusturuldu.
+- Baseline degistirilmeden ikinci regresyon kosusu 24/24 basarili oldu.
+- Tum 24 senaryo axe WCAG 2.2 serious/critical taramasindan gecti.
+- Eski acik tema renk override'i merkezi marka tokenlariyla birlestirildi.
+- Kucuk vurgu metinleri icin AA uyumlu brand-accent-text tokeni eklendi.
+- Test auth bypass'i varsayilan olarak kapali; yalnizca acik ortam bayragi ve
+  eslesen test basligi birlikte verildiginde calisir.
+
+Kalan harici kabul:
+- Staging uzerinde gercek rol hesaplariyla oturum ve veri entegrasyonu turu.
+- Onayli saglayici/sandbox bilgileriyle POS, banka, mesajlasma, takvim ve
+  muhasebe adapter sozlesme testleri.
+
+
+15 KASIM 2026 - OUTBOX VE KLAVYE/RESPONSIVE QA SERTLESTIRMESI
+=============================================================
+
+Tamamlananlar:
+- Outbox olayinda capability ile birlikte saglayici snapshot'i donduruldu.
+- Worker yalnizca kendi capability/saglayici kuyrugunu claim eder; adapter
+  uyusmazligi kapali-guvenli olarak retry/dead-letter akisina girer.
+- Suresi dolan processing lease'i yeniden alinabilir; gecersiz veya bos
+  saglayici makbuzu teslim edilmis sayilmaz.
+- Saglayici kapsamli kuyruk indeksi migration ve rollback tanimina eklendi.
+- 151/151 birim/sozlesme testi, lint, typecheck ve production build gecti.
+- Sekiz rol x uc viewport: 24/24 piksel regresyon, axe WCAG 2.2,
+  yatay tasma ve klavye skip-link akisi basarili.
+- Outbox worker lease sahipligini kaybederse teslim edildi sonucu uretmez.
+- Provider-neutral webhook kabul ve worker katmani eklendi: gecersiz imza red,
+  provider event idempotency, SHA-256 ham veri ozeti, sanitize normalize veri,
+  retry, lease recovery ve dead-letter akisi.
+- Webhook kuyrugu icin capability/provider kapsamli apply/rollback indeksi eklendi.
+- Guncel test sonucu 155/155 basarili.
+- Entegrasyon readiness artik yalnizca secret varligiyla ready olmaz; kodda ayni
+  capability/provider adapter kaydi da zorunludur. Adapter yoksa odeme istegi
+  kapali-guvenli bicimde 503 verir.
+- Payment intent durum sorgusu tenant ve finans yetkisiyle sinirlandirildi;
+  saglayici ic kimlikleri istemci yanitindan cikarildi.
+- Outbox ve webhook worker cron/maintenance akisina baglandi. Her kuyruk bir
+  turda en fazla 25 olay isler ve ilk idle sonucunda durur.
+- Bos adapter registry hicbir dis cagri yapmaz; odeme/banka icin outbound ve
+  webhook adapterlarinin ayni saglayici adiyla birlikte kaydi zorunludur.
+- Provider-neutral webhook HTTP rotasi eklendi. Yalnizca registry capability ve
+  provider tam eslesmesi kabul edilir; 1 MB limit, 401 imza reddi, 202 ilk kabul
+  ve idempotent 200 tekrar teslim davranisi uygulanir.
+- Webhook body okuyucusu chunked isteklerde gercek byte sayisini olcer; 1 MB
+  uzerinde stream iptal edilir ve gecersiz UTF-8 islenmez.
+- Production server smoke testinde kayitsiz payment provider webhook rotasi
+  veritabanina ulasmadan 404 dondu.
+- Payment intent expires_at degeri outbox snapshot'ina eklendi. Suresi gecmis
+  olay adapter cagrisindan once event_expired ile dead-letter olur.
+- Guncel birim ve sozlesme testi sonucu 160/160 basarili.
+
+
+16 KASIM 2026 - HESAP AYARLARI VE DIJITAL MAGAZA GORSEL QA
+==========================================================
+
+Tamamlananlar:
+- Isletme hesap ayarlari ve dijital magaza calisma alani icin acik/koyu tema,
+  telefon, tablet ve masaustu olmak uzere 12 yeni piksel baseline olusturuldu.
+- Baseline guncellenmeden ikinci regresyon kosusu 12/12 basarili oldu.
+- Tum 12 senaryo yatay tasma ve axe WCAG 2.2 serious/critical kontrolunden gecti.
+- Testte bulunan kucuk baslik, yardimci metin, ikincil guvenlik dugmesi ve
+  canli onizleme notu kontrastlari merkezi erisilebilir tokenlara baglandi.
+- Koyu temada ayar aciklamalari, birincil dugme, taslak durumu ve medya notu
+  merkezi admin tema tokenlarina tasindi.
+
+Kalan harici kabul:
+- Gercek saglayici sandbox ve staging hesaplariyla entegrasyon kabul turu.
+
+Kalan harici kabul:
+- Onayli saglayici adapter kodlari ve sandbox webhook senaryolari.
+
+16 KASIM 2026 - MERKEZI TIPOGRAFI VE TAM REGRESYON KAPISI
+=========================================================
+
+Tamamlananlar:
+- V4 admin, rol paneli, isletme ve V4 pazarlama yuzeylerindeki yerel font
+  zincirleri kaldirildi; --font-display ve --font-sans merkezi tokenlari kullanildi.
+- Merkezi font sozlesmesini koruyan yeni birim testi eklendi.
+- 24 rol paneli, 12 hesap/magaza ve 18 kamusal route olmak uzere toplam
+  54/54 Playwright senaryosu baseline degistirilmeden basarili oldu.
+- Birim ve sozlesme testleri 161/161, lint, typecheck ve production build basarili.
+
+Harici kosula bagli kalanlar:
+- Onayli saglayici, sandbox anahtari ve callback bilgileri saglanirsa gercek
+  POS, banka, mesajlasma, takvim ve muhasebe adapter kabul testleri yapilacak.
+- Staging migration/worker ve gercek hesap kabul turu insan yetkisi ve staging
+  ortami saglandiginda calistirilacak; yerel testler staging yerine gecmez.
+- Staging migration apply/rollback provasi ve gercek rol hesaplariyla manuel
+  ekran okuyucu/klavye kabul turu.

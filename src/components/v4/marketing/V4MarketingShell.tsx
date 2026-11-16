@@ -37,7 +37,11 @@ export function V4MarketingShell({
 }) {
   return (
     <V4Theme>
-      <V4Navbar items={navigation} currentPath={currentPath} ctaLabel="Hemen başla" />
+      <V4Navbar
+        items={navigation}
+        currentPath={currentPath}
+        ctaLabel="Hemen başla"
+      />
       <main>{children}</main>
       <V4Footer
         description="QR ile toplanmış anılar, profesyonel albümler ve dijital davetiyeler için yeni nesil etkinlik platformu."

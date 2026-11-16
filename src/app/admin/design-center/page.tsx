@@ -105,7 +105,9 @@ export default async function DesignCenterPage() {
     redirect("/admin");
   const isPlatform = user.role === "platform";
   const addOns = isPlatform
-    ? await (await db())
+    ? await (
+        await db()
+      )
         .collection<AddOnProduct>("add_on_products")
         .find({ active: true }, { projection: { _id: 0 } })
         .sort({ category: 1, name: 1 })
@@ -145,7 +147,11 @@ export default async function DesignCenterPage() {
         <div className="design-center__section-head">
           <div>
             <p>TASARIM KOLEKSİYONLARI</p>
-            <h2>{isPlatform ? "Yönetmek istediğiniz alanı açın" : "İncelemek istediğiniz alanı açın"}</h2>
+            <h2>
+              {isPlatform
+                ? "Yönetmek istediğiniz alanı açın"
+                : "İncelemek istediğiniz alanı açın"}
+            </h2>
           </div>
           <span>Her bölüm ayrı ayrı açılıp kapatılabilir.</span>
         </div>

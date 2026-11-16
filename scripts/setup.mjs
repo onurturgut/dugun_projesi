@@ -309,6 +309,17 @@ try {
     db.collection("archive_jobs").createIndex({ id: 1 }, { unique: true }),
     db.collection("archive_jobs").createIndex({ status: 1, created_at: 1 }),
     db.collection("archive_jobs").createIndex({ expires_at: 1 }),
+    db.collection("payment_intents").createIndex({ id: 1 }, { unique: true, name: "payment_intents_id_uq" }),
+    db.collection("payment_intents").createIndex({ idempotency_key: 1 }, { unique: true, name: "payment_intents_idempotency_uq" }),
+    db.collection("payment_intents").createIndex({ provider: 1, provider_intent_id: 1 }, { unique: true, sparse: true, name: "payment_intents_provider_uq" }),
+    db.collection("payment_intents").createIndex({ sale_id: 1, status: 1, created_at: -1 }, { name: "payment_intents_sale_status" }),
+    db.collection("integration_outbox").createIndex({ id: 1 }, { unique: true, name: "integration_outbox_id_uq" }),
+    db.collection("integration_outbox").createIndex({ idempotency_key: 1 }, { unique: true, name: "integration_outbox_idempotency_uq" }),
+    db.collection("integration_outbox").createIndex({ status: 1, available_at: 1, created_at: 1 }, { name: "integration_outbox_delivery_queue" }),
+    db.collection("integration_outbox").createIndex({ capability: 1, provider: 1, status: 1, available_at: 1, created_at: 1 }, { name: "integration_outbox_provider_queue_v2" }),
+    db.collection("integration_webhook_events").createIndex({ provider: 1, provider_event_id: 1 }, { unique: true, name: "integration_webhooks_provider_event_uq" }),
+    db.collection("integration_webhook_events").createIndex({ received_at: -1, status: 1 }, { name: "integration_webhooks_received" }),
+    db.collection("integration_webhook_events").createIndex({ capability: 1, provider: 1, status: 1, available_at: 1, received_at: 1 }, { name: "integration_webhooks_provider_queue_v2" }),
     db
       .collection("maintenance_runs")
       .createIndex({ at: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 }),

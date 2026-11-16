@@ -20,17 +20,21 @@
     "business-crm:migrate:check": "node --env-file=.env.local scripts/migrate-business-crm.mjs",
     "business-crm:migrate:apply": "node --env-file=.env.local scripts/migrate-business-crm.mjs --apply",
     "business-crm:migrate:rollback": "node --env-file=.env.local scripts/migrate-business-crm.mjs --rollback",
+    "integrations:migrate:apply": "node --env-file=.env.local scripts/migrate-integration-runtime.mjs --apply",
+    "integrations:migrate:rollback": "node --env-file=.env.local scripts/migrate-integration-runtime.mjs --rollback",
     "demo:seed": "node --env-file=.env.local scripts/seed-demo-accounts.mjs",
     "maintenance": "node --env-file=.env.local scripts/maintenance.mjs",
     "worker": "node --env-file=.env.local scripts/maintenance.mjs --watch",
     "load:seed": "node --env-file=.env.local scripts/load-seed.mjs",
     "load:test": "node --env-file=.env.local scripts/load-test.mjs",
     "load:cleanup": "node --env-file=.env.local scripts/load-cleanup.mjs",
-    "test": "node ./node_modules/tsx/dist/cli.mjs --test tests/policy.test.ts tests/design.test.ts tests/commercial-policy.test.ts tests/finance.test.ts tests/access-control.test.ts tests/print-jobs.test.ts tests/agent-config.test.ts tests/agent-report.test.ts tests/uploads.test.ts tests/pwa.test.ts tests/partner-settings.test.ts tests/current-accounts.test.ts tests/organization-sales.test.ts tests/business-directory.test.ts tests/business-catalog.test.ts tests/crm.test.ts tests/crm-quotes.test.ts tests/integrations.test.ts tests/business-crm-migration.test.mjs",
+    "test": "node ./node_modules/tsx/dist/cli.mjs --test tests/policy.test.ts tests/design.test.ts tests/commercial-policy.test.ts tests/finance.test.ts tests/access-control.test.ts tests/print-jobs.test.ts tests/agent-config.test.ts tests/agent-report.test.ts tests/uploads.test.ts tests/pwa.test.ts tests/partner-settings.test.ts tests/current-accounts.test.ts tests/organization-sales.test.ts tests/business-directory.test.ts tests/business-catalog.test.ts tests/crm.test.ts tests/crm-quotes.test.ts tests/integrations.test.ts tests/integration-events.test.ts tests/role-workspace.test.ts tests/accessibility-v4.test.ts tests/business-crm-migration.test.mjs",
     "test:integration": "node --env-file=.env.local tests/integration.mjs",
     "test:finance-integration": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/finance-integration-test.ts",
     "test:migration-rollback": "node --env-file=.env.local scripts/migration-rollback-test.mjs",
-    "test:accounting-concurrency": "node --env-file=.env.local scripts/accounting-concurrency-test.mjs"
+    "test:accounting-concurrency": "node --env-file=.env.local scripts/accounting-concurrency-test.mjs",
+    "test:e2e": "playwright test",
+    "test:visual:update": "playwright test tests/e2e/public-visual.spec.ts --update-snapshots"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.990.0",
@@ -96,7 +100,9 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/archiver": "^8.0.0",
     "@types/node": "^22.16.5",
@@ -110,6 +116,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^15.15.0",
     "opentype.js": "^2.0.0",
+    "playwright-core": "1.65.1",
     "prettier": "^3.7.3",
     "tsx": "^4.23.13",
     "typescript": "^5.8.3",

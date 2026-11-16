@@ -41,6 +41,16 @@ import { storage, deleteObject, signedObjectUrl } from "./r2";
 import { mediaResponse, zipResponse } from "./media-response";
 import { cleanup } from "./maintenance";
 import {
+  availableIntegrationProviders,
+  webhookAdapterFor,
+} from "./integration-registry";
+import { drainIntegrationQueues } from "./integration-runner";
+import { ingestIntegrationWebhook } from "@/lib/integration-webhook-runtime";
+import {
+  readUtf8BodyLimited,
+  RequestBodyTooLargeError,
+} from "@/lib/request-body";
+import {
   uploadCover,
   validateCovers,
   coverResponse,
@@ -87,6 +97,8 @@ import type {
   CrmQuote,
   CrmQuoteConversion,
   CustomerAccountRecord,
+  IntegrationOutboxEvent,
+  PaymentIntentRecord,
 } from "@/lib/models";
 import {
   organizationDepositCents,
@@ -199,6 +211,10 @@ import {
   directUploadPresignOptions,
 } from "@/lib/upload-signing";
 import { SAME_ORIGIN_PHOTO_FALLBACK_MAX_BYTES } from "@/lib/upload-fallback";
+import {
+  outboxIdempotencyKey,
+  paymentIntentAmount,
+} from "@/lib/integration-events";
 const addOnEffectValues: Record<
   NonNullable<AddOnProduct["effect_type"]>,
   readonly number[]
@@ -476,7 +492,8 @@ export async function handle(
     if (
       !["GET", "HEAD"].includes(method) &&
       req.headers.get("origin") &&
-      req.headers.get("origin") !== req.nextUrl.origin
+      req.headers.get("origin") !== req.nextUrl.origin &&
+      !route.startsWith("integrations/webhooks/")
     )
       throw new HttpError(403, "Geçersiz kaynak.");
     if (route === "maintenance" && (method === "GET" || method === "POST")) {
@@ -490,7 +507,11 @@ export async function handle(
       )
         throw new HttpError(401, "Yetkisiz işlem.");
       const result = await cleanup();
-      return json(result, result.errors.length ? 503 : 200);
+      const integrations = await drainIntegrationQueues(await db());
+      return json(
+        { ...result, integrations },
+        result.errors.length || integrations.errors.length ? 503 : 200,
+      );
     }
     if (route === "auth/logout" && method === "POST") {
       const jar = await cookies(),
@@ -513,6 +534,33 @@ export async function handle(
       jar.delete("wm_preview");
       await audit(req, "auth.logout", null);
       return json({ ok: true });
+    }
+    const integrationWebhookMatch = route.match(
+      /^integrations\/webhooks\/(payment|banking|sms|whatsapp|email|calendar|accounting)\/([a-z0-9][a-z0-9._-]{0,99})$/,
+    );
+    if (integrationWebhookMatch && method === "POST") {
+      const [, capability, provider] = integrationWebhookMatch;
+      const adapter = webhookAdapterFor(capability, provider);
+      if (!adapter) throw new HttpError(404, "Webhook sağlayıcısı etkin değil.");
+      let rawPayload: string;
+      try {
+        rawPayload = await readUtf8BodyLimited(req, 1_000_000);
+      } catch (error) {
+        if (error instanceof RequestBodyTooLargeError)
+          throw new HttpError(413, "Webhook gövdesi 1 MB sınırını aşıyor.");
+        throw new HttpError(400, "Webhook gövdesi geçerli UTF-8 değil.");
+      }
+      const result = await ingestIntegrationWebhook(
+        await db(),
+        adapter,
+        {
+          raw_payload: rawPayload,
+          headers: Object.fromEntries(req.headers.entries()),
+        },
+      );
+      if (result.status === "rejected")
+        throw new HttpError(401, "Webhook imzası doğrulanamadı.");
+      return json(result, result.status === "accepted" ? 202 : 200);
     }
     const user =
       route.startsWith("admin/") ||
@@ -1937,11 +1985,267 @@ export async function handle(
           403,
           "Entegrasyon hazırlık durumunu yalnızca yetkili yönetici görebilir.",
         );
+      const items = integrationReadiness(
+        process.env,
+        availableIntegrationProviders(),
+      );
       return json({
         generated_at: new Date().toISOString(),
-        items: integrationReadiness(),
-        external_actions_enabled: false,
+        items,
+        external_actions_enabled: items.some((item) => item.status === "ready"),
       });
+    }
+    if (route === "admin/integrations/outbox" && method === "GET" && user) {
+      if (
+        user.role !== "platform" &&
+        !accountHasPermission(user, "partner.manage_staff")
+      )
+        throw new HttpError(
+          403,
+          "Entegrasyon olaylarını yalnızca yetkili yönetici görebilir.",
+        );
+      const tenantFilter =
+        user.role === "platform" ? {} : { tenant_id: user.partner_id };
+      const outbox =
+        database.collection<IntegrationOutboxEvent>("integration_outbox");
+      const statuses: IntegrationOutboxEvent["status"][] = [
+        "pending",
+        "processing",
+        "delivered",
+        "retry_scheduled",
+        "dead_letter",
+      ];
+      const counts = Object.fromEntries(
+        await Promise.all(
+          statuses.map(async (status) => [
+            status,
+            await outbox.countDocuments({ ...tenantFilter, status }),
+          ]),
+        ),
+      );
+      const recent_dead_letters = await outbox
+        .find(
+          { ...tenantFilter, status: "dead_letter" },
+          {
+            projection: {
+              _id: 0,
+              id: 1,
+              capability: 1,
+              event_type: 1,
+              aggregate_id: 1,
+              attempt_count: 1,
+              last_error_code: 1,
+              updated_at: 1,
+            },
+          },
+        )
+        .sort({ updated_at: -1 })
+        .limit(10)
+        .toArray();
+      return json({
+        generated_at: new Date().toISOString(),
+        counts,
+        recent_dead_letters,
+      });
+    }
+    const paymentIntentStatusMatch = route.match(/^admin\/payment-intents\/([0-9a-f-]{36})$/i);
+    if (paymentIntentStatusMatch && method === "GET" && user) {
+      if (
+        !accountHasPermission(user, "finance.view_own") &&
+        !accountHasPermission(user, "finance.view_all")
+      )
+        throw new HttpError(403, "Kart ödeme durumunu görüntüleme yetkiniz yok.");
+      if (user.role !== "platform" && !user.partner_id)
+        throw new HttpError(403, "İşletme bağlantısı bulunmuyor.");
+      const intent = await database.collection<PaymentIntentRecord>("payment_intents").findOne(
+        user.role === "platform"
+          ? { id: paymentIntentStatusMatch[1] }
+          : { id: paymentIntentStatusMatch[1], partner_id: user.partner_id! },
+        {
+          projection: {
+            _id: 0,
+            id: 1,
+            sale_id: 1,
+            wedding_id: 1,
+            status: 1,
+            amount_cents: 1,
+            currency: 1,
+            failure_code: 1,
+            created_at: 1,
+            updated_at: 1,
+            expires_at: 1,
+          },
+        },
+      );
+      if (!intent) throw new HttpError(404, "Kart ödeme isteği bulunamadı.");
+      return json({
+        ...intent,
+        expired:
+          !["succeeded", "failed", "cancelled"].includes(intent.status) &&
+          Date.parse(intent.expires_at) <= Date.now(),
+      });
+    }
+    if (route === "admin/payment-intents" && method === "POST" && user) {
+      if (
+        !accountHasPermission(user, "finance.view_own") &&
+        !accountHasPermission(user, "finance.view_all")
+      )
+        throw new HttpError(403, "Kart ödeme isteği oluşturma yetkiniz yok.");
+      const input = z
+        .object({
+          sale_id: z.string().uuid(),
+          return_url: z.string().url().max(500),
+        })
+        .strict()
+        .parse(await req.json());
+      const configuredOrigin = new URL(
+        process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin,
+      ).origin;
+      const returnUrl = new URL(input.return_url);
+      if (returnUrl.origin !== configuredOrigin)
+        throw new HttpError(400, "Ödeme dönüş adresi uygulama alan adıyla eşleşmelidir.");
+      const paymentProvider = integrationReadiness(
+        process.env,
+        availableIntegrationProviders(),
+      ).find(
+        (item) => item.capability === "payment",
+      );
+      if (paymentProvider?.status !== "ready" || !paymentProvider.provider)
+        throw new HttpError(
+          503,
+          "Sanal POS sağlayıcısı henüz kullanıma hazır değil.",
+        );
+      const sales = database.collection<SaleRecord>("sales");
+      if (user.role !== "platform" && !user.partner_id)
+        throw new HttpError(403, "İşletme bağlantısı bulunmuyor.");
+      const sale = await sales.findOne(
+        user.role === "platform"
+          ? { id: input.sale_id, status: "draft" }
+          : {
+              id: input.sale_id,
+              status: "draft",
+              partner_id: user.partner_id!,
+            },
+      );
+      if (!sale) throw new HttpError(404, "Ödemeye uygun satış bulunamadı.");
+      const event = await weddings.findOne({
+        id: sale.wedding_id,
+        approval_status: "approved",
+      });
+      if (!event)
+        throw new HttpError(409, "Onaylanmış organizasyon bulunmadan ödeme başlatılamaz.");
+      if (!sale.customer_account_id && !event.customer_account_id)
+        throw new HttpError(409, "Satışın kalıcı müşteri cari kimliği bulunmuyor.");
+      const transaction = (await mongoClient()).startSession();
+      let created: PaymentIntentRecord | null = null;
+      try {
+        await transaction.withTransaction(async () => {
+          const verified = await database
+            .collection<PaymentRecord>("payments")
+            .aggregate<{ total: number }>(
+              [
+                { $match: { sale_id: sale.id, status: "verified" } },
+                { $group: { _id: null, total: { $sum: "$amount_cents" } } },
+              ],
+              { session: transaction },
+            )
+            .next();
+          const paidCents = verified?.total || 0;
+          const idempotencyKey = `card-intent:${sale.id}:${paidCents}`;
+          const existing = await database
+            .collection<PaymentIntentRecord>("payment_intents")
+            .findOne({ idempotency_key: idempotencyKey }, { session: transaction });
+          if (existing) {
+            created = existing;
+            return;
+          }
+          const now = new Date();
+          const intent: PaymentIntentRecord = {
+            id: randomUUID(),
+            idempotency_key: idempotencyKey,
+            partner_id: sale.partner_id,
+            wedding_id: sale.wedding_id,
+            sale_id: sale.id,
+            customer_account_id:
+              sale.customer_account_id || event.customer_account_id!,
+            provider: paymentProvider.provider!,
+            provider_intent_id: null,
+            status: "created",
+            amount_cents: paymentIntentAmount({
+              gross_cents: sale.gross_cents,
+              paid_cents: paidCents,
+              payment_plan: event.payment_plan,
+              deposit_expected_cents: event.deposit_expected_cents,
+            }),
+            currency: "TRY",
+            return_url: returnUrl.toString(),
+            created_at: now.toISOString(),
+            updated_at: now.toISOString(),
+            expires_at: new Date(now.getTime() + 30 * 60_000).toISOString(),
+          };
+          const outboxEvent: IntegrationOutboxEvent = {
+            id: randomUUID(),
+            idempotency_key: outboxIdempotencyKey(
+              "payment",
+              "payment_intent.create",
+              intent.id,
+              1,
+            ),
+            capability: "payment",
+            provider: paymentProvider.provider!,
+            event_type: "payment_intent.create",
+            tenant_id: sale.partner_id,
+            aggregate_id: intent.id,
+            payload: {
+              payment_intent_id: intent.id,
+              amount_cents: intent.amount_cents,
+              currency: intent.currency,
+            },
+            status: "pending",
+            attempt_count: 0,
+            max_attempts: 8,
+            available_at: now.toISOString(),
+            expires_at: intent.expires_at,
+            locked_at: null,
+            locked_by: null,
+            created_at: now.toISOString(),
+            updated_at: now.toISOString(),
+          };
+          await database
+            .collection<PaymentIntentRecord>("payment_intents")
+            .insertOne(intent, { session: transaction });
+          await database
+            .collection<IntegrationOutboxEvent>("integration_outbox")
+            .insertOne(outboxEvent, { session: transaction });
+          created = intent;
+        });
+      } catch (reason) {
+        if (reason instanceof MongoServerError && reason.code === 11000) {
+          const verified = await database
+            .collection<PaymentRecord>("payments")
+            .aggregate<{ total: number }>([
+              { $match: { sale_id: sale.id, status: "verified" } },
+              { $group: { _id: null, total: { $sum: "$amount_cents" } } },
+            ])
+            .next();
+          created = await database
+            .collection<PaymentIntentRecord>("payment_intents")
+            .findOne({
+              idempotency_key: `card-intent:${sale.id}:${verified?.total || 0}`,
+            });
+        } else throw reason;
+      } finally {
+        await transaction.endSession();
+      }
+      if (!created)
+        throw new HttpError(409, "Ödeme isteği eşzamanlı işlem nedeniyle oluşturulamadı.");
+      await audit(req, "payment_intent.requested", user, {
+        payment_intent_id: created.id,
+        sale_id: sale.id,
+        amount_cents: created.amount_cents,
+        provider: created.provider,
+      });
+      return json(created, 202);
     }
     if (route === "admin/storefront" && user) {
       if (!canManagePartnerSettings(user))

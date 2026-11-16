@@ -3,6 +3,7 @@ import { DateField } from "@/components/admin/DateField";
 import { SelectField } from "@/components/admin/SelectField";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { useDeferredValue, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,6 +23,7 @@ import { formatBytes } from "@/lib/config";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { EventWizardV2 } from "@/components/admin/EventWizardV2";
 import { Notice } from "@/components/admin/Fields";
+import { RoleWorkspaceOverview } from "@/components/admin/RoleWorkspaceOverview";
 const stateOf = (w: Wedding) =>
   w.lifecycle_status === "draft" && w.approval_status === "submitted"
     ? "submitted"
@@ -59,6 +61,7 @@ const labels: Record<string, string> = {
   expired: "Süresi doldu",
 };
 export default function Events() {
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false),
     [selectedDraft, setSelectedDraft] = useState<Wedding | undefined>(),
     [search, setSearch] = useState(""),
@@ -109,6 +112,12 @@ export default function Events() {
       setSavedViews([]);
     }
   }, []);
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setSelectedDraft(undefined);
+      setOpen(true);
+    }
+  }, [searchParams]);
   function saveView() {
     const name = window.prompt("Bu filtre görünümünün adı");
     if (!name?.trim()) return;
@@ -190,6 +199,7 @@ export default function Events() {
           </p>
         </div>
       </div>
+      {me.data ? <RoleWorkspaceOverview account={me.data} /> : null}
       {status.data &&
         (!status.data.r2_ready ||
           !status.data.last_cleanup ||

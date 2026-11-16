@@ -9,7 +9,33 @@ export type IntegrationCapability =
   | "calendar"
   | "accounting";
 
-export function integrationReadiness(env: NodeJS.ProcessEnv = process.env) {
+export type IntegrationProviderRegistry = Partial<Record<IntegrationCapability, readonly string[]>>;
+
+export function registeredProviderRegistry(
+  outbound: readonly { capability: IntegrationCapability; provider: string }[],
+  webhooks: readonly { capability: IntegrationCapability; provider: string }[],
+): IntegrationProviderRegistry {
+  const registry: Partial<Record<IntegrationCapability, string[]>> = {};
+  const webhookPairs = new Set(
+    webhooks.map((adapter) => `${adapter.capability}:${adapter.provider}`),
+  );
+  for (const adapter of outbound) {
+    if (
+      ["payment", "banking"].includes(adapter.capability) &&
+      !webhookPairs.has(`${adapter.capability}:${adapter.provider}`)
+    )
+      continue;
+    registry[adapter.capability] = Array.from(
+      new Set([...(registry[adapter.capability] || []), adapter.provider]),
+    );
+  }
+  return registry;
+}
+
+export function integrationReadiness(
+  env: NodeJS.ProcessEnv = process.env,
+  availableProviders: IntegrationProviderRegistry = {},
+) {
   const definitions: Array<{
     capability: IntegrationCapability;
     providerKey: string;
@@ -54,14 +80,19 @@ export function integrationReadiness(env: NodeJS.ProcessEnv = process.env) {
   return definitions.map((definition) => {
     const provider = env[definition.providerKey]?.trim() || null;
     const missing = definition.secretKeys.filter((key) => !env[key]?.trim());
+    const adapterAvailable = Boolean(
+      provider && availableProviders[definition.capability]?.includes(provider),
+    );
     return {
       capability: definition.capability,
       provider,
       status:
-        provider && missing.length === 0
+        provider && missing.length === 0 && adapterAvailable
           ? ("ready" as const)
           : provider
-            ? ("incomplete" as const)
+            ? missing.length
+              ? ("incomplete" as const)
+              : ("adapter_unavailable" as const)
             : ("not_configured" as const),
       missing_configuration: provider ? missing : [],
     };

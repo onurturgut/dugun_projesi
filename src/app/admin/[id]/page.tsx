@@ -67,14 +67,18 @@ const dateText = (s: string | null, time = false) =>
       )
     : "Tarih belirlenmedi";
 const money = (cents: number) =>
-  new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(cents / 100);
+  new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(
+    cents / 100,
+  );
 export default function EventDetail() {
   const { id } = useParams<{ id: string }>(),
     searchParams = useSearchParams(),
     qc = useQueryClient();
   const requestedSection = searchParams.get("section");
   const [section, setSection] = useState(
-      ["album", "share", "settings", "photographer"].includes(requestedSection || "")
+      ["album", "share", "settings", "photographer"].includes(
+        requestedSection || "",
+      )
         ? requestedSection!
         : "album",
     ),
@@ -112,7 +116,11 @@ export default function EventDetail() {
     return () => window.clearTimeout(timeout);
   }, [search]);
   useEffect(() => {
-    if (["album", "share", "settings", "photographer"].includes(requestedSection || ""))
+    if (
+      ["album", "share", "settings", "photographer"].includes(
+        requestedSection || "",
+      )
+    )
       setSection(requestedSection!);
   }, [requestedSection]);
   const me = useQuery({
@@ -140,7 +148,10 @@ export default function EventDetail() {
   });
   const photographerPackage = useQuery({
     queryKey: ["finance-photographer-package"],
-    queryFn: () => api<{ grossPriceCents: number; active: boolean }>("/admin/finance/photographer-package"),
+    queryFn: () =>
+      api<{ grossPriceCents: number; active: boolean }>(
+        "/admin/finance/photographer-package",
+      ),
     enabled: me.data?.role === "platform",
   });
   const photographers = useQuery({
@@ -226,7 +237,12 @@ export default function EventDetail() {
     setSelected([]);
   }
   async function publishOrganization() {
-    if (!window.confirm("Organizasyon yayınlansın ve QR/misafir bağlantıları aktif edilsin mi?")) return;
+    if (
+      !window.confirm(
+        "Organizasyon yayınlansın ve QR/misafir bağlantıları aktif edilsin mi?",
+      )
+    )
+      return;
     setBusy(true);
     setError("");
     try {
@@ -238,7 +254,9 @@ export default function EventDetail() {
         qc.invalidateQueries({ queryKey: ["admin-wedding", id] }),
         qc.invalidateQueries({ queryKey: ["admin-weddings"] }),
       ]);
-      toast.success("Organizasyon yayınlandı. QR ve misafir bağlantıları aktif edildi.");
+      toast.success(
+        "Organizasyon yayınlandı. QR ve misafir bağlantıları aktif edildi.",
+      );
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -504,14 +522,22 @@ export default function EventDetail() {
               </p>
             </div>
             <div className="admin-actions">
-              {me.data?.role === "platform" && w.lifecycle_status === "draft" ? (
+              {me.data?.role === "platform" &&
+              w.lifecycle_status === "draft" ? (
                 <button
                   className="admin-button primary"
                   disabled={busy || w.commercial_status !== "payment_verified"}
-                  title={w.commercial_status !== "payment_verified" ? "Yayınlamak için önce finans ekranından ödemeyi onaylayın." : "Organizasyonu yayınla"}
+                  title={
+                    w.commercial_status !== "payment_verified"
+                      ? "Yayınlamak için önce finans ekranından ödemeyi onaylayın."
+                      : "Organizasyonu yayınla"
+                  }
                   onClick={() => void publishOrganization()}
                 >
-                  <Rocket size={16} /> {w.commercial_status === "payment_verified" ? "Organizasyonu yayınla" : "Ödeme onayı bekleniyor"}
+                  <Rocket size={16} />{" "}
+                  {w.commercial_status === "payment_verified"
+                    ? "Organizasyonu yayınla"
+                    : "Ödeme onayı bekleniyor"}
                 </button>
               ) : null}
               {!isPhotographer && (
@@ -539,9 +565,7 @@ export default function EventDetail() {
                 {trash ? "çöp kutusunda" : "toplam"}
               </span>
               <span>
-                <strong>
-                  {w.design_revisions_used || 0}
-                </strong>
+                <strong>{w.design_revisions_used || 0}</strong>
                 {w.design_status === "approved_for_print"
                   ? "baskı onaylı"
                   : w.design_status === "revision_requested"
@@ -574,275 +598,317 @@ export default function EventDetail() {
               <p>Kalıcı silinme: {dateText(w.expires_at, true)} (İstanbul)</p>
             </details>
           </div>
-          {(me.data?.role !== "owner" || section === "photographer") ? <section
-            className="event-photographer-card"
-            aria-labelledby="event-photographer-title"
-          >
-            <span className="event-photographer-icon">
-              <Camera size={19} />
-            </span>
-            <div className="event-photographer-copy">
-              <p>PROFESYONEL ÇEKİM EKİBİ</p>
-              <h2 id="event-photographer-title">Atanmış fotoğrafçı</h2>
-              {w.assigned_photographers?.length ? (
-                <div className="event-photographer-list">
-                  {w.assigned_photographers.map((photographer) => (
-                    <span key={photographer.id}>
-                      <strong>{photographer.display_name}</strong>
-                      <small>
-                        {photographer.email ||
-                          "Organizasyona atanmış fotoğrafçı"}
-                        {photographer.disabled ? " · Erişimi kapalı" : ""}
-                      </small>
-                      {me.data?.role !== "owner" && !isPhotographer ? (
-                        <button
-                          className="admin-button"
-                          disabled={busy}
-                          onClick={() =>
-                            void unassignPhotographer(photographer.id)
-                          }
-                        >
-                          Atamayı kaldır
-                        </button>
-                      ) : null}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <span className="event-photographer-empty">
-                  Bu organizasyona henüz fotoğrafçı atanmamış.
-                </span>
-              )}
-              {me.data?.role !== "owner" && !isPhotographer ? (
-                <div className="event-photographer-assign">
-                  <SelectField
-                    value={photographerId}
-                    onValueChange={setPhotographerId}
-                    aria-label="Fotoğrafçı seç"
-                  >
-                    <option value="">Fotoğrafçı seçin</option>
-                    {photographers.data
-                      ?.filter(
-                        (item) =>
-                          !w.assigned_photographers?.some(
-                            (assigned) => assigned.id === item.id,
-                          ),
-                      )
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.display_name}
-                        </option>
-                      ))}
-                  </SelectField>
-                  <input
-                    type="date"
-                    aria-label="Fotoğrafçı teslim tarihi"
-                    value={photographerDueDate}
-                    onChange={(event) =>
-                      setPhotographerDueDate(event.target.value)
-                    }
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    max="100000"
-                    aria-label="Beklenen profesyonel dosya sayısı"
-                    placeholder="Beklenen dosya"
-                    value={expectedFileCount}
-                    onChange={(event) =>
-                      setExpectedFileCount(event.target.value)
-                    }
-                  />
-                  <button
-                    className="admin-button"
-                    disabled={!photographerId || busy}
-                    onClick={() => void assignPhotographer()}
-                  >
-                    Fotoğrafçı ata
-                  </button>
-                </div>
-              ) : null}
-              {me.data?.role === "platform" &&
-              photographerPackage.data?.active &&
-              !photographerSale.data &&
-              w.approval_status === "approved" &&
-              w.assigned_photographers?.length ? (
-                <div className="event-photographer-approval">
-                  <strong>Fotoğrafçı paketini satışa sun</strong>
-                  <p>
-                    {photographerPackage.data ? money(photographerPackage.data.grossPriceCents) : "Güncel fiyat"} KDV dâhil paket, organizasyon sahibinin ticari
-                    onayına gönderilir. Onay verilmeden hakediş oluşmaz.
-                  </p>
-                  <button
-                    className="admin-button primary"
-                    disabled={busy}
-                    onClick={() =>
-                      void createPhotographerPackageSale(
-                        w.assigned_photographers![0].id,
-                      )
-                    }
-                  >
-                    Müşteri onayına gönder
-                  </button>
-                </div>
-              ) : null}
-              {me.data?.role !== "owner" && !isPhotographer ? (
-                <details className="event-photographer-invite">
-                  <summary>Kayıtlı olmayan fotoğrafçıyı davet et</summary>
-                  <div>
-                    <input
-                      type="email"
-                      placeholder="E-posta"
-                      value={invite.email}
-                      onChange={(event) =>
-                        setInvite((current) => ({
-                          ...current,
-                          email: event.target.value,
-                        }))
-                      }
-                    />
-                    <input
-                      placeholder="Fotoğraf işletmesi"
-                      value={invite.business_name}
-                      onChange={(event) =>
-                        setInvite((current) => ({
-                          ...current,
-                          business_name: event.target.value,
-                        }))
-                      }
-                    />
-                    <input
-                      inputMode="numeric"
-                      minLength={11}
-                      maxLength={11}
-                      placeholder="05xxxxxxxxx"
-                      value={invite.phone}
-                      onChange={(event) =>
-                        setInvite((current) => ({
-                          ...current,
-                          phone: event.target.value
-                            .replace(/\D/g, "")
-                            .slice(0, 11),
-                        }))
-                      }
-                    />
-                    <input
-                      placeholder="Adres"
-                      value={invite.address}
-                      onChange={(event) =>
-                        setInvite((current) => ({
-                          ...current,
-                          address: event.target.value,
-                        }))
-                      }
-                    />
+          {me.data?.role !== "owner" || section === "photographer" ? (
+            <section
+              className="event-photographer-card"
+              aria-labelledby="event-photographer-title"
+            >
+              <span className="event-photographer-icon">
+                <Camera size={19} />
+              </span>
+              <div className="event-photographer-copy">
+                <p>PROFESYONEL ÇEKİM EKİBİ</p>
+                <h2 id="event-photographer-title">Atanmış fotoğrafçı</h2>
+                {w.assigned_photographers?.length ? (
+                  <div className="event-photographer-list">
+                    {w.assigned_photographers.map((photographer) => (
+                      <span key={photographer.id}>
+                        <strong>{photographer.display_name}</strong>
+                        <small>
+                          {photographer.email ||
+                            "Organizasyona atanmış fotoğrafçı"}
+                          {photographer.disabled ? " · Erişimi kapalı" : ""}
+                        </small>
+                        {me.data?.role !== "owner" && !isPhotographer ? (
+                          <button
+                            className="admin-button"
+                            disabled={busy}
+                            onClick={() =>
+                              void unassignPhotographer(photographer.id)
+                            }
+                          >
+                            Atamayı kaldır
+                          </button>
+                        ) : null}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="event-photographer-empty">
+                    Bu organizasyona henüz fotoğrafçı atanmamış.
+                  </span>
+                )}
+                {me.data?.role !== "owner" && !isPhotographer ? (
+                  <div className="event-photographer-assign">
+                    <SelectField
+                      value={photographerId}
+                      onValueChange={setPhotographerId}
+                      aria-label="Fotoğrafçı seç"
+                    >
+                      <option value="">Fotoğrafçı seçin</option>
+                      {photographers.data
+                        ?.filter(
+                          (item) =>
+                            !w.assigned_photographers?.some(
+                              (assigned) => assigned.id === item.id,
+                            ),
+                        )
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.display_name}
+                          </option>
+                        ))}
+                    </SelectField>
                     <input
                       type="date"
-                      aria-label="Davet son kullanma tarihi"
-                      value={invite.expires_at}
+                      aria-label="Fotoğrafçı teslim tarihi"
+                      value={photographerDueDate}
                       onChange={(event) =>
-                        setInvite((current) => ({
-                          ...current,
-                          expires_at: event.target.value,
-                        }))
+                        setPhotographerDueDate(event.target.value)
+                      }
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      max="100000"
+                      aria-label="Beklenen profesyonel dosya sayısı"
+                      placeholder="Beklenen dosya"
+                      value={expectedFileCount}
+                      onChange={(event) =>
+                        setExpectedFileCount(event.target.value)
                       }
                     />
                     <button
                       className="admin-button"
-                      disabled={
-                        busy ||
-                        !invite.email ||
-                        !invite.business_name ||
-                        !invite.phone ||
-                        !invite.address ||
-                        !invite.expires_at
-                      }
-                      onClick={() => void createPhotographerInvitation()}
+                      disabled={!photographerId || busy}
+                      onClick={() => void assignPhotographer()}
                     >
-                      Davet bağlantısı oluştur
+                      Fotoğrafçı ata
                     </button>
                   </div>
-                </details>
-              ) : null}
-              {me.data?.role === "owner" && photographerSale.data ? (
-                <div className="event-photographer-approval">
-                  {photographerSale.data.status ===
-                  "pending_customer_consent" ? (
-                    <>
-                      <strong>Fotoğrafçı paketi satın alma onayı</strong>
-                      <p>
-                        Atanmış fotoğrafçının profesyonel çekim hizmeti için
-                        toplam fiyat {money(photographerSale.data.settlement_snapshot.grossCents)} ve KDV dâhildir. Bu kayıt
-                        hukuki sözleşme yerine geçmez; onaylı ticari paket
-                        seçiminizi belgeler.
-                      </p>
-                      <label className="finance-check">
-                        <input type="checkbox" id="photographer-package-consent" />
-                        <span>{money(photographerSale.data.settlement_snapshot.grossCents)} KDV dâhil paket seçimini onaylıyorum.</span>
-                      </label>
+                ) : null}
+                {me.data?.role === "platform" &&
+                photographerPackage.data?.active &&
+                !photographerSale.data &&
+                w.approval_status === "approved" &&
+                w.assigned_photographers?.length ? (
+                  <div className="event-photographer-approval">
+                    <strong>Fotoğrafçı paketini satışa sun</strong>
+                    <p>
+                      {photographerPackage.data
+                        ? money(photographerPackage.data.grossPriceCents)
+                        : "Güncel fiyat"}{" "}
+                      KDV dâhil paket, organizasyon sahibinin ticari onayına
+                      gönderilir. Onay verilmeden hakediş oluşmaz.
+                    </p>
+                    <button
+                      className="admin-button primary"
+                      disabled={busy}
+                      onClick={() =>
+                        void createPhotographerPackageSale(
+                          w.assigned_photographers![0].id,
+                        )
+                      }
+                    >
+                      Müşteri onayına gönder
+                    </button>
+                  </div>
+                ) : null}
+                {me.data?.role !== "owner" && !isPhotographer ? (
+                  <details className="event-photographer-invite">
+                    <summary>Kayıtlı olmayan fotoğrafçıyı davet et</summary>
+                    <div>
+                      <input
+                        type="email"
+                        placeholder="E-posta"
+                        value={invite.email}
+                        onChange={(event) =>
+                          setInvite((current) => ({
+                            ...current,
+                            email: event.target.value,
+                          }))
+                        }
+                      />
+                      <input
+                        placeholder="Fotoğraf işletmesi"
+                        value={invite.business_name}
+                        onChange={(event) =>
+                          setInvite((current) => ({
+                            ...current,
+                            business_name: event.target.value,
+                          }))
+                        }
+                      />
+                      <input
+                        inputMode="numeric"
+                        minLength={11}
+                        maxLength={11}
+                        placeholder="05xxxxxxxxx"
+                        value={invite.phone}
+                        onChange={(event) =>
+                          setInvite((current) => ({
+                            ...current,
+                            phone: event.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 11),
+                          }))
+                        }
+                      />
+                      <input
+                        placeholder="Adres"
+                        value={invite.address}
+                        onChange={(event) =>
+                          setInvite((current) => ({
+                            ...current,
+                            address: event.target.value,
+                          }))
+                        }
+                      />
+                      <input
+                        type="date"
+                        aria-label="Davet son kullanma tarihi"
+                        value={invite.expires_at}
+                        onChange={(event) =>
+                          setInvite((current) => ({
+                            ...current,
+                            expires_at: event.target.value,
+                          }))
+                        }
+                      />
                       <button
-                        className="admin-button primary"
-                        disabled={busy}
-                        onClick={() => {
-                          const checkbox = document.querySelector<HTMLInputElement>(
-                            "#photographer-package-consent",
-                          );
-                          if (!checkbox?.checked) {
-                            toast.info("Devam etmek için paket seçimini onaylayın.");
-                            return;
-                          }
-                          void acceptPhotographerPackage();
-                        }}
+                        className="admin-button"
+                        disabled={
+                          busy ||
+                          !invite.email ||
+                          !invite.business_name ||
+                          !invite.phone ||
+                          !invite.address ||
+                          !invite.expires_at
+                        }
+                        onClick={() => void createPhotographerInvitation()}
                       >
-                        Satın alma onayını kaydet
+                        Davet bağlantısı oluştur
                       </button>
-                    </>
-                  ) : photographerSale.data.status === "pending_payment" ? (
-                    <><strong>Ödeme doğrulaması bekleniyor</strong><p>Fotoğrafçı paketi onayınız alındı. ShineQR ödemeyi doğruladıktan sonra paket aktif olacaktır.</p></>
-                  ) : photographerSale.data.customer_approval_status ===
-                  "pending" ? (
-                    <>
-                      <strong>Fotoğraf teslimat onayı</strong>
-                      <p>
-                        Fotoğrafçı teslimatı tamamladı. Albümü kontrol ettikten
-                        sonra onaylayın; bu işlem hakediş sürecini başlatır.
-                      </p>
-                      <button
-                        className="admin-button primary"
-                        disabled={busy}
-                        onClick={() => void approvePhotographerDelivery()}
-                      >
-                        Teslimatı onayla
-                      </button>
-                    </>
-                  ) : photographerSale.data.customer_approval_status ===
-                    "approved" ? (
-                    <>
-                      <strong>Fotoğraf teslimat onayı</strong>
-                      <p>
-                        Teslimat {dateText(
-                          photographerSale.data.customer_approved_at || null,
-                          true,
-                        )} tarihinde onaylandı.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <strong>Fotoğraf teslimat onayı</strong>
-                      <p>Fotoğrafçının teslimatı tamamlaması bekleniyor.</p>
-                    </>
-                  )}
-                </div>
-              ) : null}
-              {me.data?.role === "owner" && !photographerSale.data ? (
-                <div className="event-photographer-approval">
-                  <strong>Profesyonel fotoğrafçı paketi</strong>
-                  <p>Profesyonel çekim, teslimat ve albüm süreci ShineQR panelinizden takip edilir. Organizasyonunuza uygun paket ve müsaitlik bilgisi için bizimle WhatsApp üzerinden iletişime geçin.</p>
-                  <a className="admin-button primary" href={`https://wa.me/905512314736?text=${encodeURIComponent(`Merhaba, ${w.title} organizasyonum için profesyonel fotoğrafçı paketi hakkında bilgi almak istiyorum. Organizasyon kodu: ${w.id}`)}`} target="_blank" rel="noreferrer">WhatsApp’tan bilgi al</a>
-                </div>
-              ) : null}
-            </div>
-          </section> : null}
+                    </div>
+                  </details>
+                ) : null}
+                {me.data?.role === "owner" && photographerSale.data ? (
+                  <div className="event-photographer-approval">
+                    {photographerSale.data.status ===
+                    "pending_customer_consent" ? (
+                      <>
+                        <strong>Fotoğrafçı paketi satın alma onayı</strong>
+                        <p>
+                          Atanmış fotoğrafçının profesyonel çekim hizmeti için
+                          toplam fiyat{" "}
+                          {money(
+                            photographerSale.data.settlement_snapshot
+                              .grossCents,
+                          )}{" "}
+                          ve KDV dâhildir. Bu kayıt hukuki sözleşme yerine
+                          geçmez; onaylı ticari paket seçiminizi belgeler.
+                        </p>
+                        <label className="finance-check">
+                          <input
+                            type="checkbox"
+                            id="photographer-package-consent"
+                          />
+                          <span>
+                            {money(
+                              photographerSale.data.settlement_snapshot
+                                .grossCents,
+                            )}{" "}
+                            KDV dâhil paket seçimini onaylıyorum.
+                          </span>
+                        </label>
+                        <button
+                          className="admin-button primary"
+                          disabled={busy}
+                          onClick={() => {
+                            const checkbox =
+                              document.querySelector<HTMLInputElement>(
+                                "#photographer-package-consent",
+                              );
+                            if (!checkbox?.checked) {
+                              toast.info(
+                                "Devam etmek için paket seçimini onaylayın.",
+                              );
+                              return;
+                            }
+                            void acceptPhotographerPackage();
+                          }}
+                        >
+                          Satın alma onayını kaydet
+                        </button>
+                      </>
+                    ) : photographerSale.data.status === "pending_payment" ? (
+                      <>
+                        <strong>Ödeme doğrulaması bekleniyor</strong>
+                        <p>
+                          Fotoğrafçı paketi onayınız alındı. ShineQR ödemeyi
+                          doğruladıktan sonra paket aktif olacaktır.
+                        </p>
+                      </>
+                    ) : photographerSale.data.customer_approval_status ===
+                      "pending" ? (
+                      <>
+                        <strong>Fotoğraf teslimat onayı</strong>
+                        <p>
+                          Fotoğrafçı teslimatı tamamladı. Albümü kontrol
+                          ettikten sonra onaylayın; bu işlem hakediş sürecini
+                          başlatır.
+                        </p>
+                        <button
+                          className="admin-button primary"
+                          disabled={busy}
+                          onClick={() => void approvePhotographerDelivery()}
+                        >
+                          Teslimatı onayla
+                        </button>
+                      </>
+                    ) : photographerSale.data.customer_approval_status ===
+                      "approved" ? (
+                      <>
+                        <strong>Fotoğraf teslimat onayı</strong>
+                        <p>
+                          Teslimat{" "}
+                          {dateText(
+                            photographerSale.data.customer_approved_at || null,
+                            true,
+                          )}{" "}
+                          tarihinde onaylandı.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Fotoğraf teslimat onayı</strong>
+                        <p>Fotoğrafçının teslimatı tamamlaması bekleniyor.</p>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+                {me.data?.role === "owner" && !photographerSale.data ? (
+                  <div className="event-photographer-approval">
+                    <strong>Profesyonel fotoğrafçı paketi</strong>
+                    <p>
+                      Profesyonel çekim, teslimat ve albüm süreci ShineQR
+                      panelinizden takip edilir. Organizasyonunuza uygun paket
+                      ve müsaitlik bilgisi için bizimle WhatsApp üzerinden
+                      iletişime geçin.
+                    </p>
+                    <a
+                      className="admin-button primary"
+                      href={`https://wa.me/905512314736?text=${encodeURIComponent(`Merhaba, ${w.title} organizasyonum için profesyonel fotoğrafçı paketi hakkında bilgi almak istiyorum. Organizasyon kodu: ${w.id}`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      WhatsApp’tan bilgi al
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
           <nav className="admin-tabs" aria-label="Organizasyon bölümleri">
             {!isPhotographer && (
               <Link href={`/admin/${id}/design/wedding`}>
@@ -870,12 +936,14 @@ export default function EventDetail() {
                 >
                   <QrCode size={18} /> Paylaşım ve QR
                 </button>
-                {me.data?.role === "owner" ? <button
-                  aria-pressed={section === "photographer"}
-                  onClick={() => setSection("photographer")}
-                >
-                  <Camera size={18} /> Fotoğrafçı talebi
-                </button> : null}
+                {me.data?.role === "owner" ? (
+                  <button
+                    aria-pressed={section === "photographer"}
+                    onClick={() => setSection("photographer")}
+                  >
+                    <Camera size={18} /> Fotoğrafçı talebi
+                  </button>
+                ) : null}
                 <button
                   aria-pressed={section === "settings"}
                   onClick={() => setSection("settings")}
@@ -939,102 +1007,144 @@ export default function EventDetail() {
               </button>
             </div>
           )}
-          {section === "share" &&
-            !isPhotographer && (
-              <div className="admin-panels">
-                <QrPanel slug={w.slug} active={w.lifecycle_status !== "draft"} />
-                <div className="admin-panel">
-                  <h2>Anılara bir davet</h2>
-                  <p className="admin-hint">
-                    QR kodunu masalara yerleştirin veya misafir bağlantısını
-                    paylaşın. Misafirler hesap açmadan fotoğraf, video ve mesaj
-                    bırakabilir.
-                  </p>
-                  <p className="admin-notice">
-                    Albüm misafirlere açık değildir. İçerikleri organizasyon
-                    sahibi ve yetkili ShineQR yöneticisi görebilir.
-                  </p>
-                  {w.lifecycle_status !== "draft" ? <Link className="admin-button" href={`/wedding/${w.slug}`}>
+          {section === "share" && !isPhotographer && (
+            <div className="admin-panels">
+              <QrPanel slug={w.slug} active={w.lifecycle_status !== "draft"} />
+              <div className="admin-panel">
+                <h2>Anılara bir davet</h2>
+                <p className="admin-hint">
+                  QR kodunu masalara yerleştirin veya misafir bağlantısını
+                  paylaşın. Misafirler hesap açmadan fotoğraf, video ve mesaj
+                  bırakabilir.
+                </p>
+                <p className="admin-notice">
+                  Albüm misafirlere açık değildir. İçerikleri organizasyon
+                  sahibi ve yetkili ShineQR yöneticisi görebilir.
+                </p>
+                {w.lifecycle_status !== "draft" ? (
+                  <Link className="admin-button" href={`/wedding/${w.slug}`}>
                     Misafir sayfasını aç
-                  </Link> : null}
-                </div>
+                  </Link>
+                ) : null}
               </div>
-            )}
-          {section === "settings" &&
-            me.data &&
-            !isPhotographer && (
-              <div className="space-y-6">
-                {me.data.role === "platform" && (
-                  <div className="admin-panel storage-limit-panel">
-                    <div>
-                      <p className="admin-kicker">KOTA ONAYI</p>
-                      <h2>Ek depolama kapasitesi</h2>
-                      <p className="admin-hint">
-                        Paket sınırına eklenecek kapasiteyi belirleyin. 0 GB
-                        seçilirse paket sınırına geri dönülür.
-                      </p>
-                    </div>
-                    <label>
-                      Ek kapasite (GB)
-                      <input
-                        type="number"
-                        min="0"
-                        max="350"
-                        step="1"
-                        value={additionalGb}
-                        onChange={(e) => setAdditionalGb(e.target.value)}
-                      />
-                    </label>
-                    <button
-                      className="admin-button"
-                      disabled={
-                        busy ||
-                        !/^\d+$/.test(additionalGb) ||
-                        Number(additionalGb) > 350
-                      }
-                      onClick={() => void saveStorageLimit()}
-                    >
-                      {busy ? "Kaydediliyor…" : "Kapasiteyi onayla"}
-                    </button>
+            </div>
+          )}
+          {section === "settings" && me.data && !isPhotographer && (
+            <div className="space-y-6">
+              {me.data.role === "platform" && (
+                <div className="admin-panel storage-limit-panel">
+                  <div>
+                    <p className="admin-kicker">KOTA ONAYI</p>
+                    <h2>Ek depolama kapasitesi</h2>
+                    <p className="admin-hint">
+                      Paket sınırına eklenecek kapasiteyi belirleyin. 0 GB
+                      seçilirse paket sınırına geri dönülür.
+                    </p>
                   </div>
-                )}
-                {me.data.role === "owner" ? <div className="admin-panel owner-package-card">
-                  <p className="admin-kicker">PAKET VE ORGANİZASYON</p>
-                  <h2>{w.package_snapshot?.name || w.package_code || "Organizasyon paketiniz"}</h2>
-                  <p className="admin-hint">Paket haklarınız ve organizasyon bilgileriniz onaylanan satış kaydınıza göre korunur.</p>
-                  <div className="owner-package-facts"><span><strong>{w.upload_days}</strong> gün yükleme</span><span><strong>{w.trash_days}</strong> gün çöp kutusu</span><span><strong>{formatBytes(effectiveStorageLimit)}</strong> depolama</span></div>
-                </div> : null}
-                <div className="admin-panel">
-                  <h2>Organizasyon bilgileri</h2>
-                  {me.data.role === "owner" ? (
-                    <>
-                      <p className="admin-hint owner-event-readonly-note">
-                        Bu bilgiler onaylanan organizasyon kaydınıza aittir ve müşteri panelinden değiştirilemez. Düzeltme gerekiyorsa ShineQR ile iletişime geçin.
-                      </p>
-                      <dl className="owner-event-readonly" aria-label="Salt okunur organizasyon bilgileri">
-                        <div><dt>Organizasyon başlığı</dt><dd>{w.title}</dd></div>
-                        <div><dt>Organizasyon türü</dt><dd>{w.event_type}</dd></div>
-                        <div><dt>Organizasyon tarihi</dt><dd>{dateText(w.wedding_date)}</dd></div>
-                        <div><dt>Sayfa adresi</dt><dd>{w.slug}</dd></div>
-                        <div><dt>Gelin adı</dt><dd>{w.bride_name}</dd></div>
-                        <div><dt>Damat adı</dt><dd>{w.groom_name}</dd></div>
-                      </dl>
-                    </>
-                  ) : (
-                    <EventForm
-                      event={w}
-                      user={me.data}
-                      onSaved={() => {
-                        qc.invalidateQueries({ queryKey: ["admin-wedding", id] });
-                        qc.invalidateQueries({ queryKey: ["admin-weddings"] });
-                        toast.success("Organizasyon güncellendi.");
-                      }}
+                  <label>
+                    Ek kapasite (GB)
+                    <input
+                      type="number"
+                      min="0"
+                      max="350"
+                      step="1"
+                      value={additionalGb}
+                      onChange={(e) => setAdditionalGb(e.target.value)}
                     />
-                  )}
+                  </label>
+                  <button
+                    className="admin-button"
+                    disabled={
+                      busy ||
+                      !/^\d+$/.test(additionalGb) ||
+                      Number(additionalGb) > 350
+                    }
+                    onClick={() => void saveStorageLimit()}
+                  >
+                    {busy ? "Kaydediliyor…" : "Kapasiteyi onayla"}
+                  </button>
                 </div>
-                {me.data.role !== "owner" ? <OwnerForm id={id} /> : null}
+              )}
+              {me.data.role === "owner" ? (
+                <div className="admin-panel owner-package-card">
+                  <p className="admin-kicker">PAKET VE ORGANİZASYON</p>
+                  <h2>
+                    {w.package_snapshot?.name ||
+                      w.package_code ||
+                      "Organizasyon paketiniz"}
+                  </h2>
+                  <p className="admin-hint">
+                    Paket haklarınız ve organizasyon bilgileriniz onaylanan
+                    satış kaydınıza göre korunur.
+                  </p>
+                  <div className="owner-package-facts">
+                    <span>
+                      <strong>{w.upload_days}</strong> gün yükleme
+                    </span>
+                    <span>
+                      <strong>{w.trash_days}</strong> gün çöp kutusu
+                    </span>
+                    <span>
+                      <strong>{formatBytes(effectiveStorageLimit)}</strong>{" "}
+                      depolama
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              <div className="admin-panel">
+                <h2>Organizasyon bilgileri</h2>
+                {me.data.role === "owner" ? (
+                  <>
+                    <p className="admin-hint owner-event-readonly-note">
+                      Bu bilgiler onaylanan organizasyon kaydınıza aittir ve
+                      müşteri panelinden değiştirilemez. Düzeltme gerekiyorsa
+                      ShineQR ile iletişime geçin.
+                    </p>
+                    <dl
+                      className="owner-event-readonly"
+                      aria-label="Salt okunur organizasyon bilgileri"
+                    >
+                      <div>
+                        <dt>Organizasyon başlığı</dt>
+                        <dd>{w.title}</dd>
+                      </div>
+                      <div>
+                        <dt>Organizasyon türü</dt>
+                        <dd>{w.event_type}</dd>
+                      </div>
+                      <div>
+                        <dt>Organizasyon tarihi</dt>
+                        <dd>{dateText(w.wedding_date)}</dd>
+                      </div>
+                      <div>
+                        <dt>Sayfa adresi</dt>
+                        <dd>{w.slug}</dd>
+                      </div>
+                      <div>
+                        <dt>Gelin adı</dt>
+                        <dd>{w.bride_name}</dd>
+                      </div>
+                      <div>
+                        <dt>Damat adı</dt>
+                        <dd>{w.groom_name}</dd>
+                      </div>
+                    </dl>
+                  </>
+                ) : (
+                  <EventForm
+                    event={w}
+                    user={me.data}
+                    onSaved={() => {
+                      qc.invalidateQueries({ queryKey: ["admin-wedding", id] });
+                      qc.invalidateQueries({ queryKey: ["admin-weddings"] });
+                      toast.success("Organizasyon güncellendi.");
+                    }}
+                  />
+                )}
               </div>
-            )}
+              {me.data.role !== "owner" ? <OwnerForm id={id} /> : null}
+            </div>
+          )}
           {section === "album" && canViewAlbum && (
             <section aria-label="Medya albümü">
               <div className="admin-toolbar">
